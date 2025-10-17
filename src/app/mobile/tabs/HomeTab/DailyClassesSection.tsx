@@ -361,7 +361,15 @@ function useDailyClassSessions({
   const [classesLoading, setClassesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const todayId = useMemo(() => getTodayId(), []);
+  const [todayId, setTodayId] = useState<string>(dateId);
+
+  useEffect(() => {
+    const resolvedTodayId = getTodayId();
+    if (resolvedTodayId !== todayId) {
+      setTodayId(resolvedTodayId);
+    }
+  }, [todayId]);
+
   const daysFromToday = useMemo(() => calculateDaysFromToday(dateId, todayId), [dateId, todayId]);
 
   useEffect(() => {
