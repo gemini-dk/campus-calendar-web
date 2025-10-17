@@ -9,7 +9,7 @@ import {
   faCircleCheck,
   faCircleQuestion,
   faCircleXmark,
-  faClipboardList,
+  faListCheck,
   faNoteSticky,
   faPlay,
   faTriangleExclamation,
@@ -643,7 +643,7 @@ export default function DailyClassesSection({
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full flex-col gap-3">
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
@@ -659,7 +659,7 @@ export default function DailyClassesSection({
           本日の授業は登録されていません。
         </div>
       ) : (
-        <ul className="flex w-full flex-col gap-4">
+        <ul className="flex w-full flex-col gap-3">
           {sessions.map((session) => (
             <DailyClassCard
               key={session.id}
@@ -751,7 +751,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
   );
 
   return (
-    <li className="flex w-full flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+    <li className="flex w-full flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
           {periodLabel}
@@ -787,13 +787,12 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <h3 className="text-base font-semibold text-neutral-900">{session.className}</h3>
-        <p className="text-xs font-medium text-neutral-500">出欠サマリー</p>
+      <div className="flex flex-col">
+        <h3 className="text-lg font-semibold text-neutral-900">{session.className}</h3>
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-2.5">
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-semibold text-emerald-600">{session.summary.presentCount}</span>
             <span className="text-sm text-neutral-600">
@@ -803,19 +802,24 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
           </div>
           <div className="text-sm font-semibold text-red-500">{absenceRatioLabel}</div>
         </div>
-        <div className="flex h-3 w-full overflow-hidden rounded-full bg-neutral-200">
-          <span style={{ width: `${progressSegments.present}%` }} className="h-full bg-emerald-500" />
-          <span style={{ width: `${progressSegments.late}%` }} className="h-full bg-orange-400" />
-          <span style={{ width: `${progressSegments.unrecorded}%` }} className="h-full bg-neutral-400" />
-          <span style={{ width: `${progressSegments.absent}%` }} className="h-full bg-red-500" />
+        <div className="relative flex h-3 w-full overflow-hidden rounded-full bg-neutral-200">
+          <div className="flex h-full w-full">
+            <span style={{ width: `${progressSegments.present}%` }} className="h-full bg-emerald-500" />
+            <span style={{ width: `${progressSegments.late}%` }} className="h-full bg-orange-400" />
+            <span style={{ width: `${progressSegments.unrecorded}%` }} className="h-full bg-neutral-400" />
+          </div>
+          <span
+            style={{ width: `${progressSegments.absent}%` }}
+            className="absolute right-0 top-0 h-full bg-red-500"
+          />
         </div>
         {absenceMessage ? (
           <p className="text-xs text-red-500">{absenceMessage}</p>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <ActionButton icon={faClipboardList} label="課題作成" />
+      <div className="flex flex-wrap items-center gap-2">
+        <ActionButton icon={faListCheck} label="課題作成" />
         <ActionButton icon={faNoteSticky} label="メモ作成" variant="purple" />
         {isPastOrToday ? (
           <AttendanceToggleGroup
@@ -865,10 +869,11 @@ function ActionButton({ icon, label, variant = 'blue' }: ActionButtonProps) {
   return (
     <button
       type="button"
-      className={`flex h-12 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${variantClass}`}
+      aria-label={label}
+      title={label}
+      className={`flex h-11 w-11 items-center justify-center rounded-full text-lg transition ${variantClass}`}
     >
-      <FontAwesomeIcon icon={icon} className="text-base" aria-hidden="true" />
-      <span>{label}</span>
+      <FontAwesomeIcon icon={icon} className="text-lg" aria-hidden="true" />
     </button>
   );
 }
@@ -907,7 +912,7 @@ const ATTENDANCE_OPTIONS: {
 
 function AttendanceToggleGroup({ value, onChange, disabled }: AttendanceToggleGroupProps) {
   return (
-    <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 shadow-sm">
+    <div className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 py-2 shadow-sm">
       {ATTENDANCE_OPTIONS.map((option) => {
         const isActive = value === option.value;
         return (
@@ -917,14 +922,14 @@ function AttendanceToggleGroup({ value, onChange, disabled }: AttendanceToggleGr
             onClick={() => onChange(isActive ? null : option.value)}
             disabled={disabled}
             aria-pressed={isActive}
-            className={`flex h-14 w-14 flex-col items-center justify-center rounded-full text-[10px] font-semibold transition ${
+            className={`flex h-[45px] w-[45px] items-center justify-center rounded-full transition ${
               isActive
                 ? option.activeClass
                 : 'bg-transparent text-neutral-400 hover:bg-neutral-100'
             } disabled:cursor-not-allowed disabled:opacity-60`}
+            aria-label={option.label}
           >
-            <FontAwesomeIcon icon={option.icon} className="text-base" aria-hidden="true" />
-            <span className="mt-1">{option.label}</span>
+            <FontAwesomeIcon icon={option.icon} className="text-[40px]" aria-hidden="true" />
           </button>
         );
       })}
