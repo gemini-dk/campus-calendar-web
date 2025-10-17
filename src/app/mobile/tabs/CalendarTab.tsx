@@ -51,6 +51,10 @@ type MonthState = {
 
 type MonthStateMap = Record<string, MonthState>;
 
+type CalendarTabProps = {
+  onDateSelect?: (dateId: string) => void;
+};
+
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -112,7 +116,7 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
-export default function CalendarTab() {
+export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const { settings, initialized } = useUserSettings();
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
@@ -575,6 +579,7 @@ export default function CalendarTab() {
                         infoMap={infoMap}
                         todayId={todayId}
                         onRetry={handleRetry}
+                        onDateSelect={onDateSelect}
                       />
                     </div>
                   );
@@ -600,6 +605,7 @@ type CalendarMonthSlideProps = {
   infoMap: CalendarInfoMap;
   todayId: string;
   onRetry: (monthDate: Date) => void;
+  onDateSelect?: (dateId: string) => void;
 };
 
 function CalendarMonthSlide({
@@ -608,6 +614,7 @@ function CalendarMonthSlide({
   infoMap,
   todayId,
   onRetry,
+  onDateSelect,
 }: CalendarMonthSlideProps) {
   const rawDates = monthState?.dates ?? generateMonthDates(monthDate);
   const rawDateIds = monthState?.dateIds ?? rawDates.map((date) => formatDateId(date));
@@ -650,11 +657,17 @@ function CalendarMonthSlide({
           const showBottomBorder = index < totalCells - WEEKDAY_HEADERS.length;
 
           return (
-            <div
+            <button
               key={dateId}
-              className={`flex min-h-0 flex-col overflow-hidden text-[11px] leading-tight ${
+              type="button"
+              onClick={() => onDateSelect?.(dateId)}
+              className={`flex min-h-0 flex-col overflow-hidden text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
                 isCurrentMonth ? '' : 'opacity-50'
-              } ${isToday ? 'outline outline-2 outline-blue-400' : ''}`}
+              } ${
+                isToday
+                  ? 'outline outline-2 outline-blue-400'
+                  : 'hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60'
+              }`}
               style={{
                 backgroundColor,
                 borderRightWidth: showRightBorder ? 1 : 0,
@@ -686,7 +699,7 @@ function CalendarMonthSlide({
                   {day?.description ?? ''}
                 </span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

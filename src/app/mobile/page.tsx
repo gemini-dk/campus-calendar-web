@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -9,6 +9,8 @@ import {
   faHome,
   faTasks,
 } from "@fortawesome/free-solid-svg-icons";
+
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import HomeTab from "./tabs/HomeTab";
 import CalendarTab from "./tabs/CalendarTab";
@@ -23,8 +25,55 @@ const TABS: TabDefinition[] = [
   { id: "classes", label: "授業", icon: faChalkboardTeacher, Component: ClassesTab },
 ];
 
-export default function MobilePage() {
-  const [activeTab, setActiveTab] = useState<TabId>("home");
+function MobilePageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const tabFromParams = useMemo<TabId>(() => {
+    const param = searchParams.get("tab");
+    if (param === "home" || param === "calendar" || param === "todo" || param === "classes") {
+      return param;
+    }
+    return "home";
+  }, [searchParams]);
+
+  const [activeTab, setActiveTab] = useState<TabId>(tabFromParams);
+
+  useEffect(() => {
+    setActiveTab((prev) => (prev === tabFromParams ? prev : tabFromParams));
+  }, [tabFromParams]);
+
+  const updateSearchParams = useCallback(
+    (updater: (params: URLSearchParams) => void) => {
+      const params = new URLSearchParams(searchParams.toString());
+      updater(params);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleTabChange = useCallback(
+    (nextTab: TabId) => {
+      setActiveTab(nextTab);
+      updateSearchParams((params) => {
+        params.set("tab", nextTab);
+      });
+    },
+    [updateSearchParams],
+  );
+
+  const handleCalendarDateSelect = useCallback(
+    (dateId: string) => {
+      setActiveTab("home");
+      updateSearchParams((params) => {
+        params.set("tab", "home");
+        params.set("date", dateId);
+      });
+    },
+    [updateSearchParams],
+  );
 
   const currentTab = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
   const ActiveComponent = currentTab.Component;
@@ -35,7 +84,11 @@ export default function MobilePage() {
 
         <main className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50">
-            <ActiveComponent />
+            {currentTab.id === "calendar" ? (
+              <CalendarTab onDateSelect={handleCalendarDateSelect} />
+            ) : (
+              <ActiveComponent />
+            )}
           </div>
         </main>
 
@@ -46,7 +99,7 @@ export default function MobilePage() {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
                 className={`flex h-full flex-1 flex-col items-center justify-center gap-1 text-sm font-medium transition ${
                   isActive
                     ? "bg-blue-100 text-blue-700"
@@ -61,5 +114,19 @@ export default function MobilePage() {
         </nav>
       </div>
     </div>
+  );
+}
+
+export default function MobilePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-full min-h-[100svh] w-full items-center justify-center bg-neutral-100 text-sm text-neutral-600">
+          読み込み中...
+        </div>
+      }
+    >
+      <MobilePageContent />
+    </Suspense>
   );
 }
