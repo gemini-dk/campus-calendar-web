@@ -1,15 +1,9 @@
-'use client';
-
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 
-function mergeClassName(base: string, extra?: string): string {
-  return extra ? `${base} ${extra}` : base;
-}
-
-export type UserMenuContentProps = {
+type UserMenuContentProps = {
   className?: string;
 };
 
@@ -25,22 +19,61 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     signOut,
   } = useAuth();
   const { settings, saveCalendarSettings, resetCalendarSettings, initialized } = useUserSettings();
-  const [fiscalYear, setFiscalYear] = useState(settings.calendar.fiscalYear);
-  const [calendarId, setCalendarId] = useState(settings.calendar.calendarId);
+  type EditableCalendarEntry = {
+    id: string;
+    fiscalYear: string;
+    calendarId: string;
+  };
+
+  const toEditableEntries = (entries: { fiscalYear: string; calendarId: string }[]): EditableCalendarEntry[] =>
+    entries.map((entry, index) => ({
+      id: `${entry.fiscalYear}-${entry.calendarId}-${index}`,
+      fiscalYear: entry.fiscalYear,
+      calendarId: entry.calendarId,
+    }));
+
+  const [entries, setEntries] = useState<EditableCalendarEntry[]>(
+    toEditableEntries(settings.calendar.entries),
+  );
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const initialIndex = settings.calendar.entries.findIndex(
+      (entry) =>
+        entry.fiscalYear === settings.calendar.fiscalYear &&
+        entry.calendarId === settings.calendar.calendarId,
+    );
+    return initialIndex >= 0 ? initialIndex : 0;
+  });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setFiscalYear(settings.calendar.fiscalYear);
-    setCalendarId(settings.calendar.calendarId);
-  }, [settings.calendar.calendarId, settings.calendar.fiscalYear]);
+    setEntries(toEditableEntries(settings.calendar.entries));
+    const nextIndex = settings.calendar.entries.findIndex(
+      (entry) =>
+        entry.fiscalYear === settings.calendar.fiscalYear &&
+        entry.calendarId === settings.calendar.calendarId,
+    );
+    setActiveIndex(nextIndex >= 0 ? nextIndex : 0);
+  }, [settings.calendar]);
 
   useEffect(() => {
     setStatusMessage(null);
-  }, [fiscalYear, calendarId]);
+  }, [entries, activeIndex]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    saveCalendarSettings({ fiscalYear, calendarId });
+    const sanitizedEntries = entries.map((entry) => ({
+      fiscalYear: entry.fiscalYear,
+      calendarId: entry.calendarId,
+    }));
+    const target = sanitizedEntries[activeIndex] ?? sanitizedEntries[0] ?? {
+      fiscalYear: '',
+      calendarId: '',
+    };
+    saveCalendarSettings({
+      fiscalYear: target.fiscalYear,
+      calendarId: target.calendarId,
+      entries: sanitizedEntries,
+    });
     setStatusMessage('保存しました。');
   };
 
@@ -49,23 +82,70 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     setStatusMessage('初期設定に戻しました。');
   };
 
-  const feedbackMessage = useMemo(() => {
-    if (error) {
-      return { text: error, className: 'text-red-600' } as const;
-    }
-    if (successMessage) {
-      return { text: successMessage, className: 'text-green-600' } as const;
-    }
-    return null;
-  }, [error, successMessage]);
+  const handleAddEntry = () => {
+    setEntries((prev) => [
+      ...prev,
+      {
+        id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        fiscalYear: '',
+        calendarId: '',
+      },
+    ]);
+    setActiveIndex((prevActive) => (prevActive === -1 ? 0 : prevActive));
+  };
 
-  const rootClassName = mergeClassName(
-    'flex h-full w-full flex-col gap-6 bg-neutral-50 p-4 text-neutral-800',
+  const handleRemoveEntry = (id: string) => {
+    setEntries((prev) => {
+      if (prev.length <= 1) {
+        return prev;
+      }
+      const next = prev.filter((entry) => entry.id !== id);
+      if (next.length === prev.length) {
+        return prev;
+      }
+      setActiveIndex((prevActive) => {
+        if (prevActive >= next.length) {
+          return next.length - 1;
+        }
+        const removedIndex = prev.findIndex((entry) => entry.id === id);
+        if (removedIndex >= 0 && removedIndex === prevActive) {
+          return Math.max(0, prevActive - 1);
+        }
+        return prevActive;
+      });
+      return next;
+    });
+  };
+
+  const handleChangeEntry = (id: string, patch: Partial<EditableCalendarEntry>) => {
+    setEntries((prev) =>
+      prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
+    );
+  };
+
+  const activeEntryLabel = useMemo(() => {
+    const entry = entries[activeIndex];
+    if (!entry) {
+      return '未設定';
+    }
+    return `${entry.fiscalYear || '年度未設定'} / ${entry.calendarId || 'ID未設定'}`;
+  }, [activeIndex, entries]);
+
+  const feedbackMessage = error
+    ? { text: error, className: 'text-red-600' }
+    : successMessage
+      ? { text: successMessage, className: 'text-green-600' }
+      : null;
+
+  const containerClassName = [
+    'flex min-h-full flex-col gap-6 bg-neutral-50 p-4 text-neutral-800',
     className,
-  );
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <div className={rootClassName}>
+    <div className={containerClassName}>
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
         {initializing ? (
           <p className="text-sm text-neutral-600">読み込み中...</p>
@@ -119,26 +199,73 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
         </div>
         {initialized ? (
           <form className="mt-4 flex flex-col gap-4" onSubmit={handleSubmit}>
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-neutral-700">年度 (YYYY)</span>
-              <input
-                type="text"
-                value={fiscalYear}
-                onChange={(event) => setFiscalYear(event.target.value)}
-                className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="2025"
-              />
-            </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-neutral-700">学事カレンダーID</span>
-              <input
-                type="text"
-                value={calendarId}
-                onChange={(event) => setCalendarId(event.target.value)}
-                className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="学務カレンダーIDを入力"
-              />
-            </label>
+            <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+              <span className="text-xs font-medium text-neutral-600">利用中の設定</span>
+              <span className="text-sm text-neutral-800">{activeEntryLabel}</span>
+              <span className="text-xs text-neutral-500">
+                下の一覧から年度を追加し、利用中に設定してください。
+              </span>
+            </div>
+            <div className="flex flex-col gap-4">
+              {entries.map((entry, index) => (
+                <div
+                  key={entry.id}
+                  className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm font-medium text-neutral-700">
+                      <input
+                        type="radio"
+                        name="activeCalendarEntry"
+                        checked={activeIndex === index}
+                        onChange={() => setActiveIndex(index)}
+                        className="h-4 w-4"
+                      />
+                      利用中に設定
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEntry(entry.id)}
+                      disabled={entries.length <= 1}
+                      className="text-xs font-semibold text-red-500 transition hover:text-red-600 disabled:cursor-not-allowed disabled:text-neutral-300"
+                    >
+                      削除
+                    </button>
+                  </div>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-neutral-700">年度 (YYYY)</span>
+                    <input
+                      type="text"
+                      value={entry.fiscalYear}
+                      onChange={(event) =>
+                        handleChangeEntry(entry.id, { fiscalYear: event.target.value })
+                      }
+                      className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      placeholder="2025"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-neutral-700">学事カレンダーID</span>
+                    <input
+                      type="text"
+                      value={entry.calendarId}
+                      onChange={(event) =>
+                        handleChangeEntry(entry.id, { calendarId: event.target.value })
+                      }
+                      className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      placeholder="学務カレンダーIDを入力"
+                    />
+                  </label>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleAddEntry}
+                className="w-full rounded border border-dashed border-neutral-300 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:border-blue-400 hover:bg-blue-50"
+              >
+                年度を追加
+              </button>
+            </div>
             <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
