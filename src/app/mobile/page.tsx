@@ -8,14 +8,12 @@ import {
   faChalkboardTeacher,
   faHome,
   faTasks,
-  faUserCircle,
 } from "@fortawesome/free-solid-svg-icons";
 
 import HomeTab from "./tabs/HomeTab";
 import CalendarTab from "./tabs/CalendarTab";
 import TodoTab from "./tabs/TodoTab";
 import ClassesTab from "./tabs/ClassesTab";
-import UserTab from "./tabs/UserTab";
 import type { TabDefinition, TabId } from "./tabs/types";
 
 const TABS: TabDefinition[] = [
@@ -23,7 +21,6 @@ const TABS: TabDefinition[] = [
   { id: "calendar", label: "Calendar", icon: faCalendar, Component: CalendarTab },
   { id: "todo", label: "Todo", icon: faTasks, Component: TodoTab },
   { id: "classes", label: "授業", icon: faChalkboardTeacher, Component: ClassesTab },
-  { id: "user", label: "ユーザ", icon: faUserCircle, Component: UserTab },
 ];
 
 export default function MobilePage() {

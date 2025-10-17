@@ -8,6 +8,7 @@ import {
   type CalendarDisplayInfo,
 } from '@/lib/data/service/calendarDisplay.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
+import UserHamburgerMenu from '../components/UserHamburgerMenu';
 
 const CALENDAR_SETTINGS_ERROR_MESSAGE =
   '学事カレンダー設定が未入力です。設定タブで保存してください。';
@@ -334,20 +335,6 @@ export default function CalendarTab() {
     [containerWidth, isAnimating],
   );
 
-  const handlePrevMonth = useCallback(() => {
-    if (isDragging) {
-      return;
-    }
-    startTransition('prev');
-  }, [isDragging, startTransition]);
-
-  const handleNextMonth = useCallback(() => {
-    if (isDragging) {
-      return;
-    }
-    startTransition('next');
-  }, [isDragging, startTransition]);
-
   const handleTransitionEnd = useCallback(
     (event: TransitionEvent<HTMLDivElement>) => {
       if (event.target !== event.currentTarget) {
@@ -543,23 +530,10 @@ export default function CalendarTab() {
 
   return (
     <div className="flex h-full w-full flex-col bg-neutral-50">
-      <header className="border-b border-neutral-200 bg-white px-3 py-2">
-        <div className="flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handlePrevMonth}
-            className="bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200"
-          >
-            前月
-          </button>
+      <header className="flex h-[50px] w-full items-center border-b border-neutral-200 bg-white px-4">
+        <div className="flex w-full items-center justify-between gap-3">
           <div className="text-lg font-semibold text-neutral-900">{monthLabel}</div>
-          <button
-            type="button"
-            onClick={handleNextMonth}
-            className="bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200"
-          >
-            翌月
-          </button>
+          <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
         </div>
       </header>
 
