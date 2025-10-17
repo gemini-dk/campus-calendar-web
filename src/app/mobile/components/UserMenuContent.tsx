@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 
-import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
+import { DEFAULT_CALENDAR_SETTINGS, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 
 type UserMenuContentProps = {
@@ -23,13 +23,33 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     id: string;
     fiscalYear: string;
     calendarId: string;
+    lessonsPerDay: string;
+    hasSaturdayClasses: boolean;
   };
 
-  const toEditableEntries = (entries: { fiscalYear: string; calendarId: string }[]): EditableCalendarEntry[] =>
+  const defaultLessonsPerDayValue = DEFAULT_CALENDAR_SETTINGS.entries[0]?.lessonsPerDay ?? 6;
+  const defaultHasSaturdayClassesValue =
+    DEFAULT_CALENDAR_SETTINGS.entries[0]?.hasSaturdayClasses ?? false;
+
+  const toEditableEntries = (
+    entries: {
+      fiscalYear: string;
+      calendarId: string;
+      lessonsPerDay?: number;
+      hasSaturdayClasses?: boolean;
+    }[],
+  ): EditableCalendarEntry[] =>
     entries.map((entry, index) => ({
       id: `${entry.fiscalYear}-${entry.calendarId}-${index}`,
       fiscalYear: entry.fiscalYear,
       calendarId: entry.calendarId,
+      lessonsPerDay: String(
+        typeof entry.lessonsPerDay === 'number' ? entry.lessonsPerDay : defaultLessonsPerDayValue,
+      ),
+      hasSaturdayClasses:
+        typeof entry.hasSaturdayClasses === 'boolean'
+          ? entry.hasSaturdayClasses
+          : defaultHasSaturdayClassesValue,
     }));
 
   const [entries, setEntries] = useState<EditableCalendarEntry[]>(
@@ -64,6 +84,8 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     const sanitizedEntries = entries.map((entry) => ({
       fiscalYear: entry.fiscalYear,
       calendarId: entry.calendarId,
+      lessonsPerDay: Number(entry.lessonsPerDay),
+      hasSaturdayClasses: entry.hasSaturdayClasses,
     }));
     const target = sanitizedEntries[activeIndex] ?? sanitizedEntries[0] ?? {
       fiscalYear: '',
@@ -89,6 +111,8 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
         id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         fiscalYear: '',
         calendarId: '',
+        lessonsPerDay: String(defaultLessonsPerDayValue),
+        hasSaturdayClasses: defaultHasSaturdayClassesValue,
       },
     ]);
     setActiveIndex((prevActive) => (prevActive === -1 ? 0 : prevActive));
@@ -128,7 +152,9 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     if (!entry) {
       return '未設定';
     }
-    return `${entry.fiscalYear || '年度未設定'} / ${entry.calendarId || 'ID未設定'}`;
+    const lessonsLabel = entry.lessonsPerDay ? `${entry.lessonsPerDay}コマ/日` : '授業数未設定';
+    const saturdayLabel = entry.hasSaturdayClasses ? '土曜授業あり' : '土曜授業なし';
+    return `${entry.fiscalYear || '年度未設定'} / ${entry.calendarId || 'ID未設定'} / ${lessonsLabel} / ${saturdayLabel}`;
   }, [activeIndex, entries]);
 
   const feedbackMessage = error
@@ -254,6 +280,29 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
                       }
                       className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                       placeholder="学務カレンダーIDを入力"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-2">
+                    <span className="text-sm font-medium text-neutral-700">1日の授業数</span>
+                    <input
+                      type="number"
+                      value={entry.lessonsPerDay}
+                      onChange={(event) =>
+                        handleChangeEntry(entry.id, { lessonsPerDay: event.target.value })
+                      }
+                      className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      placeholder="6"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 rounded border border-neutral-200 bg-neutral-50 px-3 py-2">
+                    <span className="text-sm font-medium text-neutral-700">土曜日授業あり</span>
+                    <input
+                      type="checkbox"
+                      checked={entry.hasSaturdayClasses}
+                      onChange={(event) =>
+                        handleChangeEntry(entry.id, { hasSaturdayClasses: event.target.checked })
+                      }
+                      className="h-4 w-4"
                     />
                   </label>
                 </div>

@@ -5,6 +5,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 type CalendarEntry = {
   fiscalYear: string;
   calendarId: string;
+  lessonsPerDay: number;
+  hasSaturdayClasses: boolean;
 };
 
 type CalendarSettings = {
@@ -26,9 +28,14 @@ type UserSettingsContextValue = {
 
 const STORAGE_KEY = 'campusCalendar.userSettings';
 
+const DEFAULT_LESSONS_PER_DAY = 6;
+const DEFAULT_HAS_SATURDAY_CLASSES = false;
+
 const DEFAULT_CALENDAR_ENTRY: CalendarEntry = {
   fiscalYear: '2025',
   calendarId: 'jd70dxbqvevcf5kj43cbaf4rjn7rs93e',
+  lessonsPerDay: DEFAULT_LESSONS_PER_DAY,
+  hasSaturdayClasses: DEFAULT_HAS_SATURDAY_CLASSES,
 };
 
 const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
@@ -37,13 +44,54 @@ const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
   entries: [DEFAULT_CALENDAR_ENTRY],
 };
 
+function cloneCalendarSettings(settings: CalendarSettings): CalendarSettings {
+  return {
+    fiscalYear: settings.fiscalYear,
+    calendarId: settings.calendarId,
+    entries: settings.entries.map((entry) => ({ ...entry })),
+  };
+}
+
 const createDefaultSettings = (): UserSettings => ({
-  calendar: { ...DEFAULT_CALENDAR_SETTINGS },
+  calendar: cloneCalendarSettings(DEFAULT_CALENDAR_SETTINGS),
 });
+
+function parseLessonsPerDay(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return DEFAULT_LESSONS_PER_DAY;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.floor(parsed);
+    }
+  }
+  return DEFAULT_LESSONS_PER_DAY;
+}
+
+function parseHasSaturdayClasses(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+  return DEFAULT_HAS_SATURDAY_CLASSES;
+}
 
 function normalizeCalendarEntries(entries: unknown): CalendarEntry[] {
   if (!Array.isArray(entries)) {
-    return [...DEFAULT_CALENDAR_SETTINGS.entries];
+    return DEFAULT_CALENDAR_SETTINGS.entries.map((entry) => ({ ...entry }));
   }
 
   const normalized: CalendarEntry[] = [];
@@ -67,11 +115,18 @@ function normalizeCalendarEntries(entries: unknown): CalendarEntry[] {
       continue;
     }
 
-    normalized.push({ fiscalYear, calendarId });
+    const lessonsPerDay = parseLessonsPerDay(
+      (entry as { lessonsPerDay?: unknown }).lessonsPerDay,
+    );
+    const hasSaturdayClasses = parseHasSaturdayClasses(
+      (entry as { hasSaturdayClasses?: unknown }).hasSaturdayClasses,
+    );
+
+    normalized.push({ fiscalYear, calendarId, lessonsPerDay, hasSaturdayClasses });
   }
 
   if (normalized.length === 0) {
-    return [...DEFAULT_CALENDAR_SETTINGS.entries];
+    return DEFAULT_CALENDAR_SETTINGS.entries.map((entry) => ({ ...entry }));
   }
 
   return normalized;
@@ -96,7 +151,15 @@ function ensureActiveEntryExists(settings: CalendarSettings): CalendarSettings {
   }
   return {
     ...settings,
-    entries: [...entries, { fiscalYear: trimmedFiscalYear, calendarId: trimmedCalendarId }],
+    entries: [
+      ...entries,
+      {
+        fiscalYear: trimmedFiscalYear,
+        calendarId: trimmedCalendarId,
+        lessonsPerDay: DEFAULT_LESSONS_PER_DAY,
+        hasSaturdayClasses: DEFAULT_HAS_SATURDAY_CLASSES,
+      },
+    ],
   };
 }
 
@@ -176,6 +239,8 @@ export function UserSettingsProvider({ children }: { children: React.ReactNode }
           .map((entry) => ({
             fiscalYear: entry.fiscalYear.trim(),
             calendarId: entry.calendarId.trim(),
+            lessonsPerDay: parseLessonsPerDay(entry.lessonsPerDay),
+            hasSaturdayClasses: parseHasSaturdayClasses(entry.hasSaturdayClasses),
           }))
           .filter((entry) => entry.fiscalYear.length > 0 && entry.calendarId.length > 0);
 
@@ -201,7 +266,7 @@ export function UserSettingsProvider({ children }: { children: React.ReactNode }
       resetCalendarSettings: () => {
         setSettings((prev) => ({
           ...prev,
-          calendar: { ...DEFAULT_CALENDAR_SETTINGS },
+          calendar: cloneCalendarSettings(DEFAULT_CALENDAR_SETTINGS),
         }));
       },
       initialized,
