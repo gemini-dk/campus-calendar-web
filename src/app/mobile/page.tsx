@@ -138,9 +138,6 @@ export default function MobilePage() {
   return (
     <div className="flex min-h-[100dvh] w-full justify-center bg-neutral-100">
       <div className="mx-auto flex min-h-[100dvh] w-full max-w-[800px] flex-col bg-white">
-        <header className="flex h-[30px] flex-shrink-0 items-center justify-center border-b border-neutral-200">
-          <span className="text-sm font-semibold text-neutral-900">CampusCalendar</span>
-        </header>
 
         <main className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto bg-blue-50">{tabContent}</div>
