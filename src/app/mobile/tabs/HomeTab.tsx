@@ -123,19 +123,19 @@ function HomeTabContent() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className="flex h-[56px] w-full items-center justify-end border-b border-neutral-200 bg-white px-4">
-        <UserHamburgerMenu />
-      </header>
       <section
-        className="flex w-full min-h-[200px] flex-col justify-end px-8 pt-6 pb-8 shadow-sm"
+        className="relative flex w-full min-h-[200px] flex-col justify-end px-8 pt-6 pb-8 shadow-sm"
         style={{ backgroundColor }}
       >
+        <div className="absolute right-8 top-6">
+          <UserHamburgerMenu />
+        </div>
         {loading ? (
-          <div className="text-center text-sm text-neutral-700">読み込み中...</div>
+          <div className="mt-12 text-center text-sm text-neutral-700">読み込み中...</div>
         ) : errorMessage ? (
-          <div className="text-center text-sm text-red-600">{errorMessage}</div>
+          <div className="mt-12 text-center text-sm text-red-600">{errorMessage}</div>
         ) : (
-          <div className="flex w-full items-end justify-between gap-8">
+          <div className="flex w-full items-end justify-between gap-8 pt-12">
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline gap-3">
                 <p
@@ -151,7 +151,7 @@ function HomeTabContent() {
               </div>
               <span className="text-sm text-neutral-500">{supplementalText}</span>
             </div>
-            <div className="flex flex-col items-end justify-end text-right">
+            <div className="flex min-h-[120px] flex-col items-end justify-end text-right">
               <span className="text-lg font-semibold text-neutral-900">
                 {academic?.label ?? '-'}
               </span>
