@@ -38,6 +38,7 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
 };
 
 const CALENDAR_CELL_COUNT = 42;
+const DRAG_DETECTION_THRESHOLD = 6;
 
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
 
@@ -50,6 +51,10 @@ type MonthState = {
 };
 
 type MonthStateMap = Record<string, MonthState>;
+
+type CalendarTabProps = {
+  onDateSelect?: (dateId: string) => void;
+};
 
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
@@ -112,7 +117,7 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
-export default function CalendarTab() {
+export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const { settings, initialized } = useUserSettings();
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
@@ -137,6 +142,7 @@ export default function CalendarTab() {
   const pointerIdRef = useRef<number | null>(null);
   const dragStartRef = useRef(0);
   const dragDeltaRef = useRef(0);
+  const isPointerDownRef = useRef(false);
 
   useEffect(() => {
     monthStatesRef.current = monthStates;
@@ -385,21 +391,31 @@ export default function CalendarTab() {
       pointerIdRef.current = event.pointerId;
       dragStartRef.current = event.clientX;
       dragDeltaRef.current = 0;
-      setIsDragging(true);
+      isPointerDownRef.current = true;
       setPendingDirection(null);
       setIsAnimating(false);
-      event.currentTarget.setPointerCapture(event.pointerId);
     },
     [isAnimating],
   );
 
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+      if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
         return;
       }
 
       const delta = event.clientX - dragStartRef.current;
+      let dragging = isDragging;
+
+      if (!dragging) {
+        if (Math.abs(delta) <= DRAG_DETECTION_THRESHOLD) {
+          return;
+        }
+        setIsDragging(true);
+        dragging = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+
       const maxOffset = containerWidth;
       const clamped = Math.max(Math.min(delta, maxOffset), -maxOffset);
       dragDeltaRef.current = clamped;
@@ -412,6 +428,7 @@ export default function CalendarTab() {
     pointerIdRef.current = null;
     dragStartRef.current = 0;
     dragDeltaRef.current = 0;
+    isPointerDownRef.current = false;
   }, []);
 
   const finishDrag = useCallback(
@@ -441,25 +458,33 @@ export default function CalendarTab() {
 
   const handlePointerEnd = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+      if (pointerIdRef.current !== event.pointerId) {
         return;
       }
 
       releasePointerCapture(event.pointerId);
-      finishDrag();
+      if (isDragging) {
+        finishDrag();
+      } else {
+        resetDragState();
+      }
     },
-    [finishDrag, isDragging, releasePointerCapture],
+    [finishDrag, isDragging, releasePointerCapture, resetDragState],
   );
 
   const handlePointerCancel = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+      if (pointerIdRef.current !== event.pointerId) {
         return;
       }
       releasePointerCapture(event.pointerId);
-      finishDrag({ cancelled: true });
+      if (isDragging) {
+        finishDrag({ cancelled: true });
+      } else {
+        resetDragState();
+      }
     },
-    [finishDrag, isDragging, releasePointerCapture],
+    [finishDrag, isDragging, releasePointerCapture, resetDragState],
   );
 
   useEffect(() => {
@@ -575,6 +600,7 @@ export default function CalendarTab() {
                         infoMap={infoMap}
                         todayId={todayId}
                         onRetry={handleRetry}
+                        onDateSelect={onDateSelect}
                       />
                     </div>
                   );
@@ -600,6 +626,7 @@ type CalendarMonthSlideProps = {
   infoMap: CalendarInfoMap;
   todayId: string;
   onRetry: (monthDate: Date) => void;
+  onDateSelect?: (dateId: string) => void;
 };
 
 function CalendarMonthSlide({
@@ -608,6 +635,7 @@ function CalendarMonthSlide({
   infoMap,
   todayId,
   onRetry,
+  onDateSelect,
 }: CalendarMonthSlideProps) {
   const rawDates = monthState?.dates ?? generateMonthDates(monthDate);
   const rawDateIds = monthState?.dateIds ?? rawDates.map((date) => formatDateId(date));
@@ -650,11 +678,17 @@ function CalendarMonthSlide({
           const showBottomBorder = index < totalCells - WEEKDAY_HEADERS.length;
 
           return (
-            <div
+            <button
               key={dateId}
-              className={`flex min-h-0 flex-col overflow-hidden text-[11px] leading-tight ${
+              type="button"
+              onClick={() => onDateSelect?.(dateId)}
+              className={`flex h-full min-h-0 w-full flex-col overflow-hidden text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
                 isCurrentMonth ? '' : 'opacity-50'
-              } ${isToday ? 'outline outline-2 outline-blue-400' : ''}`}
+              } ${
+                isToday
+                  ? 'outline outline-2 outline-blue-400'
+                  : 'hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60'
+              }`}
               style={{
                 backgroundColor,
                 borderRightWidth: showRightBorder ? 1 : 0,
@@ -686,7 +720,7 @@ function CalendarMonthSlide({
                   {day?.description ?? ''}
                 </span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
