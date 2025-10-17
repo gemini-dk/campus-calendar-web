@@ -1,56 +1,23 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTimes } from "@fortawesome/free-solid-svg-icons";
 
-import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
+import type { CalendarTerm } from "@/lib/data/schema/calendar";
 import {
   computeRecommendedMaxAbsence,
   createTimetableClass,
-  generateClassDatesFromDays,
+  generateClassDates,
   type GeneratedClassDate,
   type SpecialScheduleOption,
   type WeeklySlotSelection,
 } from "@/lib/data/service/class.service";
-import { getCalendarDays, getCalendarTerms } from "@/lib/data/service/calendar.service";
+import { getCalendarTerms } from "@/lib/data/service/calendar.service";
 
-const WEEKDAYS = [
-  { value: 1, label: "月" },
-  { value: 2, label: "火" },
-  { value: 3, label: "水" },
-  { value: 4, label: "木" },
-  { value: 5, label: "金" },
-  { value: 6, label: "土" },
-] as const;
-
-const PERIODS = [
-  { value: 1, label: "1限" },
-  { value: 2, label: "2限" },
-  { value: 3, label: "3限" },
-  { value: 4, label: "4限" },
-  { value: 5, label: "5限" },
-  { value: 6, label: "6限" },
-  { value: 0, label: "オンデマンド" },
-] as const;
-
-const SPECIAL_SCHEDULE_OPTIONS: { value: SpecialScheduleOption; label: string }[] = [
-  { value: "all", label: "すべて" },
-  { value: "first_half", label: "前半週" },
-  { value: "second_half", label: "後半週" },
-  { value: "odd_weeks", label: "奇数週" },
-  { value: "even_weeks", label: "偶数週" },
-];
-
-type CreateClassDialogProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  fiscalYear: string;
-  calendarId: string;
-  userId: string | null;
-  onCreated?: () => void;
-};
+import { TermSettingsDialog, type CalendarOption } from "./TermSettingsDialog";
+import { WeeklySlotsDialog } from "./WeeklySlotsDialog";
 
 type LoadState = "idle" | "loading" | "success" | "error";
 
@@ -84,30 +51,77 @@ const INITIAL_FORM_STATE: FormState = {
   maxAbsenceTouched: false,
 };
 
+const SPECIAL_SCHEDULE_LABELS: Record<SpecialScheduleOption, string> = {
+  all: "すべて",
+  first_half: "前半週",
+  second_half: "後半週",
+  odd_weeks: "奇数週",
+  even_weeks: "偶数週",
+};
+
+const WEEKDAY_LABELS = new Map<number, string>([
+  [1, "月"],
+  [2, "火"],
+  [3, "水"],
+  [4, "木"],
+  [5, "金"],
+  [6, "土"],
+]);
+
+const PREVIEW_LIMIT = 8;
+
+type CreateClassDialogProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  calendarOptions: CalendarOption[];
+  defaultFiscalYear?: string | null;
+  defaultCalendarId?: string | null;
+  userId: string | null;
+  onCreated?: () => void;
+};
+
+function buildCalendarKey(option: CalendarOption): string {
+  return `${option.fiscalYear}::${option.calendarId}`;
+}
+
 export function CreateClassDialog({
   isOpen,
   onClose,
-  fiscalYear,
-  calendarId,
+  calendarOptions,
+  defaultFiscalYear,
+  defaultCalendarId,
   userId,
   onCreated,
 }: CreateClassDialogProps) {
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM_STATE);
-  const [terms, setTerms] = useState<CalendarTerm[]>([]);
-  const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
-  const [calendarLoadState, setCalendarLoadState] = useState<LoadState>("idle");
-  const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [selectedCalendar, setSelectedCalendar] = useState<CalendarOption | null>(null);
+  const [calendarTerms, setCalendarTerms] = useState<CalendarTerm[]>([]);
+  const [termLoadState, setTermLoadState] = useState<LoadState>("idle");
+  const [termError, setTermError] = useState<string | null>(null);
+
+  const [generatedClassDates, setGeneratedClassDates] = useState<GeneratedClassDate[]>([]);
+  const [scheduleLoadState, setScheduleLoadState] = useState<LoadState>("idle");
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const [saveState, setSaveState] = useState<LoadState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
-  const termNameMap = useMemo(() => {
-    return terms.reduce<Map<string, string>>((map, term) => {
-      map.set(term.id, term.name);
-      return map;
-    }, new Map());
-  }, [terms]);
+  const [isTermDialogOpen, setIsTermDialogOpen] = useState(false);
+  const [isWeeklyDialogOpen, setIsWeeklyDialogOpen] = useState(false);
+
+  const termCacheRef = useRef<Map<string, CalendarTerm[]>>(new Map());
+
+  const loadTerms = useCallback(async (option: CalendarOption) => {
+    const key = buildCalendarKey(option);
+    const cached = termCacheRef.current.get(key);
+    if (cached) {
+      return cached;
+    }
+    const items = await getCalendarTerms(option.fiscalYear, option.calendarId);
+    termCacheRef.current.set(key, items);
+    return items;
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -117,87 +131,151 @@ export function CreateClassDialog({
     setSaveState("idle");
     setSaveError(null);
     setSaveSuccess(null);
-  }, [isOpen]);
+    setScheduleLoadState("idle");
+    setScheduleError(null);
+    setGeneratedClassDates([]);
+
+    const normalizedYear = defaultFiscalYear?.trim() ?? "";
+    const normalizedCalendarId = defaultCalendarId?.trim() ?? "";
+
+    const matched = calendarOptions.find(
+      (option) =>
+        option.fiscalYear === normalizedYear && option.calendarId === normalizedCalendarId,
+    );
+    const nextSelected = matched ?? calendarOptions[0] ?? null;
+    setSelectedCalendar(nextSelected);
+  }, [calendarOptions, defaultCalendarId, defaultFiscalYear, isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
-    if (!fiscalYear.trim() || !calendarId.trim()) {
-      setCalendarLoadState("error");
-      setCalendarError("年度とカレンダーIDを設定してください。");
+
+    if (!selectedCalendar) {
+      setCalendarTerms([]);
+      setTermLoadState("error");
+      setTermError("年度設定が必要です。ユーザ設定から追加してください。");
       return;
     }
 
-    let isActive = true;
+    const key = buildCalendarKey(selectedCalendar);
+    const cached = termCacheRef.current.get(key);
+    if (cached) {
+      setCalendarTerms(cached);
+      setTermLoadState("success");
+      setTermError(null);
+      return;
+    }
 
-    const load = async () => {
+    let active = true;
+
+    const run = async () => {
       try {
-        setCalendarLoadState("loading");
-        setCalendarError(null);
-        const [termItems, dayItems] = await Promise.all([
-          getCalendarTerms(fiscalYear, calendarId),
-          getCalendarDays(fiscalYear, calendarId),
-        ]);
-        if (!isActive) {
+        setTermLoadState("loading");
+        setTermError(null);
+        const terms = await loadTerms(selectedCalendar);
+        if (!active) {
           return;
         }
-        setTerms(termItems);
-        setCalendarDays(dayItems);
-        setCalendarLoadState("success");
+        setCalendarTerms(terms);
+        setTermLoadState("success");
+        setTermError(null);
       } catch (error) {
-        if (!isActive) {
+        if (!active) {
+          return;
+        }
+        const message =
+          error instanceof Error ? error.message : "学期情報の取得に失敗しました。";
+        setCalendarTerms([]);
+        setTermLoadState("error");
+        setTermError(message);
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, loadTerms, selectedCalendar]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    if (formState.isFullyOnDemand) {
+      setGeneratedClassDates([]);
+      setScheduleLoadState("idle");
+      setScheduleError(null);
+      return;
+    }
+
+    if (!selectedCalendar) {
+      setGeneratedClassDates([]);
+      setScheduleLoadState("idle");
+      return;
+    }
+
+    if (formState.selectedTermIds.length === 0 || formState.weeklySlots.length === 0) {
+      setGeneratedClassDates([]);
+      setScheduleLoadState("idle");
+      setScheduleError(null);
+      return;
+    }
+
+    let active = true;
+
+    const run = async () => {
+      try {
+        setScheduleLoadState("loading");
+        setScheduleError(null);
+        const dates = await generateClassDates({
+          fiscalYear: selectedCalendar.fiscalYear,
+          calendarId: selectedCalendar.calendarId,
+          termIds: formState.selectedTermIds,
+          weeklySlots: formState.weeklySlots,
+          specialOption: formState.specialOption,
+        });
+        if (!active) {
+          return;
+        }
+        setGeneratedClassDates(dates);
+        setScheduleLoadState("success");
+      } catch (error) {
+        if (!active) {
           return;
         }
         const message =
           error instanceof Error
             ? error.message
-            : "学事カレンダーの取得に失敗しました。";
-        setTerms([]);
-        setCalendarDays([]);
-        setCalendarError(message);
-        setCalendarLoadState("error");
+            : "授業日程の生成に失敗しました。時間をおいて再度お試しください。";
+        setGeneratedClassDates([]);
+        setScheduleLoadState("error");
+        setScheduleError(message);
       }
     };
 
-    void load();
+    void run();
 
     return () => {
-      isActive = false;
+      active = false;
     };
-  }, [calendarId, fiscalYear, isOpen]);
-
-  const generatedClassDates: GeneratedClassDate[] = useMemo(() => {
-    if (!isOpen) {
-      return [];
-    }
-    if (formState.isFullyOnDemand) {
-      return [];
-    }
-    if (calendarLoadState !== "success") {
-      return [];
-    }
-    if (formState.selectedTermIds.length === 0) {
-      return [];
-    }
-    if (formState.weeklySlots.length === 0) {
-      return [];
-    }
-    return generateClassDatesFromDays({
-      days: calendarDays,
-      termIds: formState.selectedTermIds,
-      weeklySlots: formState.weeklySlots,
-      specialOption: formState.specialOption,
-    });
   }, [
-    calendarDays,
-    calendarLoadState,
     formState.isFullyOnDemand,
     formState.selectedTermIds,
     formState.specialOption,
     formState.weeklySlots,
     isOpen,
+    selectedCalendar,
   ]);
+
+  const termNameMap = useMemo(() => {
+    return calendarTerms.reduce<Map<string, string>>((map, term) => {
+      map.set(term.id, term.name);
+      return map;
+    }, new Map());
+  }, [calendarTerms]);
 
   const recommendedAbsence = useMemo(() => {
     if (formState.isFullyOnDemand) {
@@ -213,6 +291,9 @@ export function CreateClassDialog({
         weeklySlots: [],
         maxAbsenceDays: 0,
       }));
+      setGeneratedClassDates([]);
+      setScheduleLoadState("idle");
+      setScheduleError(null);
       return;
     }
 
@@ -228,34 +309,38 @@ export function CreateClassDialog({
     return null;
   }
 
-  const handleToggleTerm = (termId: string) => {
-    setFormState((prev) => {
-      const exists = prev.selectedTermIds.includes(termId);
-      return {
-        ...prev,
-        selectedTermIds: exists
-          ? prev.selectedTermIds.filter((id) => id !== termId)
-          : [...prev.selectedTermIds, termId],
-      };
-    });
-  };
+  const termSummaryText = useMemo(() => {
+    if (!selectedCalendar) {
+      return "年度設定が必要です。";
+    }
+    const yearText = `${selectedCalendar.fiscalYear}年`;
+    const termLabels =
+      formState.selectedTermIds.length > 0
+        ? formState.selectedTermIds
+            .map((termId) => termNameMap.get(termId) ?? termId)
+            .join("、")
+        : "学期未選択";
+    const specialLabel = SPECIAL_SCHEDULE_LABELS[formState.specialOption];
+    return `${yearText} ${termLabels} ${specialLabel}`;
+  }, [formState.selectedTermIds, formState.specialOption, selectedCalendar, termNameMap]);
 
-  const handleToggleSlot = (slot: WeeklySlotSelection) => {
-    setFormState((prev) => {
-      const key = `${slot.dayOfWeek}-${slot.period}`;
-      const exists = prev.weeklySlots.some(
-        (item) => `${item.dayOfWeek}-${item.period}` === key,
-      );
-      return {
-        ...prev,
-        weeklySlots: exists
-          ? prev.weeklySlots.filter(
-              (item) => `${item.dayOfWeek}-${item.period}` !== key,
-            )
-          : [...prev.weeklySlots, slot],
-      };
-    });
-  };
+  const slotSummaryText = useMemo(() => {
+    if (formState.isFullyOnDemand) {
+      return "オンデマンド授業のため曜日・時限の設定は不要です。";
+    }
+    if (formState.weeklySlots.length === 0) {
+      return "曜日・時限が未設定です。";
+    }
+    return formState.weeklySlots
+      .map((slot) => {
+        const weekday = WEEKDAY_LABELS.get(slot.dayOfWeek) ?? `${slot.dayOfWeek}`;
+        return slot.period === 0 ? `${weekday}オンデマンド` : `${weekday}${slot.period}`;
+      })
+      .sort((a, b) => a.localeCompare(b))
+      .join("、");
+  }, [formState.isFullyOnDemand, formState.weeklySlots]);
+
+  const previewDates = generatedClassDates.slice(0, PREVIEW_LIMIT);
 
   const handleClose = () => {
     onClose();
@@ -264,6 +349,12 @@ export function CreateClassDialog({
   const handleSave = async () => {
     if (!userId) {
       setSaveError("サインイン後に授業を作成できます。");
+      setSaveState("error");
+      return;
+    }
+
+    if (!selectedCalendar) {
+      setSaveError("年度設定を確認してください。");
       setSaveState("error");
       return;
     }
@@ -285,8 +376,15 @@ export function CreateClassDialog({
         setSaveState("error");
         return;
       }
-      if (generatedClassDates.length === 0) {
-        setSaveError("授業日程を生成できませんでした。学期や曜日の選択を確認してください。");
+      if (scheduleLoadState === "loading") {
+        setSaveError("日程生成中です。完了までお待ちください。");
+        setSaveState("error");
+        return;
+      }
+      if (generatedClassDates.length === 0 || scheduleLoadState === "error") {
+        setSaveError(
+          scheduleError ?? "授業日程を生成できませんでした。設定内容を確認してください。",
+        );
         setSaveState("error");
         return;
       }
@@ -318,8 +416,8 @@ export function CreateClassDialog({
 
       await createTimetableClass({
         userId,
-        fiscalYear,
-        calendarId,
+        fiscalYear: selectedCalendar.fiscalYear,
+        calendarId: selectedCalendar.calendarId,
         className: formState.className,
         classType: formState.classType,
         location: formState.location,
@@ -360,26 +458,6 @@ export function CreateClassDialog({
     }
   };
 
-  const selectedTermNames = formState.selectedTermIds.map(
-    (termId) => termNameMap.get(termId) ?? termId,
-  );
-
-  const selectedSlotSummaries = useMemo(() => {
-    const weekdayMap = new Map<number, string>(WEEKDAYS.map((item) => [item.value, item.label]));
-    return formState.weeklySlots
-      .map((slot) => {
-        const weekday = weekdayMap.get(slot.dayOfWeek) ?? `${slot.dayOfWeek}曜日`;
-        const periodLabel =
-          slot.period === 0
-            ? "オンデマンド"
-            : `${slot.period}限`;
-        return `${weekday} ${periodLabel}`;
-      })
-      .sort();
-  }, [formState.weeklySlots]);
-
-  const previewDates = generatedClassDates.slice(0, 8);
-
   return (
     <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/40 px-3 py-6">
       <div className="flex h-full max-h-[680px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
@@ -387,7 +465,9 @@ export function CreateClassDialog({
           <div>
             <h2 className="text-lg font-semibold text-neutral-900">授業を作成</h2>
             <p className="text-xs text-neutral-500">
-              年度 {fiscalYear} / カレンダー {calendarId}
+              {selectedCalendar
+                ? `${selectedCalendar.fiscalYear}年度 / ${selectedCalendar.calendarId}`
+                : "年度設定を選択してください。"}
             </p>
           </div>
           <button
@@ -448,7 +528,7 @@ export function CreateClassDialog({
                       }))
                     }
                     className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    placeholder="教室名やURL"
+                    placeholder="例: 3号館201教室"
                   />
                 </label>
                 <label className="flex w-full flex-col gap-2">
@@ -463,160 +543,61 @@ export function CreateClassDialog({
                       }))
                     }
                     className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    placeholder="担当教員名"
+                    placeholder="例: 山田 太郎"
                   />
                 </label>
               </div>
             </section>
 
             <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-col gap-1">
-                <h3 className="text-base font-semibold text-neutral-900">日程設定</h3>
-                <p className="text-xs text-neutral-500">
-                  学期と曜日・時限を選択すると、学務カレンダーから授業日程を自動生成します。
-                </p>
-              </div>
+              <h3 className="text-base font-semibold text-neutral-900">日程設定</h3>
               <div className="mt-4 flex flex-col gap-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-medium text-neutral-700">学期選択</span>
-                    <span className="text-xs text-neutral-500">
-                      {calendarLoadState === "loading"
-                        ? "読み込み中..."
-                        : calendarLoadState === "error"
-                          ? "学期を取得できませんでした"
-                          : `${formState.selectedTermIds.length}件選択`}
-                    </span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {terms.map((term) => {
-                      const checked = formState.selectedTermIds.includes(term.id);
-                      return (
-                        <label
-                          key={term.id}
-                          className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
-                            checked
-                              ? "border-blue-500 bg-blue-50 text-blue-700"
-                              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300"
-                          }`}
-                        >
-                          <span className="font-medium">{term.name}</span>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => handleToggleTerm(term.id)}
-                            className="h-4 w-4"
-                          />
-                        </label>
-                      );
-                    })}
-                    {terms.length === 0 && calendarLoadState === "success" ? (
-                      <p className="rounded border border-dashed border-neutral-300 px-3 py-2 text-sm text-neutral-500">
-                        学期情報が見つかりませんでした。
-                      </p>
-                    ) : null}
-                    {calendarLoadState === "error" && calendarError ? (
-                      <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-600">
-                        {calendarError}
-                      </p>
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-neutral-700">年度・学期・特殊日程</p>
+                    <p className="mt-1 text-xs text-neutral-500">{termSummaryText}</p>
+                    {termLoadState === "error" && termError ? (
+                      <p className="mt-1 text-xs text-red-600">{termError}</p>
                     ) : null}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsTermDialogOpen(true)}
+                    className="rounded border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100"
+                  >
+                    変更
+                  </button>
                 </div>
 
-                <label className="flex w-full flex-col gap-2">
-                  <span className="text-sm font-medium text-neutral-700">特殊日程</span>
-                  <select
-                    value={formState.specialOption}
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-neutral-700">曜日・時限</p>
+                    <p className="mt-1 text-xs text-neutral-500">{slotSummaryText}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsWeeklyDialogOpen(true)}
+                    disabled={formState.isFullyOnDemand}
+                    className="rounded border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
+                  >
+                    変更
+                  </button>
+                </div>
+
+                <label className="flex items-center gap-2 text-xs text-neutral-600">
+                  <input
+                    type="checkbox"
+                    checked={formState.isFullyOnDemand}
                     onChange={(event) =>
                       setFormState((prev) => ({
                         ...prev,
-                        specialOption: event.target.value as SpecialScheduleOption,
+                        isFullyOnDemand: event.target.checked,
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  >
-                    {SPECIAL_SCHEDULE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    className="h-4 w-4"
+                  />
+                  完全オンデマンド
                 </label>
-
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-neutral-700">曜日・時限</span>
-                    <label className="flex items-center gap-2 text-xs text-neutral-600">
-                      <input
-                        type="checkbox"
-                        checked={formState.isFullyOnDemand}
-                        onChange={(event) =>
-                          setFormState((prev) => ({
-                            ...prev,
-                            isFullyOnDemand: event.target.checked,
-                          }))
-                        }
-                        className="h-4 w-4"
-                      />
-                      完全オンデマンド
-                    </label>
-                  </div>
-                  <div className="rounded-xl border border-neutral-200 bg-neutral-50">
-                    <div className="grid grid-cols-7 gap-2 p-3 text-xs text-neutral-700">
-                      <div className="flex items-center justify-center font-semibold text-neutral-500">
-                        時限/曜日
-                      </div>
-                      {WEEKDAYS.map((weekday) => (
-                        <div
-                          key={weekday.value}
-                          className="flex items-center justify-center font-semibold"
-                        >
-                          {weekday.label}
-                        </div>
-                      ))}
-                      {PERIODS.map((period) => (
-                        <Fragment key={period.value}>
-                          <div className="flex items-center justify-center rounded border border-neutral-200 bg-white px-2 py-2 font-semibold text-neutral-700">
-                            {period.label}
-                          </div>
-                          {WEEKDAYS.map((weekday) => {
-                            const key = `${weekday.value}-${period.value}`;
-                            const isSelected = formState.weeklySlots.some(
-                              (slot) => `${slot.dayOfWeek}-${slot.period}` === key,
-                            );
-                            return (
-                              <button
-                                key={key}
-                                type="button"
-                                onClick={() =>
-                                  handleToggleSlot({
-                                    dayOfWeek: weekday.value,
-                                    period: period.value,
-                                  })
-                                }
-                                disabled={formState.isFullyOnDemand}
-                                className={`flex h-10 w-full items-center justify-center rounded border text-sm transition ${
-                                  isSelected
-                                    ? "border-blue-500 bg-blue-100 text-blue-700"
-                                    : "border-neutral-200 bg-white text-neutral-500 hover:border-neutral-300"
-                                } ${formState.isFullyOnDemand ? "opacity-40" : ""}`}
-                              >
-                                {isSelected ? "選択中" : "-"}
-                              </button>
-                            );
-                          })}
-                        </Fragment>
-                      ))}
-                    </div>
-                  </div>
-                  {!formState.isFullyOnDemand ? (
-                    <div className="text-xs text-neutral-600">
-                      選択済み: {selectedSlotSummaries.length > 0 ? selectedSlotSummaries.join(", ") : "未選択"}
-                    </div>
-                  ) : (
-                    <div className="text-xs text-neutral-500">オンデマンド授業のため曜日・時限の選択は不要です。</div>
-                  )}
-                </div>
               </div>
             </section>
 
@@ -642,9 +623,7 @@ export function CreateClassDialog({
                         : "border-neutral-300"
                     }`}
                   />
-                  <span className="text-xs text-neutral-500">
-                    推奨値: {recommendedAbsence} 回
-                  </span>
+                  <span className="text-xs text-neutral-500">推奨値: {recommendedAbsence} 回</span>
                 </label>
                 <label className="flex w-full flex-col gap-2">
                   <span className="text-sm font-medium text-neutral-700">単位数</span>
@@ -683,14 +662,22 @@ export function CreateClassDialog({
 
             <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-semibold text-neutral-900">生成結果プレビュー</h3>
+                <h3 className="text-base font-semibold text-neutral-900">日程プレビュー</h3>
                 <span className="text-xs text-neutral-500">
                   {formState.isFullyOnDemand
                     ? "オンデマンドのため日程生成なし"
-                    : `生成件数: ${generatedClassDates.length} 日`}
+                    : scheduleLoadState === "loading"
+                      ? "生成中..."
+                      : `生成件数: ${generatedClassDates.length} 日`}
                 </span>
               </div>
-              {!formState.isFullyOnDemand && generatedClassDates.length > 0 ? (
+              {formState.isFullyOnDemand ? (
+                <p className="mt-3 text-sm text-neutral-500">オンデマンド授業のため日程生成は行いません。</p>
+              ) : scheduleLoadState === "error" ? (
+                <p className="mt-3 text-sm text-red-600">
+                  {scheduleError ?? "授業日程の生成に失敗しました。"}
+                </p>
+              ) : generatedClassDates.length > 0 ? (
                 <ul className="mt-3 space-y-2 text-sm text-neutral-700">
                   {previewDates.map((item) => (
                     <li
@@ -701,7 +688,7 @@ export function CreateClassDialog({
                       <span className="text-xs text-neutral-500">
                         {item.periods
                           .map((period) => (period === "OD" ? "オンデマンド" : `${period}限`))
-                          .join(", ")}
+                          .join("、")}
                       </span>
                     </li>
                   ))}
@@ -748,6 +735,63 @@ export function CreateClassDialog({
           </button>
         </footer>
       </div>
+
+      {isTermDialogOpen ? (
+        <TermSettingsDialog
+          isOpen={isTermDialogOpen}
+          onClose={() => setIsTermDialogOpen(false)}
+          calendarOptions={calendarOptions}
+          initialOption={selectedCalendar}
+          initialTermIds={formState.selectedTermIds}
+          initialSpecialOption={formState.specialOption}
+          initialTerms={calendarTerms}
+          loadTerms={loadTerms}
+          onApply={({ option, termIds, specialOption }) => {
+            setIsTermDialogOpen(false);
+            if (!option) {
+              setSelectedCalendar(null);
+              setCalendarTerms([]);
+              setTermLoadState("error");
+              setTermError("年度設定が必要です。ユーザ設定から追加してください。");
+              setFormState((prev) => ({
+                ...prev,
+                selectedTermIds: termIds,
+                specialOption,
+              }));
+              return;
+            }
+
+            setSelectedCalendar(option);
+            setFormState((prev) => ({
+              ...prev,
+              selectedTermIds: termIds,
+              specialOption,
+            }));
+
+            const cached = termCacheRef.current.get(buildCalendarKey(option));
+            if (cached) {
+              setCalendarTerms(cached);
+              setTermLoadState("success");
+              setTermError(null);
+            }
+          }}
+        />
+      ) : null}
+
+      {isWeeklyDialogOpen ? (
+        <WeeklySlotsDialog
+          isOpen={isWeeklyDialogOpen}
+          onClose={() => setIsWeeklyDialogOpen(false)}
+          initialSlots={formState.weeklySlots}
+          onApply={(slots) => {
+            setIsWeeklyDialogOpen(false);
+            setFormState((prev) => ({
+              ...prev,
+              weeklySlots: slots,
+            }));
+          }}
+        />
+      ) : null}
     </div>
   );
 }

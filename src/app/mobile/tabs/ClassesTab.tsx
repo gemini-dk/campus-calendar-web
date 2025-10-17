@@ -16,6 +16,13 @@ export default function ClassesTab() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  const calendarOptions = settings.calendar.entries ?? [];
+  const activeCalendar = calendarOptions.find(
+    (entry) =>
+      entry.fiscalYear === settings.calendar.fiscalYear &&
+      entry.calendarId === settings.calendar.calendarId,
+  );
+
   const handleOpenDialog = () => {
     setStatusMessage(null);
     setIsDialogOpen(true);
@@ -29,8 +36,6 @@ export default function ClassesTab() {
     setStatusMessage("授業を作成しました。必要に応じて一覧を更新してください。");
   };
 
-  const fiscalYear = settings.calendar.fiscalYear;
-  const calendarId = settings.calendar.calendarId;
   const userId = profile?.uid ?? null;
 
   return (
@@ -42,8 +47,26 @@ export default function ClassesTab() {
             学期設定と曜日・時限を指定すると、学務カレンダーに基づき授業日程を自動登録します。右下のボタンから授業を追加してください。
           </p>
           <div className="mt-4 space-y-2 text-xs text-neutral-500">
-            <p>現在の年度: {fiscalYear || "未設定"}</p>
-            <p>利用中のカレンダーID: {calendarId || "未設定"}</p>
+            <p>
+              利用中の年度: {activeCalendar ? activeCalendar.fiscalYear : "未設定"}
+            </p>
+            <p>
+              利用中のカレンダーID: {activeCalendar ? activeCalendar.calendarId : "未設定"}
+            </p>
+            <div>
+              <p>登録済みの年度一覧:</p>
+              {calendarOptions.length > 0 ? (
+                <ul className="mt-1 list-inside list-disc space-y-1 text-[11px] text-neutral-500">
+                  {calendarOptions.map((option) => (
+                    <li key={`${option.fiscalYear}-${option.calendarId}`}>
+                      {option.fiscalYear} / {option.calendarId}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-[11px]">未登録</p>
+              )}
+            </div>
             <p>{isAuthenticated ? `${profile?.displayName ?? "ユーザ"} としてログイン中です。` : "授業を作成するにはログインが必要です。"}</p>
           </div>
           {statusMessage ? (
@@ -71,8 +94,9 @@ export default function ClassesTab() {
         <CreateClassDialog
           isOpen={isDialogOpen}
           onClose={handleCloseDialog}
-          fiscalYear={fiscalYear}
-          calendarId={calendarId}
+          calendarOptions={calendarOptions}
+          defaultFiscalYear={settings.calendar.fiscalYear}
+          defaultCalendarId={settings.calendar.calendarId}
           userId={userId}
           onCreated={handleCreated}
         />

@@ -162,26 +162,6 @@ export async function generateClassSchedule({
   return items.sort(sortScheduleItems);
 }
 
-type CalendarDayOccurrence = {
-  date: string;
-  period: number | null;
-};
-
-function getWeekdayFromCalendarDay(day: CalendarDay): number | null {
-  if (typeof day.classWeekday === 'number' && Number.isInteger(day.classWeekday)) {
-    return day.classWeekday;
-  }
-  if (!day.date) {
-    return null;
-  }
-  const parsed = new Date(`${day.date}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  const weekday = parsed.getDay();
-  return ((weekday + 6) % 7) + 1;
-}
-
 function applySpecialScheduleOption<T>(
   items: T[],
   option: SpecialScheduleOption,
@@ -210,16 +190,6 @@ function applySpecialScheduleOption<T>(
     default:
       return items;
   }
-}
-
-function matchesPeriod(occurrence: CalendarDayOccurrence, slot: WeeklySlotSelection): boolean {
-  if (slot.period === 0) {
-    return true;
-  }
-  if (typeof occurrence.period === 'number') {
-    return occurrence.period === slot.period;
-  }
-  return true;
 }
 
 function sortPeriodValues(a: number | 'OD', b: number | 'OD'): number {
@@ -253,55 +223,24 @@ function buildDeliveryType(classType: CreateTimetableClassParams['classType']) {
   }
 }
 
-export function generateClassDatesFromDays({
-  days,
-  termIds,
-  weeklySlots,
-  specialOption,
-}: {
-  days: CalendarDay[];
-  termIds: string[];
-  weeklySlots: WeeklySlotSelection[];
-  specialOption: SpecialScheduleOption;
-}): GeneratedClassDate[] {
-  if (!Array.isArray(weeklySlots) || weeklySlots.length === 0) {
+function buildGeneratedClassDatesFromSchedule(
+  scheduleItems: ClassScheduleItem[],
+  weeklySlots: WeeklySlotSelection[],
+  specialOption: SpecialScheduleOption,
+): GeneratedClassDate[] {
+  if (scheduleItems.length === 0 || weeklySlots.length === 0) {
     return [];
   }
 
-  const termSet = new Set(termIds);
-  if (termSet.size === 0) {
-    return [];
-  }
+  const groupedByWeekday = new Map<number, ClassScheduleItem[]>();
 
-  const groupedByWeekday = new Map<number, CalendarDayOccurrence[]>();
-
-  for (const day of days) {
-    if (day.type !== '授業日') {
+  for (const item of scheduleItems) {
+    if (typeof item.classWeekday !== 'number') {
       continue;
     }
-    if (typeof day.termId !== 'string' || !termSet.has(day.termId)) {
-      continue;
-    }
-    if (typeof day.date !== 'string' || day.date.length === 0) {
-      continue;
-    }
-
-    const weekday = getWeekdayFromCalendarDay(day);
-    if (weekday === null) {
-      continue;
-    }
-
-    const period =
-      typeof day.classOrder === 'number' && Number.isFinite(day.classOrder)
-        ? Math.trunc(day.classOrder)
-        : null;
-
-    const list = groupedByWeekday.get(weekday) ?? [];
-    list.push({
-      date: day.date,
-      period,
-    });
-    groupedByWeekday.set(weekday, list);
+    const list = groupedByWeekday.get(item.classWeekday) ?? [];
+    list.push(item);
+    groupedByWeekday.set(item.classWeekday, list);
   }
 
   for (const list of groupedByWeekday.values()) {
@@ -311,11 +250,8 @@ export function generateClassDatesFromDays({
   const dateMap = new Map<string, Set<number | 'OD'>>();
 
   for (const slot of weeklySlots) {
-    const candidates = groupedByWeekday.get(slot.dayOfWeek) ?? [];
-    const filtered = applySpecialScheduleOption(
-      candidates.filter((occurrence) => matchesPeriod(occurrence, slot)),
-      specialOption,
-    );
+    const occurrences = groupedByWeekday.get(slot.dayOfWeek) ?? [];
+    const filtered = applySpecialScheduleOption(occurrences, specialOption);
 
     for (const occurrence of filtered) {
       const periods = dateMap.get(occurrence.date) ?? new Set<number | 'OD'>();
@@ -330,6 +266,48 @@ export function generateClassDatesFromDays({
       periods: Array.from(periods.values()).sort(sortPeriodValues),
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function extractUniqueWeekdays(slots: WeeklySlotSelection[]): number[] {
+  const weekdays = slots
+    .map((slot) => slot.dayOfWeek)
+    .filter(
+      (weekday): weekday is number =>
+        typeof weekday === 'number' && Number.isInteger(weekday) && weekday >= 1 && weekday <= 7,
+    );
+  return Array.from(new Set(weekdays));
+}
+
+export async function generateClassDates({
+  fiscalYear,
+  calendarId,
+  termIds,
+  weeklySlots,
+  specialOption,
+}: {
+  fiscalYear: string;
+  calendarId: string;
+  termIds: string[];
+  weeklySlots: WeeklySlotSelection[];
+  specialOption: SpecialScheduleOption;
+}): Promise<GeneratedClassDate[]> {
+  if (!Array.isArray(weeklySlots) || weeklySlots.length === 0) {
+    return [];
+  }
+
+  const weekdays = extractUniqueWeekdays(weeklySlots);
+  if (weekdays.length === 0) {
+    return [];
+  }
+
+  const scheduleItems = await generateClassSchedule({
+    fiscalYear,
+    calendarId,
+    termIds,
+    weekdays,
+  });
+
+  return buildGeneratedClassDatesFromSchedule(scheduleItems, weeklySlots, specialOption);
 }
 
 export function computeRecommendedMaxAbsence(totalClasses: number): number {
