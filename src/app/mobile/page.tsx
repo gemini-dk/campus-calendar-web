@@ -33,11 +33,11 @@ export default function MobilePage() {
   const ActiveComponent = currentTab.Component;
 
   return (
-    <div className="flex min-h-[100svh] w-full justify-center bg-neutral-100">
-      <div className="mx-auto flex min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
+    <div className="flex h-full min-h-[100svh] w-full justify-center bg-neutral-100">
+      <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
 
         <main className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto bg-neutral-50">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50">
             <ActiveComponent />
           </div>
         </main>

@@ -451,7 +451,7 @@ export default function CalendarTab() {
   );
 
   return (
-    <div className="flex h-full flex-col bg-neutral-50">
+    <div className="flex h-full w-full flex-col bg-neutral-50">
       <header className="border-b border-neutral-200 bg-white px-3 py-2">
         <div className="flex items-center justify-between">
           <button
@@ -473,8 +473,8 @@ export default function CalendarTab() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        <div className="flex h-full flex-col">
-          <div className="grid grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
+        <div className="flex h-full w-full flex-col">
+          <div className="grid w-full grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
             {WEEKDAY_HEADERS.map((weekday) => (
               <div key={weekday.label} className="flex flex-col items-center justify-center">
                 <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
@@ -484,7 +484,7 @@ export default function CalendarTab() {
           </div>
           <div
             ref={viewportRef}
-            className="flex flex-1 select-none overflow-hidden touch-pan-y"
+            className="flex w-full flex-1 select-none overflow-hidden touch-pan-y"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerEnd}
@@ -543,8 +543,8 @@ function CalendarMonthSlide({
   const errorMessage = monthState?.errorMessage ?? null;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="grid flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
+    <div className="flex h-full w-full flex-col">
+      <div className="grid w-full flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
         {dates.map((date, index) => {
           const dateId = dateIds[index];
           const info = infoMap[dateId];
@@ -575,7 +575,7 @@ function CalendarMonthSlide({
           return (
             <div
               key={dateId}
-              className={`flex flex-col text-[11px] leading-tight ${
+              className={`flex min-h-0 flex-col overflow-hidden text-[11px] leading-tight ${
                 isCurrentMonth ? '' : 'opacity-50'
               } ${isToday ? 'outline outline-2 outline-blue-400' : ''}`}
               style={{
@@ -586,7 +586,7 @@ function CalendarMonthSlide({
                 borderStyle: 'solid',
               }}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex flex-shrink-0 items-start justify-between">
                 <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
                 {isClassDay && typeof classOrder === 'number' ? (
                   <span
@@ -598,16 +598,16 @@ function CalendarMonthSlide({
                 ) : null}
               </div>
 
-              <div className="mt-1 flex flex-col">
-                <span className="text-[11px] font-semibold text-neutral-800">
+              <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden gap-[2px]">
+                <span className="block w-full min-h-[24px] line-clamp-2 text-[11px] font-semibold text-neutral-800">
                   {academic?.label ?? '予定なし'}
                 </span>
-                {academic?.subLabel ? (
-                  <span className="text-[10px] text-neutral-600">{academic.subLabel}</span>
-                ) : null}
-                {day?.description ? (
-                  <span className="text-[10px] text-neutral-600">{day.description}</span>
-                ) : null}
+                <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
+                  {academic?.subLabel ?? ''}
+                </span>
+                <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
+                  {day?.description ?? ''}
+                </span>
               </div>
             </div>
           );
