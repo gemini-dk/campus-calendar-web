@@ -7,6 +7,10 @@ import {
   getCalendarDays,
   getCalendarTerms,
 } from '@/lib/data/service/calendar.service';
+import {
+  getCalendarDisplayInfo,
+  type CalendarDisplayInfo,
+} from '@/lib/data/service/calendarDisplay.service';
 
 type LoadState = 'idle' | 'loading' | 'success' | 'error';
 
@@ -17,7 +21,10 @@ export default function CalendarDebugPage() {
   const [days, setDays] = useState<CalendarDay[] | null>(null);
   const [termsState, setTermsState] = useState<LoadState>('idle');
   const [daysState, setDaysState] = useState<LoadState>('idle');
+  const [displayState, setDisplayState] = useState<LoadState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [displayDate, setDisplayDate] = useState('');
+  const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
 
   const baseCollectionPath = useMemo(() => {
     if (!fiscalYear || !calendarId) {
@@ -60,6 +67,29 @@ export default function CalendarDebugPage() {
       });
   }, [calendarId, fiscalYear]);
 
+  const handleFetchDisplay = useCallback(() => {
+    if (!fiscalYear || !calendarId || !displayDate) {
+      setErrorMessage('年度、カレンダーID、日付を入力してください。');
+      setDisplayState('error');
+      return;
+    }
+
+    setDisplayState('loading');
+    void getCalendarDisplayInfo(fiscalYear, calendarId, displayDate)
+      .then((result) => {
+        setDisplayInfo(result);
+        setDisplayState('success');
+        setErrorMessage(null);
+      })
+      .catch((error) => {
+        const message =
+          error instanceof Error ? error.message : '不明なエラーが発生しました。';
+        setErrorMessage(message);
+        setDisplayInfo(null);
+        setDisplayState('error');
+      });
+  }, [calendarId, displayDate, fiscalYear]);
+
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-6 py-10">
       <header className="space-y-2">
@@ -101,6 +131,16 @@ export default function CalendarDebugPage() {
               className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-base"
             />
           </label>
+
+          <label className="block text-sm font-medium text-neutral-700">
+            日付
+            <input
+              type="date"
+              value={displayDate}
+              onChange={(event) => setDisplayDate(event.target.value)}
+              className="mt-1 w-full rounded border border-neutral-300 px-3 py-2 text-base"
+            />
+          </label>
         </div>
 
         <div className="flex flex-wrap gap-3">
@@ -120,12 +160,72 @@ export default function CalendarDebugPage() {
           >
             {daysState === 'loading' ? '日付一覧取得中…' : '日付一覧を取得'}
           </button>
+          <button
+            type="button"
+            onClick={handleFetchDisplay}
+            className="rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:bg-neutral-400"
+            disabled={displayState === 'loading'}
+          >
+            {displayState === 'loading' ? '日付表示情報取得中…' : '日付表示情報を取得'}
+          </button>
         </div>
 
         {errorMessage ? (
           <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
             {errorMessage}
           </p>
+        ) : null}
+     </section>
+
+      <section className="space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold">日付表示ロジック結果</h2>
+          {displayState === 'loading' ? (
+            <p className="text-sm text-neutral-500">読み込み中です…</p>
+          ) : null}
+        </header>
+
+        {displayState === 'success' && displayInfo ? (
+          <div className="space-y-6 rounded border border-neutral-200 p-4 text-sm">
+            <div className="space-y-2">
+              <h3 className="font-semibold">カレンダー情報</h3>
+              <ul className="space-y-1 text-neutral-700">
+                <li>日付: {displayInfo.calendar.dateLabel}</li>
+                <li>日付テキスト色: {displayInfo.calendar.dateTextColor}</li>
+                <li>
+                  曜日: {displayInfo.calendar.weekdayLabel} (No.
+                  {displayInfo.calendar.weekdayNumber})
+                </li>
+                <li>曜日テキスト色: {displayInfo.calendar.weekdayTextColor}</li>
+                <li>補足情報: {displayInfo.calendar.calendarSupplementalText}</li>
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="font-semibold">大学カレンダー情報</h3>
+              <ul className="space-y-1 text-neutral-700">
+                <li>学事情報ラベル: {displayInfo.academic.label}</li>
+                <li>
+                  授業曜日:{' '}
+                  {displayInfo.academic.weekdayLabel
+                    ? `${displayInfo.academic.weekdayLabel}曜 (${displayInfo.academic.weekdayNumber})`
+                    : '-'}
+                </li>
+                <li>
+                  授業回数:{' '}
+                  {displayInfo.academic.classOrder !== null
+                    ? `${displayInfo.academic.classOrder}回目`
+                    : '-'}
+                </li>
+                <li>背景色タイプ: {displayInfo.academic.backgroundColor}</li>
+                <li>学事情報サブラベル: {displayInfo.academic.subLabel ?? '-'}</li>
+              </ul>
+            </div>
+          </div>
+        ) : null}
+
+        {displayState === 'success' && !displayInfo ? (
+          <p className="text-sm text-neutral-500">該当日付のデータが見つかりませんでした。</p>
         ) : null}
       </section>
 

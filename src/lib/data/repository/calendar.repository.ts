@@ -1,4 +1,13 @@
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  where,
+} from 'firebase/firestore';
 
 import { db } from '@/lib/firebase/client';
 
@@ -21,11 +30,13 @@ function coerceTermData(data: unknown): CalendarTerm {
     (record as { order?: number | null }).order ??
     (record as { termOrder?: number | null }).termOrder ??
     undefined;
+  const holidayFlag = (record as { holidayFlag?: number | null }).holidayFlag ?? undefined;
   const candidate = {
     ...record,
     name: (record as { name?: string; termName?: string }).name
       ?? (record as { termName?: string }).termName
       ?? '',
+    holidayFlag,
     order,
   };
 
@@ -77,4 +88,46 @@ export async function listCalendarDays(
       const dateB = b.date ?? '';
       return dateA.localeCompare(dateB);
     });
+}
+
+export async function getCalendarDay(
+  fiscalYear: string,
+  calendarId: string,
+  dateId: string,
+): Promise<CalendarDay | null> {
+  const segments = getCalendarPathSegments(fiscalYear, calendarId);
+  const daysRef = collection(db, ...segments, 'calendar_days');
+
+  const dateQuery = query(daysRef, where('date', '==', dateId), limit(1));
+  const dateSnapshot = await getDocs(dateQuery);
+
+  if (!dateSnapshot.empty) {
+    const docSnap = dateSnapshot.docs[0];
+    return calendarDaySchema.parse({
+      id: docSnap.id,
+      ...docSnap.data(),
+    });
+  }
+
+  // Fallback: Firestore 上でドキュメント ID を直接指定しているケースに対応
+  const ref = doc(db, ...segments, 'calendar_days', dateId);
+  const snapshot = await getDoc(ref);
+  if (snapshot.exists()) {
+    return calendarDaySchema.parse({
+      id: snapshot.id,
+      ...snapshot.data(),
+    });
+  }
+
+  const normalizedId = dateId.replaceAll('-', '');
+  const normalizedRef = doc(db, ...segments, 'calendar_days', normalizedId);
+  const normalizedSnapshot = await getDoc(normalizedRef);
+  if (normalizedSnapshot.exists()) {
+    return calendarDaySchema.parse({
+      id: normalizedSnapshot.id,
+      ...normalizedSnapshot.data(),
+    });
+  }
+
+  return null;
 }

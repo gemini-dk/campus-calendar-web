@@ -8,6 +8,7 @@ export const calendarTermSchema = z.object({
   id: z.string(),
   name: z.string().min(1, 'name は必須です'),
   shortName: z.string().optional(),
+  holidayFlag: z.number().optional(),
   order: z.number().optional(),
   classCount: z.number().optional(),
   isHoliday: z.boolean().optional(),
@@ -28,7 +29,10 @@ export const calendarDaySchema = z.object({
   termName: z.string().optional(),
   termShortName: z.string().optional(),
   classOrder: z.number().optional(),
+  description: z.string().optional(),
+  termId: z.string().optional(),
   nationalHolidayName: z.string().optional(),
+  isHoliday: z.boolean().optional(),
   notificationReasons: z
     .preprocess((value) => {
       if (Array.isArray(value)) {
