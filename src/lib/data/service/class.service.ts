@@ -314,9 +314,12 @@ export function computeRecommendedMaxAbsence(totalClasses: number): number {
   if (!Number.isFinite(totalClasses) || totalClasses <= 0) {
     return 0;
   }
-  const raw = Math.floor(totalClasses * 0.33);
-  const value = Math.max(raw, 0);
-  return Math.min(value, totalClasses);
+  const threshold = Math.ceil(totalClasses * 0.7);
+  const recommended = totalClasses - threshold;
+  if (recommended <= 0) {
+    return 0;
+  }
+  return Math.min(recommended, totalClasses);
 }
 
 export async function createTimetableClass(params: CreateTimetableClassParams) {

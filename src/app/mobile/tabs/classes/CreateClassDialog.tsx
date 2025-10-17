@@ -41,7 +41,7 @@ const INITIAL_FORM_STATE: FormState = {
   classType: "in_person",
   location: "",
   teacher: "",
-  creditsText: "",
+  creditsText: "2",
   creditsStatus: "in_progress",
   selectedTermIds: [],
   specialOption: "all",
@@ -467,21 +467,13 @@ export function CreateClassDialog({
         generatedClassDates: formState.isFullyOnDemand ? [] : generatedClassDates,
       });
 
-      setSaveState("success");
-      setSaveSuccess("授業を作成しました。引き続き授業の登録が可能です。");
+      setSaveState("idle");
       setSaveError(null);
-      setFormState((prev) => ({
-        ...prev,
-        className: "",
-        location: "",
-        teacher: "",
-        creditsText: "",
-        weeklySlots: prev.isFullyOnDemand ? [] : prev.weeklySlots,
-        maxAbsenceTouched: false,
-      }));
+      setSaveSuccess(null);
       if (onCreated) {
         onCreated();
       }
+      onClose();
     } catch (error) {
       const message =
         error instanceof Error
