@@ -643,7 +643,7 @@ export default function TodoTab() {
         <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-[160px]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-[160px] pt-4">
         {authInitializing ? (
           <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
             認証情報を確認しています...
