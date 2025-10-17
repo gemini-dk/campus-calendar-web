@@ -1,26 +1,35 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { collection, doc, getDoc, getDocs, type DocumentData } from 'firebase/firestore';
+
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/lib/useAuth';
 
 type CalendarDayType = 'class_day' | 'holiday' | 'exam';
 
 type CalendarTerm = {
   id: string;
-  termName: string;
-  shortName: string;
-  termOrder: number;
-  startDate: string;
-  endDate: string;
-  classDayOfWeeks: number[];
-  excludedDates?: string[];
-  notes?: string;
+  name: string;
+  shortName: string | null;
+  order: number | null;
+  classCount: number | null;
+  holidayFlag: 1 | 2 | null;
+};
+
+type CalendarTermStats = {
+  classDayCount: number;
+  firstClassDate: string | null;
+  lastClassDate: string | null;
 };
 
 type CalendarDay = {
+  id: string;
   date: string;
   dayOfWeek: number;
-  termId: string;
-  type: CalendarDayType;
+  termId: string | null;
+  termName: string | null;
+  type: CalendarDayType | string;
 };
 
 type WeeklySlot = {
@@ -31,9 +40,16 @@ type WeeklySlot = {
 type ClassDatePreview = {
   classDate: string;
   dayOfWeek: number;
-  termId: string;
-  termName: string;
+  termId: string | null;
+  termName: string | null;
   periods: number[];
+};
+
+type CalendarSummary = {
+  name: string | null;
+  fiscalYear: number | null;
+  fiscalStart: string | null;
+  fiscalEnd: string | null;
 };
 
 const WEEKDAYS: { value: number; label: string; longLabel: string }[] = [
@@ -48,89 +64,315 @@ const WEEKDAYS: { value: number; label: string; longLabel: string }[] = [
 
 const PERIODS = [1, 2, 3, 4, 5, 6];
 
-const SAMPLE_CALENDAR_TERMS: CalendarTerm[] = [
-  {
-    id: 'spring-2024',
-    termName: '2024年度 春学期',
-    shortName: '春',
-    termOrder: 1,
-    startDate: '2024-04-08',
-    endDate: '2024-07-26',
-    classDayOfWeeks: [1, 2, 3, 4, 5],
-    excludedDates: ['2024-05-03', '2024-05-06'],
-    notes: 'ゴールデンウィーク中の授業は休講扱い。',
-  },
-  {
-    id: 'summer-2024',
-    termName: '2024年度 夏季集中',
-    shortName: '夏集中',
-    termOrder: 2,
-    startDate: '2024-08-05',
-    endDate: '2024-08-23',
-    classDayOfWeeks: [1, 2, 3, 4, 5],
-    notes: '平日のみ3週間集中開講。',
-  },
-  {
-    id: 'fall-2024',
-    termName: '2024年度 秋学期',
-    shortName: '秋',
-    termOrder: 3,
-    startDate: '2024-09-16',
-    endDate: '2024-12-20',
-    classDayOfWeeks: [1, 2, 3, 4, 5, 6],
-    excludedDates: ['2024-11-04', '2024-11-23'],
-    notes: '土曜授業を含む学期。祝日にあたる日は休講。',
-  },
-];
+const CLASS_DAY_KEYWORDS = ['授業', 'class', '試験'];
 
-const SAMPLE_CALENDAR_DAYS = buildSampleCalendarDays(SAMPLE_CALENDAR_TERMS);
-
-const TERM_MAP = new Map(SAMPLE_CALENDAR_TERMS.map((term) => [term.id, term] as const));
-
-const TERM_CLASS_DAY_STATS: Record<
-  string,
-  {
-    classDayCount: number;
-    firstClassDate: string | null;
-    lastClassDate: string | null;
+const normalizeString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null;
   }
-> = (() => {
-  const stats: Record<string, { classDayCount: number; firstClassDate: string | null; lastClassDate: string | null }> = {};
-  for (const term of SAMPLE_CALENDAR_TERMS) {
-    stats[term.id] = { classDayCount: 0, firstClassDate: null, lastClassDate: null };
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const normalizeNumber = (value: unknown): number | null => {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return null;
   }
-  for (const day of SAMPLE_CALENDAR_DAYS) {
-    if (day.type !== 'class_day') {
-      continue;
+  return Number.isFinite(value) ? value : null;
+};
+
+const toMondayBasedWeekday = (jsWeekday: number): number =>
+  jsWeekday === 0 ? 7 : jsWeekday;
+
+const deriveWeekdayFromDate = (dateIso: string): number => {
+  const timestamp = Date.parse(`${dateIso}T00:00:00Z`);
+  if (Number.isNaN(timestamp)) {
+    return 1;
+  }
+  const date = new Date(timestamp);
+  return toMondayBasedWeekday(date.getUTCDay());
+};
+
+const isClassDayType = (value: string | null | undefined): boolean => {
+  if (!value) {
+    return false;
+  }
+  const lower = value.toLowerCase();
+  if (lower === 'class_day') {
+    return true;
+  }
+  return CLASS_DAY_KEYWORDS.some((keyword) => lower.includes(keyword));
+};
+
+const extractTermId = (data: DocumentData): string | null => {
+  const raw = data.termId ?? data.term_id;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (raw && typeof raw === 'object') {
+    const refId = 'id' in raw && typeof raw.id === 'string' ? raw.id.trim() : null;
+    if (refId) {
+      return refId;
     }
-    const termStat = stats[day.termId];
-    if (!termStat) {
-      continue;
-    }
-    termStat.classDayCount += 1;
-    if (!termStat.firstClassDate || day.date < termStat.firstClassDate) {
-      termStat.firstClassDate = day.date;
-    }
-    if (!termStat.lastClassDate || day.date > termStat.lastClassDate) {
-      termStat.lastClassDate = day.date;
+    if ('path' in raw && typeof raw.path === 'string') {
+      const segments = raw.path.split('/');
+      const last = segments[segments.length - 1];
+      return last && last.length > 0 ? last : null;
     }
   }
-  return stats;
-})();
+  return null;
+};
+
+const parseCalendarTerm = (id: string, data: DocumentData): CalendarTerm | null => {
+  const name = normalizeString(data.name ?? data.termName);
+  if (!name) {
+    return null;
+  }
+  const shortName = normalizeString(data.shortName ?? data.short_name);
+  const orderValue = normalizeNumber(data.order ?? data.termOrder);
+  const classCountValue = normalizeNumber(data.classCount ?? data.class_count);
+  const holidayFlagValue = normalizeNumber(data.holidayFlag ?? data.holiday_flag);
+
+  let holidayFlag: 1 | 2 | null = null;
+  if (holidayFlagValue === 1 || holidayFlagValue === 2) {
+    holidayFlag = holidayFlagValue;
+  }
+
+  return {
+    id,
+    name,
+    shortName: shortName ?? null,
+    order: orderValue !== null ? Math.trunc(orderValue) : null,
+    classCount: classCountValue !== null ? Math.trunc(classCountValue) : null,
+    holidayFlag,
+  } satisfies CalendarTerm;
+};
+
+const parseCalendarDay = (id: string, data: DocumentData): CalendarDay | null => {
+  const date = normalizeString(data.date);
+  if (!date) {
+    return null;
+  }
+  const type = normalizeString(data.type) ?? '未指定';
+  const classWeekday = normalizeNumber(data.classWeekday ?? data.class_weekday);
+  const termId = extractTermId(data);
+  const termName = normalizeString(data.termName ?? data.term_name);
+
+  const dayOfWeek = classWeekday !== null ? Math.min(Math.max(Math.trunc(classWeekday), 1), 7) : deriveWeekdayFromDate(date);
+
+  return {
+    id,
+    date,
+    dayOfWeek,
+    termId,
+    termName: termName ?? null,
+    type,
+  } satisfies CalendarDay;
+};
+
+const formatTermOrder = (order: number | null): string => {
+  if (order === null || Number.isNaN(order)) {
+    return '—';
+  }
+  return `#${order}`;
+};
+
+const DEFAULT_CALENDAR_ID = 'jd70dxbqvevcf5kj43cbaf4rjn7rs93e';
+const DEFAULT_FISCAL_YEAR = '2025';
 
 export default function TimetableDebugPage() {
+  const {
+    profile,
+    isAuthenticated,
+    initializing,
+    isProcessing: authProcessing,
+    error: authError,
+    successMessage,
+    signInWithGoogle,
+    signOut: signOutUser,
+  } = useAuth();
+
   const [className, setClassName] = useState('');
-  const [calendarId, setCalendarId] = useState('demo-calendar-2024');
-  const [fiscalYear, setFiscalYear] = useState('2024');
+  const [calendarId, setCalendarId] = useState(DEFAULT_CALENDAR_ID);
+  const [fiscalYear, setFiscalYear] = useState(DEFAULT_FISCAL_YEAR);
   const [credits, setCredits] = useState('2');
   const [classType, setClassType] = useState<'in_person' | 'online' | 'hybrid' | 'on_demand'>('in_person');
   const [selectedTermIds, setSelectedTermIds] = useState<Set<string>>(new Set());
   const [selectedSlotKeys, setSelectedSlotKeys] = useState<Set<string>>(new Set());
+  const [termOptions, setTermOptions] = useState<CalendarTerm[]>([]);
+  const [calendarSummary, setCalendarSummary] = useState<CalendarSummary | null>(null);
+  const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
+  const [isLoadingCalendar, setIsLoadingCalendar] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
+
+  const termMap = useMemo(() => new Map(termOptions.map((term) => [term.id, term])), [termOptions]);
 
   const selectedTerms = useMemo(
-    () => SAMPLE_CALENDAR_TERMS.filter((term) => selectedTermIds.has(term.id)),
-    [selectedTermIds],
+    () => termOptions.filter((term) => selectedTermIds.has(term.id)),
+    [selectedTermIds, termOptions],
   );
+
+  const trimmedCalendarId = calendarId.trim();
+  const trimmedFiscalYear = fiscalYear.trim();
+
+  const termStats = useMemo(() => {
+    const stats = new Map<string, CalendarTermStats>();
+    for (const term of termOptions) {
+      stats.set(term.id, { classDayCount: 0, firstClassDate: null, lastClassDate: null });
+    }
+    for (const day of calendarDays) {
+      if (!day.termId) {
+        continue;
+      }
+      if (!isClassDayType(typeof day.type === 'string' ? day.type : String(day.type))) {
+        continue;
+      }
+      const stat = stats.get(day.termId);
+      if (!stat) {
+        continue;
+      }
+      stat.classDayCount += 1;
+      if (!stat.firstClassDate || day.date < stat.firstClassDate) {
+        stat.firstClassDate = day.date;
+      }
+      if (!stat.lastClassDate || day.date > stat.lastClassDate) {
+        stat.lastClassDate = day.date;
+      }
+    }
+    return stats;
+  }, [calendarDays, termOptions]);
+
+  useEffect(() => {
+    if (!profile?.uid) {
+      setTermOptions([]);
+      setCalendarSummary(null);
+      setCalendarDays([]);
+      setCalendarError(null);
+      setIsLoadingCalendar(false);
+      return;
+    }
+
+    if (trimmedCalendarId.length === 0 || trimmedFiscalYear.length === 0) {
+      setTermOptions([]);
+      setCalendarSummary(null);
+      setCalendarDays([]);
+      setCalendarError(null);
+      setIsLoadingCalendar(false);
+      return;
+    }
+
+    let isCancelled = false;
+    setIsLoadingCalendar(true);
+    setCalendarError(null);
+
+    const fetchData = async () => {
+      try {
+        const calendarRef = doc(db, 'users', profile.uid, 'calendars', trimmedCalendarId);
+        const [calendarSnap, termSnap, daySnap] = await Promise.all([
+          getDoc(calendarRef),
+          getDocs(collection(calendarRef, 'terms')),
+          getDocs(collection(calendarRef, 'days')),
+        ]);
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (calendarSnap.exists()) {
+          const calendarData = calendarSnap.data() as DocumentData;
+          const summary: CalendarSummary = {
+            name: normalizeString(calendarData.name) ?? null,
+            fiscalYear: normalizeNumber(calendarData.fiscalYear) ?? null,
+            fiscalStart: normalizeString(calendarData.fiscalStart ?? calendarData.fiscal_start) ?? null,
+            fiscalEnd: normalizeString(calendarData.fiscalEnd ?? calendarData.fiscal_end) ?? null,
+          };
+          setCalendarSummary(summary);
+        } else {
+          setCalendarSummary(null);
+        }
+
+        const loadedTerms: CalendarTerm[] = [];
+        termSnap.forEach((docSnap) => {
+          const parsed = parseCalendarTerm(docSnap.id, docSnap.data());
+          if (parsed) {
+            loadedTerms.push(parsed);
+          }
+        });
+        loadedTerms.sort((a, b) => {
+          const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+          const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+          if (orderA !== orderB) {
+            return orderA - orderB;
+          }
+          return a.name.localeCompare(b.name, 'ja');
+        });
+        setTermOptions(loadedTerms);
+
+        const loadedDays: CalendarDay[] = [];
+        daySnap.forEach((docSnap) => {
+          const parsed = parseCalendarDay(docSnap.id, docSnap.data());
+          if (parsed) {
+            loadedDays.push(parsed);
+          }
+        });
+        loadedDays.sort((a, b) => a.date.localeCompare(b.date));
+
+        const fiscalYearNumber = Number.parseInt(trimmedFiscalYear, 10);
+        if (!Number.isNaN(fiscalYearNumber)) {
+          const rangeStart = `${fiscalYearNumber}-04-01`;
+          const rangeEnd = `${fiscalYearNumber + 1}-03-31`;
+          setCalendarDays(
+            loadedDays.filter((day) => day.date >= rangeStart && day.date <= rangeEnd),
+          );
+        } else {
+          setCalendarDays(loadedDays);
+        }
+      } catch (error) {
+        if (isCancelled) {
+          return;
+        }
+        console.error('Failed to load calendar data', error);
+        setTermOptions([]);
+        setCalendarSummary(null);
+        setCalendarDays([]);
+        setCalendarError(error instanceof Error ? error.message : 'カレンダーデータの取得に失敗しました。');
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingCalendar(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [profile?.uid, trimmedCalendarId, trimmedFiscalYear]);
+
+  useEffect(() => {
+    if (termOptions.length === 0) {
+      setSelectedTermIds((prev) => (prev.size === 0 ? prev : new Set()));
+      return;
+    }
+    const validIds = new Set(termOptions.map((term) => term.id));
+    setSelectedTermIds((prev) => {
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (validIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      if (!changed && next.size === prev.size) {
+        return prev;
+      }
+      return next;
+    });
+  }, [termOptions]);
 
   const weeklySlots = useMemo<WeeklySlot[]>(() => {
     const slots: WeeklySlot[] = [];
@@ -162,29 +404,29 @@ export default function TimetableDebugPage() {
       periods.sort((a, b) => a - b);
     }
     const results: ClassDatePreview[] = [];
-    for (const day of SAMPLE_CALENDAR_DAYS) {
-      if (day.type !== 'class_day') {
+    for (const day of calendarDays) {
+      if (!day.termId || !selectedTermSet.has(day.termId)) {
         continue;
       }
-      if (!selectedTermSet.has(day.termId)) {
+      if (!isClassDayType(typeof day.type === 'string' ? day.type : String(day.type))) {
         continue;
       }
       const periods = slotsByDay.get(day.dayOfWeek);
       if (!periods || periods.length === 0) {
         continue;
       }
-      const term = TERM_MAP.get(day.termId);
+      const term = termMap.get(day.termId);
       results.push({
         classDate: day.date,
         dayOfWeek: day.dayOfWeek,
         termId: day.termId,
-        termName: term?.termName ?? day.termId,
+        termName: term?.name ?? day.termName,
         periods: [...periods],
       });
     }
     results.sort((a, b) => a.classDate.localeCompare(b.classDate));
     return results;
-  }, [selectedTerms, weeklySlots]);
+  }, [calendarDays, selectedTerms, termMap, weeklySlots]);
 
   const omitWeeklySlots = weeklySlots.length === 0;
 
@@ -202,8 +444,11 @@ export default function TimetableDebugPage() {
 
   const timetableClassDocument = useMemo(() => {
     const sanitizedName = className.trim();
-    const termNames = selectedTerms.map((term) => term.termName);
-    const termDisplayName = selectedTerms.map((term) => term.shortName || term.termName).join(', ');
+    const termNames = selectedTerms.map((term) => term.name);
+    const termDisplayName = selectedTerms
+      .map((term) => term.shortName || term.name)
+      .filter((value) => value && value.length > 0)
+      .join(', ');
     return {
       className: sanitizedName,
       fiscalYear: fiscalYear ? Number(fiscalYear) : null,
@@ -275,9 +520,62 @@ export default function TimetableDebugPage() {
           Firestore へ書き込む前段階で、学期と曜日・時限の組み合わせから授業日程をどのように算出できるか確認するためのデバッグ画面です。
         </p>
         <p className="text-sm text-neutral-600">
-          下記フォームで授業情報を入力し、`calendar_terms` のサンプルデータと照合した結果をプレビューできます。
+          下記フォームで授業情報を入力し、Firestore 上の `calendar_terms` と `calendar_days` を用いて生成した結果をプレビューできます。
         </p>
       </header>
+
+      <section className="grid gap-3 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">0. サインイン状態</h2>
+            <p className="text-sm text-neutral-600">
+              Firebase でサインインし、対象ユーザーの Firestore データにアクセスできる状態であることを確認してください。
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {isAuthenticated ? (
+              <button
+                type="button"
+                onClick={signOutUser}
+                disabled={authProcessing}
+                className="rounded bg-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                サインアウト
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={signInWithGoogle}
+                disabled={authProcessing}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Google でサインイン
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="rounded-lg bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+          {initializing ? (
+            <p>認証状態を確認しています…</p>
+          ) : isAuthenticated && profile ? (
+            <ul className="grid gap-1 md:grid-cols-2">
+              <li>
+                <span className="font-medium">UID:</span> {profile.uid}
+              </li>
+              <li>
+                <span className="font-medium">表示名:</span> {profile.displayName ?? '（未設定）'}
+              </li>
+              <li>
+                <span className="font-medium">メール:</span> {profile.email ?? '（未設定）'}
+              </li>
+            </ul>
+          ) : (
+            <p>未サインインです。Firestore の学期データを取得するにはサインインしてください。</p>
+          )}
+        </div>
+        {authError ? <p className="text-sm text-red-600">{authError}</p> : null}
+        {successMessage ? <p className="text-sm text-green-600">{successMessage}</p> : null}
+      </section>
 
       <section className="grid gap-6 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold">1. 授業の基本情報</h2>
@@ -297,7 +595,7 @@ export default function TimetableDebugPage() {
               className="rounded border border-neutral-300 px-3 py-2 text-base"
               value={fiscalYear}
               onChange={(event) => setFiscalYear(event.target.value)}
-              placeholder="2024"
+              placeholder="2025"
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-neutral-700">
@@ -306,7 +604,7 @@ export default function TimetableDebugPage() {
               className="rounded border border-neutral-300 px-3 py-2 text-base"
               value={calendarId}
               onChange={(event) => setCalendarId(event.target.value)}
-              placeholder="demo-calendar-2024"
+              placeholder={DEFAULT_CALENDAR_ID}
             />
           </label>
           <label className="grid gap-1 text-sm font-medium text-neutral-700">
@@ -332,6 +630,41 @@ export default function TimetableDebugPage() {
             </select>
           </label>
         </div>
+        <div className="rounded-lg bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+          <p className="font-semibold">読み込み対象のカレンダー情報</p>
+          <ul className="mt-2 grid gap-1 md:grid-cols-2">
+            <li>
+              <span className="font-medium">UID:</span> {profile?.uid ?? '—'}
+            </li>
+            <li>
+              <span className="font-medium">Calendar ID:</span> {trimmedCalendarId || '未入力'}
+            </li>
+            <li>
+              <span className="font-medium">年度入力値:</span> {trimmedFiscalYear || '未入力'}
+            </li>
+            <li>
+              <span className="font-medium">カレンダー名:</span>{' '}
+              {calendarSummary?.name
+                ? calendarSummary.name
+                : isLoadingCalendar && trimmedCalendarId && trimmedFiscalYear
+                  ? '読み込み中…'
+                  : '未取得'}
+            </li>
+            <li>
+              <span className="font-medium">年度 (Firestore):</span>{' '}
+              {calendarSummary?.fiscalYear ?? '—'}
+            </li>
+            <li>
+              <span className="font-medium">期間:</span>{' '}
+              {calendarSummary?.fiscalStart && calendarSummary?.fiscalEnd
+                ? `${formatDateLabel(calendarSummary.fiscalStart)} 〜 ${formatDateLabel(calendarSummary.fiscalEnd)}`
+                : '—'}
+            </li>
+          </ul>
+          {calendarError ? (
+            <p className="mt-2 text-sm text-red-600">{calendarError}</p>
+          ) : null}
+        </div>
       </section>
 
       <section className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
@@ -339,42 +672,72 @@ export default function TimetableDebugPage() {
           <h2 className="text-xl font-semibold">2. 学期選択 (calendar_terms)</h2>
           <span className="text-sm text-neutral-500">複数選択できます</span>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          {SAMPLE_CALENDAR_TERMS.map((term) => {
-            const checked = selectedTermIds.has(term.id);
-            const stats = TERM_CLASS_DAY_STATS[term.id];
-            const classDayCount = stats?.classDayCount ?? 0;
-            return (
-              <label
-                key={term.id}
-                className={`grid gap-2 rounded-lg border px-4 py-3 transition ${checked ? 'border-blue-500 bg-blue-50 shadow-inner' : 'border-neutral-200 bg-white hover:border-blue-300'}`}
-              >
-                <span className="flex items-center justify-between text-sm font-semibold text-neutral-800">
-                  <span>{term.termName}</span>
-                  <span className="text-xs font-medium text-neutral-500">#{term.termOrder}</span>
-                </span>
-                <span className="text-xs text-neutral-600">略称: {term.shortName || '（未設定）'}</span>
-                <span className="text-xs text-neutral-600">
-                  期間: {formatDateLabel(term.startDate)} 〜 {formatDateLabel(term.endDate)}
-                </span>
-                <span className="text-xs text-neutral-600">想定授業日: 平日 {term.classDayOfWeeks.map((day) => weekdayLabel(day)).join('・')}</span>
-                <span className="text-xs text-neutral-600">授業日数: {classDayCount} 日</span>
-                {term.notes ? <span className="text-xs text-neutral-500">{term.notes}</span> : null}
-                {term.excludedDates && term.excludedDates.length > 0 ? (
-                  <span className="text-xs text-neutral-500">
-                    休講日: {term.excludedDates.map((date) => formatDateLabel(date)).join(', ')}
-                  </span>
-                ) : null}
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={() => toggleTermSelection(term.id)}
-                  className="hidden"
-                />
-              </label>
-            );
-          })}
+        <div className="rounded-lg bg-neutral-50 px-4 py-3 text-sm text-neutral-700">
+          <p className="font-semibold">取得状況</p>
+          <ul className="mt-2 grid gap-1 md:grid-cols-2">
+            <li>
+              <span className="font-medium">取得済み学期数:</span> {termOptions.length} 件
+            </li>
+            <li>
+              <span className="font-medium">利用可能な授業日:</span> {calendarDays.length} 日
+            </li>
+          </ul>
         </div>
+        {!isAuthenticated && !initializing ? (
+          <p className="rounded-lg bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+            サインインして学期データを取得してください。
+          </p>
+        ) : trimmedCalendarId.length === 0 || trimmedFiscalYear.length === 0 ? (
+          <p className="rounded-lg bg-neutral-50 px-4 py-3 text-sm text-neutral-500">
+            学年とカレンダー ID を入力すると、対象年度の学期候補が表示されます。
+          </p>
+        ) : isLoadingCalendar ? (
+          <p className="rounded-lg bg-neutral-50 px-4 py-3 text-sm text-neutral-500">学期データを読み込み中です…</p>
+        ) : calendarError ? (
+          <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{calendarError}</p>
+        ) : termOptions.length === 0 ? (
+          <p className="rounded-lg bg-neutral-50 px-4 py-3 text-sm text-neutral-500">対象の学期データが見つかりませんでした。</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {termOptions.map((term) => {
+              const checked = selectedTermIds.has(term.id);
+              const stats = termStats.get(term.id);
+              const classDayCount = stats?.classDayCount ?? 0;
+              const firstClassDate = stats?.firstClassDate;
+              const lastClassDate = stats?.lastClassDate;
+              return (
+                <label
+                  key={term.id}
+                  className={`grid gap-2 rounded-lg border px-4 py-3 transition ${checked ? 'border-blue-500 bg-blue-50 shadow-inner' : 'border-neutral-200 bg-white hover:border-blue-300'}`}
+                >
+                  <span className="flex items-center justify-between text-sm font-semibold text-neutral-800">
+                    <span>{term.name}</span>
+                    <span className="text-xs font-medium text-neutral-500">{formatTermOrder(term.order)}</span>
+                  </span>
+                  <span className="text-xs text-neutral-600">略称: {term.shortName ?? '（未設定）'}</span>
+                  {term.classCount !== null ? (
+                    <span className="text-xs text-neutral-600">classCount: {term.classCount} 日</span>
+                  ) : null}
+                  <span className="text-xs text-neutral-600">カレンダー授業日数: {classDayCount} 日</span>
+                  <span className="text-xs text-neutral-600">
+                    授業期間: {firstClassDate ? formatDateLabel(firstClassDate) : '—'} 〜 {lastClassDate ? formatDateLabel(lastClassDate) : '—'}
+                  </span>
+                  {term.holidayFlag ? (
+                    <span className="text-xs text-neutral-500">
+                      休日区分: {term.holidayFlag === 1 ? '授業扱い' : '休日扱い'}
+                    </span>
+                  ) : null}
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleTermSelection(term.id)}
+                    className="hidden"
+                  />
+                </label>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
@@ -448,7 +811,7 @@ export default function TimetableDebugPage() {
       <section className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold">4. 授業日程プレビュー (class_dates)</h2>
         <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-600">
-          <span>選択学期: {selectedTerms.map((term) => term.termName).join(' / ') || '未選択'}</span>
+          <span>選択学期: {selectedTerms.map((term) => term.name).join(' / ') || '未選択'}</span>
           <span>週次枠数: {weeklySlots.length}</span>
           <span>生成された授業日: {generatedClassDates.length} 日</span>
           <span>欠席許容回数 (33%): {maxAbsenceDays}</span>
@@ -536,56 +899,4 @@ function formatDateLabel(isoDate: string) {
     return isoDate;
   }
   return `${year}年${month}月${day}日`;
-}
-
-function buildSampleCalendarDays(terms: CalendarTerm[]): CalendarDay[] {
-  const days: CalendarDay[] = [];
-  for (const term of terms) {
-    const holidaySet = new Set(term.excludedDates ?? []);
-    const start = createUtcDate(term.startDate);
-    const end = createUtcDate(term.endDate);
-    for (let current = start; current.getTime() <= end.getTime(); current = addDays(current, 1)) {
-      const iso = formatIso(current);
-      const dayOfWeek = toAcademicWeekday(current);
-      if (holidaySet.has(iso)) {
-        days.push({
-          date: iso,
-          dayOfWeek,
-          termId: term.id,
-          type: 'holiday',
-        });
-        continue;
-      }
-      if (!term.classDayOfWeeks.includes(dayOfWeek)) {
-        continue;
-      }
-      days.push({
-        date: iso,
-        dayOfWeek,
-        termId: term.id,
-        type: 'class_day',
-      });
-    }
-  }
-  return days;
-}
-
-function createUtcDate(iso: string) {
-  const [year, month, day] = iso.split('-').map((value) => Number.parseInt(value, 10));
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function addDays(date: Date, amount: number) {
-  const next = new Date(date.getTime());
-  next.setUTCDate(next.getUTCDate() + amount);
-  return next;
-}
-
-function toAcademicWeekday(date: Date) {
-  const weekday = date.getUTCDay();
-  return weekday === 0 ? 7 : weekday;
-}
-
-function formatIso(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
