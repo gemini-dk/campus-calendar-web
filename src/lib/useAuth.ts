@@ -8,7 +8,7 @@ import {
 } from 'firebase/auth';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { auth, googleProvider } from '@/lib/firebase';
+import { auth, googleProvider } from '@/lib/firebase/client';
 
 const AUTH_COOKIE_NAME = 'campus-calendar-auth';
 const ONE_HOUR_MS = 60 * 60 * 1000;
