@@ -7,9 +7,10 @@ import {
   getCalendarDisplayInfo,
   type CalendarDisplayInfo,
 } from '@/lib/data/service/calendarDisplay.service';
+import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 
-const DEFAULT_FISCAL_YEAR = '2025';
-const DEFAULT_CALENDAR_ID = 'jd70dxbqvevcf5kj43cbaf4rjn7rs93e';
+const CALENDAR_SETTINGS_ERROR_MESSAGE =
+  '学事カレンダー設定が未入力です。設定タブで保存してください。';
 
 const WEEKDAY_HEADERS = [
   { label: 'Sun', shortLabel: '日', color: '#f87171' },
@@ -111,6 +112,12 @@ function resolveBackgroundColor(color: string | null | undefined): string {
 }
 
 export default function CalendarTab() {
+  const { settings, initialized } = useUserSettings();
+  const fiscalYear = settings.calendar.fiscalYear.trim();
+  const calendarId = settings.calendar.calendarId.trim();
+  const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
+  const configKeyRef = useRef(configKey);
+
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const now = new Date();
     return startOfMonth(now);
@@ -153,8 +160,22 @@ export default function CalendarTab() {
     };
   }, []);
 
+  useEffect(() => {
+    if (configKeyRef.current === configKey) {
+      return;
+    }
+    configKeyRef.current = configKey;
+    setInfoMap({});
+    setMonthStates({});
+    monthStatesRef.current = {};
+  }, [configKey]);
+
   const requestMonthData = useCallback(
     (monthDate: Date, options?: { force?: boolean }) => {
+      if (!initialized) {
+        return undefined;
+      }
+
       const monthKey = getMonthKey(monthDate);
       const existing = monthStatesRef.current[monthKey];
 
@@ -168,6 +189,33 @@ export default function CalendarTab() {
 
       const dates = existing?.dates ?? generateMonthDates(monthDate);
       const dateIds = existing?.dateIds ?? dates.map((date) => formatDateId(date));
+
+      if (!fiscalYear || !calendarId) {
+        if (
+          existing &&
+          existing.errorMessage === CALENDAR_SETTINGS_ERROR_MESSAGE &&
+          !existing.loading &&
+          !existing.loaded
+        ) {
+          return undefined;
+        }
+
+        const state: MonthState = {
+          dates,
+          dateIds,
+          loading: false,
+          loaded: false,
+          errorMessage: CALENDAR_SETTINGS_ERROR_MESSAGE,
+        };
+
+        setMonthStates((prev) => {
+          const next = { ...prev, [monthKey]: state };
+          monthStatesRef.current = next;
+          return next;
+        });
+
+        return undefined;
+      }
 
       const loadingState: MonthState = {
         dates,
@@ -184,19 +232,16 @@ export default function CalendarTab() {
       });
 
       let cancelled = false;
+      const requestKey = configKeyRef.current;
 
       Promise.all(
         dateIds.map(async (dateId) => {
-          const info = await getCalendarDisplayInfo(
-            DEFAULT_FISCAL_YEAR,
-            DEFAULT_CALENDAR_ID,
-            dateId,
-          );
+          const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId);
           return { dateId, info } as const;
         }),
       )
         .then((entries) => {
-          if (cancelled) {
+          if (cancelled || configKeyRef.current !== requestKey) {
             return;
           }
           setInfoMap((prev) => {
@@ -225,7 +270,7 @@ export default function CalendarTab() {
           });
         })
         .catch(() => {
-          if (cancelled) {
+          if (cancelled || configKeyRef.current !== requestKey) {
             return;
           }
           setMonthStates((prev) => {
@@ -251,7 +296,7 @@ export default function CalendarTab() {
         cancelled = true;
       };
     },
-    [],
+    [calendarId, configKey, fiscalYear, initialized],
   );
 
   useEffect(() => {
@@ -450,6 +495,9 @@ export default function CalendarTab() {
     [requestMonthData],
   );
 
+  const isCalendarConfigured = Boolean(fiscalYear && calendarId);
+  const calendarAvailable = initialized && isCalendarConfigured;
+
   return (
     <div className="flex h-full flex-col bg-neutral-50">
       <header className="border-b border-neutral-200 bg-white px-3 py-2">
@@ -473,46 +521,54 @@ export default function CalendarTab() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        <div className="flex h-full flex-col">
-          <div className="grid grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
-            {WEEKDAY_HEADERS.map((weekday) => (
-              <div key={weekday.label} className="flex flex-col items-center justify-center">
-                <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
-                <span className="pt-1">{weekday.label}</span>
-              </div>
-          ))}
-          </div>
-          <div
-            ref={viewportRef}
-            className="flex flex-1 select-none overflow-hidden touch-pan-y"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerEnd}
-            onPointerCancel={handlePointerCancel}
-          >
-            <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
-              {months.map((monthDate) => {
-                const monthKey = getMonthKey(monthDate);
-                const state = monthStates[monthKey];
-                const style = containerWidth
-                  ? { width: containerWidth }
-                  : { width: '100%' };
+        {calendarAvailable ? (
+          <div className="flex h-full flex-col">
+            <div className="grid grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
+              {WEEKDAY_HEADERS.map((weekday) => (
+                <div key={weekday.label} className="flex flex-col items-center justify-center">
+                  <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
+                  <span className="pt-1">{weekday.label}</span>
+                </div>
+              ))}
+            </div>
+            <div
+              ref={viewportRef}
+              className="flex flex-1 select-none overflow-hidden touch-pan-y"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerCancel}
+            >
+              <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
+                {months.map((monthDate) => {
+                  const monthKey = getMonthKey(monthDate);
+                  const state = monthStates[monthKey];
+                  const style = containerWidth
+                    ? { width: containerWidth }
+                    : { width: '100%' };
 
-                return (
-                  <div key={monthKey} className="flex h-full w-full flex-shrink-0" style={style}>
-                    <CalendarMonthSlide
-                      monthDate={monthDate}
-                      monthState={state}
-                      infoMap={infoMap}
-                      todayId={todayId}
-                      onRetry={handleRetry}
-                    />
-                  </div>
-                );
-              })}
+                  return (
+                    <div key={monthKey} className="flex h-full w-full flex-shrink-0" style={style}>
+                      <CalendarMonthSlide
+                        monthDate={monthDate}
+                        monthState={state}
+                        infoMap={infoMap}
+                        todayId={todayId}
+                        onRetry={handleRetry}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex h-full items-center justify-center bg-neutral-50 px-6 text-center text-sm text-neutral-600">
+            {!initialized
+              ? '学事カレンダー設定を読み込み中です...'
+              : CALENDAR_SETTINGS_ERROR_MESSAGE}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -541,6 +597,7 @@ function CalendarMonthSlide({
   const totalCells = dates.length;
   const isLoading = Boolean(monthState?.loading && !monthState?.loaded);
   const errorMessage = monthState?.errorMessage ?? null;
+  const isCalendarSettingsError = errorMessage === CALENDAR_SETTINGS_ERROR_MESSAGE;
 
   return (
     <div className="flex h-full flex-col">
@@ -621,13 +678,15 @@ function CalendarMonthSlide({
       {errorMessage ? (
         <div className="flex flex-col items-center gap-2 py-2 text-sm text-red-600">
           <span>{errorMessage}</span>
-          <button
-            type="button"
-            onClick={() => onRetry(monthDate)}
-            className="border border-red-200 px-3 py-1 text-xs font-medium text-red-600"
-          >
-            再読み込み
-          </button>
+          {isCalendarSettingsError ? null : (
+            <button
+              type="button"
+              onClick={() => onRetry(monthDate)}
+              className="border border-red-200 px-3 py-1 text-xs font-medium text-red-600"
+            >
+              再読み込み
+            </button>
+          )}
         </div>
       ) : null}
     </div>
