@@ -1,12 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
+import { useEffect, useState } from 'react';
+import { onAuthStateChanged, signInWithPopup, type User } from 'firebase/auth';
+import { CalendarImportDialog } from '@/components/calendar/CalendarImportDialog';
 import { auth, googleProvider } from '@/lib/firebase';
+import { type CalendarImportSummary } from '@/lib/calendarImporter';
 
 type MainTab = 'home' | 'calendar' | 'tasks' | 'classes';
 
 type SubTabSelection = Record<MainTab, string>;
+
+type HomeRenderContext = {
+  isLoading: boolean;
+  error: string | null;
+  successMessage: string | null;
+  handleGoogleSignIn: () => Promise<void>;
+  currentUser: User | null;
+  onOpenImporter: () => void;
+  importSummary: CalendarImportSummary | null;
+};
 
 const MAIN_TABS = [
   { id: 'home', label: 'Home', Icon: HomeIcon },
@@ -90,6 +102,25 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isImporterOpen, setIsImporterOpen] = useState(false);
+  const [importSummary, setImportSummary] = useState<CalendarImportSummary | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      if (!user) {
+        setImportSummary(null);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setIsImporterOpen(false);
+    }
+  }, [currentUser]);
 
   const subOptions = SUB_TAB_OPTIONS[activeMainTab];
   const currentSubTab = subTabs[activeMainTab];
@@ -115,6 +146,20 @@ export default function Home() {
     }
   };
 
+  const handleOpenImporter = () => {
+    if (!currentUser) {
+      return;
+    }
+    setError(null);
+    setIsImporterOpen(true);
+  };
+
+  const handleImporterSuccess = (summary: CalendarImportSummary) => {
+    setImportSummary(summary);
+    setSuccessMessage(`${summary.calendarName} の取り込みが完了しました。`);
+    setIsImporterOpen(false);
+  };
+
   const handleSelectMainTab = (tab: MainTab) => {
     setActiveMainTab(tab);
   };
@@ -131,6 +176,9 @@ export default function Home() {
     error,
     successMessage,
     handleGoogleSignIn,
+    currentUser,
+    onOpenImporter: handleOpenImporter,
+    importSummary,
   });
 
   return (
@@ -167,20 +215,19 @@ export default function Home() {
 
         <BottomNav activeTab={activeMainTab} onSelect={handleSelectMainTab} />
       </div>
+
+      {isImporterOpen && currentUser ? (
+        <CalendarImportDialog
+          userId={currentUser.uid}
+          onClose={() => setIsImporterOpen(false)}
+          onImported={handleImporterSuccess}
+        />
+      ) : null}
     </div>
   );
 }
 
-function renderView(
-  mainTab: MainTab,
-  subTab: string,
-  context: {
-    isLoading: boolean;
-    error: string | null;
-    successMessage: string | null;
-    handleGoogleSignIn: () => Promise<void>;
-  }
-) {
+function renderView(mainTab: MainTab, subTab: string, context: HomeRenderContext) {
   switch (mainTab) {
     case 'home':
       return (
@@ -189,6 +236,9 @@ function renderView(
           error={context.error}
           successMessage={context.successMessage}
           onGoogleSignIn={context.handleGoogleSignIn}
+          currentUser={context.currentUser}
+          onOpenImporter={context.onOpenImporter}
+          importSummary={context.importSummary}
         />
       );
     case 'calendar':
@@ -207,6 +257,9 @@ function HomeContent(props: {
   error: string | null;
   successMessage: string | null;
   onGoogleSignIn: () => Promise<void>;
+  currentUser: User | null;
+  onOpenImporter: () => void;
+  importSummary: CalendarImportSummary | null;
 }) {
   const todaysClasses = [
     { name: '代数学基礎', slot: '1限 / Zoom', attendance: '7 / 20', status: '出席' },
@@ -220,6 +273,37 @@ function HomeContent(props: {
 
   return (
     <>
+      <section className="rounded-3xl border border-white/10 bg-white/10 p-6">
+        <h2 className="text-lg font-semibold text-white">学事予定の取り込み</h2>
+        <p className="mt-2 text-sm text-white/85">
+          Convex で公開されている大学の学事予定を Firestore に取り込みます。
+        </p>
+        <button
+          type="button"
+          onClick={props.onOpenImporter}
+          disabled={!props.currentUser}
+          className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-sky-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-200 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {props.currentUser ? '大学を検索する' : 'サインインして取り込みを開始'}
+        </button>
+        {props.currentUser ? (
+          <p className="mt-3 text-xs text-white/70">
+            サインイン済み: {props.currentUser.displayName ?? props.currentUser.email ?? 'Google アカウント'}
+          </p>
+        ) : (
+          <p className="mt-3 text-xs text-white/60">Google サインインすると利用できます。</p>
+        )}
+        {props.importSummary ? (
+          <div className="mt-4 rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-4 text-xs text-emerald-50">
+            <p className="text-sm font-semibold text-emerald-100">{props.importSummary.calendarName}</p>
+            <p className="mt-2">
+              日付 {props.importSummary.dayCount} 件 / 学期 {props.importSummary.termCount} 件 /
+              キャンパス {props.importSummary.campusCount} 件を取り込みました。
+            </p>
+          </div>
+        ) : null}
+      </section>
+
       <section className="rounded-3xl border border-white/10 bg-white/10 p-6">
         <h2 className="text-lg font-semibold text-white">今日の授業</h2>
         <ul className="mt-4 space-y-3 text-sm text-white/85">
