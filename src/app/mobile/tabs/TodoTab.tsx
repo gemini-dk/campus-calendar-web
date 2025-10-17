@@ -213,15 +213,6 @@ function TodoList({
   loading: boolean;
   error: string | null;
 }) {
-  const summary = useMemo(() => {
-    const total = items.length;
-    const completed = items.filter((item) => item.status === 'done').length;
-    const remaining = total - completed;
-    const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
-
-    return { total, completed, remaining, completionRate };
-  }, [items]);
-
   if (loading) {
     return (
       <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
@@ -248,27 +239,6 @@ function TodoList({
 
   return (
     <div className="flex w-full flex-col gap-5">
-      <section className="flex w-full flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-blue-600">今日の進捗</p>
-            <h2 className="mt-2 text-lg font-semibold text-neutral-900">課題のサマリー</h2>
-            <p className="mt-1 text-sm text-neutral-500">
-              完了 {summary.completed} 件 / 残り {summary.remaining} 件
-            </p>
-          </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
-            {summary.completionRate}%
-          </span>
-        </div>
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-200" aria-hidden="true">
-          <div
-            className="h-full rounded-full bg-blue-500"
-            style={{ width: `${summary.completionRate}%` }}
-          />
-        </div>
-      </section>
-
       {items.map((item) => (
         <ActivityListItem key={item.id} activity={item} />
       ))}
@@ -311,11 +281,6 @@ function MemoList({
 
   return (
     <div className="flex w-full flex-col gap-5">
-      <section className="flex w-full flex-col gap-2 rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-neutral-900">保存したメモ</h2>
-        <p className="text-sm text-neutral-500">日々の気づきや備忘録をまとめて確認できます。</p>
-      </section>
-
       {items.map((memo) => (
         <ActivityListItem key={memo.id} activity={memo} />
       ))}
