@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { ChangeEvent, useMemo, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faListUl, faPlus, faTable } from "@fortawesome/free-solid-svg-icons";
@@ -17,12 +17,46 @@ import { CreateClassDialog } from "./classes/CreateClassDialog";
 type ClassesViewMode = "schedule" | "subjects";
 
 export default function ClassesTab() {
-  const { settings } = useUserSettings();
+  const { settings, saveCalendarSettings } = useUserSettings();
   const { profile, isAuthenticated } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ClassesViewMode>("schedule");
 
   const calendarOptions = settings.calendar.entries ?? [];
+
+  const fiscalYearOptions = useMemo(() => {
+    const years = Array.from(
+      new Set((settings.calendar.entries ?? []).map((entry) => entry.fiscalYear)),
+    );
+    return years.sort((a, b) => b.localeCompare(a));
+  }, [settings.calendar.entries]);
+
+  const handleChangeFiscalYear = (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextFiscalYear = event.target.value;
+    if (!nextFiscalYear || nextFiscalYear === settings.calendar.fiscalYear) {
+      return;
+    }
+
+    const currentCalendarId = settings.calendar.calendarId;
+    const matchedEntry = settings.calendar.entries.find(
+      (entry) => entry.fiscalYear === nextFiscalYear && entry.calendarId === currentCalendarId,
+    );
+    const fallbackEntry = settings.calendar.entries.find(
+      (entry) => entry.fiscalYear === nextFiscalYear,
+    );
+
+    if (!matchedEntry && !fallbackEntry) {
+      return;
+    }
+
+    const targetEntry = matchedEntry ?? fallbackEntry!;
+
+    saveCalendarSettings({
+      fiscalYear: targetEntry.fiscalYear,
+      calendarId: targetEntry.calendarId,
+      entries: settings.calendar.entries,
+    });
+  };
 
   const viewTitle = viewMode === "schedule" ? "時間割" : "授業科目一覧";
 
@@ -48,7 +82,28 @@ export default function ClassesTab() {
       <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-white px-4">
         <div className="flex w-full items-center justify-between gap-3">
           <div className="text-lg font-semibold text-neutral-900">{viewTitle}</div>
-          <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
+          <div className="flex items-center gap-3">
+            {fiscalYearOptions.length > 0 ? (
+              <div className="flex h-10 items-center">
+                <label className="sr-only" htmlFor="classes-fiscal-year-select">
+                  年度を選択
+                </label>
+                <select
+                  id="classes-fiscal-year-select"
+                  value={settings.calendar.fiscalYear}
+                  onChange={handleChangeFiscalYear}
+                  className="h-10 w-[140px] rounded-lg border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                >
+                  {fiscalYearOptions.map((fiscalYear) => (
+                    <option key={fiscalYear} value={fiscalYear}>
+                      {fiscalYear}年度
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+            <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
+          </div>
         </div>
       </header>
 
