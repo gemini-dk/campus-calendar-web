@@ -564,43 +564,45 @@ export default function CalendarTab() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        <div className="flex h-full w-full flex-col">
-          <div className="grid w-full grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
-            {WEEKDAY_HEADERS.map((weekday) => (
-              <div key={weekday.label} className="flex flex-col items-center justify-center">
-                <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
-                <span className="pt-1">{weekday.label}</span>
-              </div>
-          ))}
-          </div>
-          <div
-            ref={viewportRef}
-            className="flex w-full flex-1 select-none overflow-hidden touch-pan-y"
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerEnd}
-            onPointerCancel={handlePointerCancel}
-          >
-            <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
-              {months.map((monthDate) => {
-                const monthKey = getMonthKey(monthDate);
-                const state = monthStates[monthKey];
-                const style = containerWidth
-                  ? { width: containerWidth }
-                  : { width: '100%' };
+        {calendarAvailable ? (
+          <div className="flex h-full w-full flex-col">
+            <div className="grid w-full grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
+              {WEEKDAY_HEADERS.map((weekday) => (
+                <div key={weekday.label} className="flex flex-col items-center justify-center">
+                  <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
+                  <span className="pt-1">{weekday.label}</span>
+                </div>
+              ))}
+            </div>
+            <div
+              ref={viewportRef}
+              className="flex w-full flex-1 select-none overflow-hidden touch-pan-y"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerCancel}
+            >
+              <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
+                {months.map((monthDate) => {
+                  const monthKey = getMonthKey(monthDate);
+                  const state = monthStates[monthKey];
+                  const style = containerWidth
+                    ? { width: containerWidth }
+                    : { width: '100%' };
 
-                return (
-                  <div key={monthKey} className="flex h-full w-full flex-shrink-0" style={style}>
-                    <CalendarMonthSlide
-                      monthDate={monthDate}
-                      monthState={state}
-                      infoMap={infoMap}
-                      todayId={todayId}
-                      onRetry={handleRetry}
-                    />
-                  </div>
-                );
-              })}
+                  return (
+                    <div key={monthKey} className="flex h-full w-full flex-shrink-0" style={style}>
+                      <CalendarMonthSlide
+                        monthDate={monthDate}
+                        monthState={state}
+                        infoMap={infoMap}
+                        todayId={todayId}
+                        onRetry={handleRetry}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         ) : (
