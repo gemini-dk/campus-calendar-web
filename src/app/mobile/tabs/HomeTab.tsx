@@ -123,7 +123,7 @@ function HomeTabContent() {
   return (
     <div className="flex min-h-full flex-col">
       <section
-        className="w-full rounded-b-3xl px-6 py-8 shadow-sm"
+        className="flex w-full min-h-[200px] flex-col justify-end px-8 pt-6 pb-8 shadow-sm"
         style={{ backgroundColor }}
       >
         {loading ? (
@@ -131,22 +131,28 @@ function HomeTabContent() {
         ) : errorMessage ? (
           <div className="text-center text-sm text-red-600">{errorMessage}</div>
         ) : (
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex items-start gap-4">
-              <p className={`text-6xl font-semibold leading-none ${dateColorClass}`}>
-                {dayNumber}
-              </p>
-              <div className="flex flex-col">
-                <span className={`text-lg font-semibold ${weekdayColorClass}`}>{weekdayLabel}</span>
-                <span className="mt-2 text-sm text-neutral-700">{supplementalText}</span>
+          <div className="flex w-full items-end justify-between gap-8">
+            <div className="flex flex-col gap-2">
+              <div className="flex items-baseline gap-3">
+                <p
+                  className={`text-[72px] font-semibold leading-none tracking-tight ${dateColorClass}`}
+                >
+                  {dayNumber}
+                </p>
+                <span
+                  className={`text-2xl font-semibold tracking-wide ${weekdayColorClass}`}
+                >
+                  {weekdayLabel}
+                </span>
               </div>
+              <span className="text-sm text-neutral-500">{supplementalText}</span>
             </div>
-            <div className="flex flex-col items-end text-right">
-              <span className="text-base font-semibold text-neutral-900">
+            <div className="flex flex-col items-end justify-end text-right">
+              <span className="text-lg font-semibold text-neutral-900">
                 {academic?.label ?? '-'}
               </span>
               {academic?.subLabel ? (
-                <span className="mt-1 text-xs font-bold text-neutral-800">
+                <span className="mt-1 text-xs font-semibold tracking-wide text-neutral-800">
                   {academic.subLabel}
                 </span>
               ) : null}
