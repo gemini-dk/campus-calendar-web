@@ -38,6 +38,7 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
 };
 
 const CALENDAR_CELL_COUNT = 42;
+const DRAG_DETECTION_THRESHOLD = 6;
 
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
 
@@ -141,6 +142,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const pointerIdRef = useRef<number | null>(null);
   const dragStartRef = useRef(0);
   const dragDeltaRef = useRef(0);
+  const isPointerDownRef = useRef(false);
 
   useEffect(() => {
     monthStatesRef.current = monthStates;
@@ -389,21 +391,31 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
       pointerIdRef.current = event.pointerId;
       dragStartRef.current = event.clientX;
       dragDeltaRef.current = 0;
-      setIsDragging(true);
+      isPointerDownRef.current = true;
       setPendingDirection(null);
       setIsAnimating(false);
-      event.currentTarget.setPointerCapture(event.pointerId);
     },
     [isAnimating],
   );
 
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+      if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
         return;
       }
 
       const delta = event.clientX - dragStartRef.current;
+      let dragging = isDragging;
+
+      if (!dragging) {
+        if (Math.abs(delta) <= DRAG_DETECTION_THRESHOLD) {
+          return;
+        }
+        setIsDragging(true);
+        dragging = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+
       const maxOffset = containerWidth;
       const clamped = Math.max(Math.min(delta, maxOffset), -maxOffset);
       dragDeltaRef.current = clamped;
@@ -416,6 +428,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
     pointerIdRef.current = null;
     dragStartRef.current = 0;
     dragDeltaRef.current = 0;
+    isPointerDownRef.current = false;
   }, []);
 
   const finishDrag = useCallback(
@@ -445,25 +458,33 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
 
   const handlePointerEnd = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+      if (pointerIdRef.current !== event.pointerId) {
         return;
       }
 
       releasePointerCapture(event.pointerId);
-      finishDrag();
+      if (isDragging) {
+        finishDrag();
+      } else {
+        resetDragState();
+      }
     },
-    [finishDrag, isDragging, releasePointerCapture],
+    [finishDrag, isDragging, releasePointerCapture, resetDragState],
   );
 
   const handlePointerCancel = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+      if (pointerIdRef.current !== event.pointerId) {
         return;
       }
       releasePointerCapture(event.pointerId);
-      finishDrag({ cancelled: true });
+      if (isDragging) {
+        finishDrag({ cancelled: true });
+      } else {
+        resetDragState();
+      }
     },
-    [finishDrag, isDragging, releasePointerCapture],
+    [finishDrag, isDragging, releasePointerCapture, resetDragState],
   );
 
   useEffect(() => {
