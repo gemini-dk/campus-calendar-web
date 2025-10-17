@@ -659,7 +659,7 @@ export default function DailyClassesSection({
           本日の授業は登録されていません。
         </div>
       ) : (
-        <ul className="flex w-full flex-col gap-0">
+        <ul className="flex w-full flex-col gap-3">
           {sessions.map((session) => (
             <DailyClassCard
               key={session.id}
@@ -706,6 +706,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
   const isPastOrToday = session.daysFromToday <= 0;
   const isTomorrowOrLater = session.daysFromToday >= 1;
   const showDeliveryToggle = isTomorrowOrLater && session.classType === 'hybrid';
+  const showRightSideActions = isPastOrToday || showDeliveryToggle || isTomorrowOrLater;
 
   const progressSegments = useMemo(() => {
     const total = Math.max(session.summary.totalCount, 1);
@@ -820,25 +821,31 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <ActionButton icon={faListCheck} label="課題作成" />
-        <ActionButton icon={faNoteSticky} label="メモ作成" variant="purple" />
-        {isPastOrToday ? (
-          <AttendanceToggleGroup
-            value={session.attendanceStatus}
-            disabled={attendanceUpdating}
-            onChange={handleAttendanceChange}
-          />
-        ) : null}
-        {showDeliveryToggle ? (
-          <DeliveryToggleGroup
-            value={session.deliveryType}
-            disabled={deliveryUpdating}
-            onChange={handleDeliveryChange}
-          />
-        ) : null}
-        {isTomorrowOrLater ? (
-          <ActionButton icon={faCalendarDays} label="日程変更" variant="neutral" />
+      <div className="flex w-full flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
+          <ActionButton icon={faListCheck} label="課題作成" />
+          <ActionButton icon={faNoteSticky} label="メモ作成" variant="purple" />
+        </div>
+        {showRightSideActions ? (
+          <div className="ml-auto flex items-center gap-2">
+            {isPastOrToday ? (
+              <AttendanceToggleGroup
+                value={session.attendanceStatus}
+                disabled={attendanceUpdating}
+                onChange={handleAttendanceChange}
+              />
+            ) : null}
+            {showDeliveryToggle ? (
+              <DeliveryToggleGroup
+                value={session.deliveryType}
+                disabled={deliveryUpdating}
+                onChange={handleDeliveryChange}
+              />
+            ) : null}
+            {isTomorrowOrLater ? (
+              <ActionButton icon={faCalendarDays} label="日程変更" variant="neutral" />
+            ) : null}
+          </div>
         ) : null}
       </div>
 
@@ -891,6 +898,7 @@ const ATTENDANCE_OPTIONS: {
   icon: IconDefinition;
   label: string;
   activeClass: string;
+  iconClass?: string;
 }[] = [
   {
     value: 'present',
@@ -903,6 +911,7 @@ const ATTENDANCE_OPTIONS: {
     icon: faTriangleExclamation,
     label: '遅刻',
     activeClass: 'bg-orange-100 text-orange-600',
+    iconClass: 'text-[26px]',
   },
   {
     value: 'absent',
@@ -931,7 +940,11 @@ function AttendanceToggleGroup({ value, onChange, disabled }: AttendanceToggleGr
             } disabled:cursor-not-allowed disabled:opacity-60`}
             aria-label={option.label}
           >
-            <FontAwesomeIcon icon={option.icon} className="text-[30px]" aria-hidden="true" />
+            <FontAwesomeIcon
+              icon={option.icon}
+              className={option.iconClass ?? 'text-[30px]'}
+              aria-hidden="true"
+            />
           </button>
         );
       })}

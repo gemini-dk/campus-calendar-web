@@ -167,7 +167,7 @@ function HomeTabContent() {
           </div>
         )}
       </section>
-      <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-6 pb-16 pt-6">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-3 pb-16 pt-6">
         <DailyClassesSection
           userId={profile?.uid ?? null}
           fiscalYear={settings.calendar.fiscalYear}
