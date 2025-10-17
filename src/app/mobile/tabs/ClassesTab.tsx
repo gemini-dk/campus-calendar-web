@@ -127,8 +127,8 @@ export default function ClassesTab() {
       </header>
 
       <div
-        className={`min-h-0 flex-1 overflow-y-auto ${
-          viewMode === "schedule" ? "" : "px-6 pb-[120px]"
+        className={`flex flex-1 flex-col overflow-y-auto ${
+          viewMode === "schedule" ? "" : "px-6"
         }`}
       >
         {viewMode === "schedule" ? (

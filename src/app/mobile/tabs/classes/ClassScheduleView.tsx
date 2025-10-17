@@ -393,7 +393,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         </nav>
       </div>
 
-      <div className="relative flex min-h-[360px] flex-1">
+      <div className="relative flex flex-1">
         <div
           ref={viewportRef}
           className="h-full w-full overflow-hidden"
