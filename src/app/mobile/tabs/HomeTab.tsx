@@ -7,9 +7,7 @@ import {
   getCalendarDisplayInfo,
   type CalendarDisplayInfo,
 } from '@/lib/data/service/calendarDisplay.service';
-
-const DEFAULT_FISCAL_YEAR = '2025';
-const DEFAULT_CALENDAR_ID = 'jd70dxbqvevcf5kj43cbaf4rjn7rs93e';
+import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -58,6 +56,7 @@ function extractDayNumber(label: string): string {
 
 function HomeTabContent() {
   const searchParams = useSearchParams();
+  const { settings } = useUserSettings();
   const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -69,10 +68,22 @@ function HomeTabContent() {
 
   useEffect(() => {
     let active = true;
+    const fiscalYear = settings.calendar.fiscalYear;
+    const calendarId = settings.calendar.calendarId;
+
+    if (!fiscalYear || !calendarId) {
+      setDisplayInfo(null);
+      setErrorMessage('学事カレンダー設定が未入力です。設定タブで保存してください。');
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
     setLoading(true);
     setErrorMessage(null);
 
-    getCalendarDisplayInfo(DEFAULT_FISCAL_YEAR, DEFAULT_CALENDAR_ID, dateId)
+    getCalendarDisplayInfo(fiscalYear, calendarId, dateId)
       .then((info) => {
         if (!active) {
           return;
@@ -95,7 +106,7 @@ function HomeTabContent() {
     return () => {
       active = false;
     };
-  }, [dateId]);
+  }, [dateId, settings.calendar.calendarId, settings.calendar.fiscalYear]);
 
   const general = displayInfo?.calendar;
   const academic = displayInfo?.academic;
