@@ -659,7 +659,7 @@ export default function DailyClassesSection({
           本日の授業は登録されていません。
         </div>
       ) : (
-        <ul className="flex w-full flex-col gap-3">
+        <ul className="flex w-full flex-col gap-0">
           {sessions.map((session) => (
             <DailyClassCard
               key={session.id}
@@ -751,9 +751,9 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
   );
 
   return (
-    <li className="flex w-full flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+    <li className="flex w-full flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-600">
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-600">
           {periodLabel}
         </span>
         <span className={`flex items-center gap-2 text-sm font-medium text-neutral-600 ${iconClass}`}>
@@ -792,7 +792,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
       </div>
 
       <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end justify-between gap-2.5">
+        <div className="flex flex-wrap items-start justify-between gap-2.5">
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-semibold text-emerald-600">{session.summary.presentCount}</span>
             <span className="text-sm text-neutral-600">
@@ -800,7 +800,12 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
               <span className="text-neutral-500">(遅刻: {session.summary.lateCount}, 未入力: {session.summary.unrecordedCount})</span>
             </span>
           </div>
-          <div className="text-sm font-semibold text-red-500">{absenceRatioLabel}</div>
+          <div className="flex flex-col items-end text-red-500">
+            <span className="text-sm font-semibold">{absenceRatioLabel}</span>
+            {absenceMessage ? (
+              <span className="text-xs font-medium">{absenceMessage}</span>
+            ) : null}
+          </div>
         </div>
         <div className="relative flex h-3 w-full overflow-hidden rounded-full bg-neutral-200">
           <div className="flex h-full w-full">
@@ -813,9 +818,6 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
             className="absolute right-0 top-0 h-full bg-red-500"
           />
         </div>
-        {absenceMessage ? (
-          <p className="text-xs text-red-500">{absenceMessage}</p>
-        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -912,7 +914,7 @@ const ATTENDANCE_OPTIONS: {
 
 function AttendanceToggleGroup({ value, onChange, disabled }: AttendanceToggleGroupProps) {
   return (
-    <div className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 py-2 shadow-sm">
+    <div className="flex h-11 w-fit items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2 shadow-sm">
       {ATTENDANCE_OPTIONS.map((option) => {
         const isActive = value === option.value;
         return (
@@ -922,14 +924,14 @@ function AttendanceToggleGroup({ value, onChange, disabled }: AttendanceToggleGr
             onClick={() => onChange(isActive ? null : option.value)}
             disabled={disabled}
             aria-pressed={isActive}
-            className={`flex h-[45px] w-[45px] items-center justify-center rounded-full transition ${
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
               isActive
                 ? option.activeClass
                 : 'bg-transparent text-neutral-400 hover:bg-neutral-100'
             } disabled:cursor-not-allowed disabled:opacity-60`}
             aria-label={option.label}
           >
-            <FontAwesomeIcon icon={option.icon} className="text-[40px]" aria-hidden="true" />
+            <FontAwesomeIcon icon={option.icon} className="text-[30px]" aria-hidden="true" />
           </button>
         );
       })}
