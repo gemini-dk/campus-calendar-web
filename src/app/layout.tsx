@@ -13,6 +13,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+          integrity="sha512-p1VrHjs9wMlOQjo1w8X1LgyoMr55mRtLK7Z/HVbT4ulqtoT8YfseWLa16qJBWO5V9FfHz8v/L+Qp9Yj9d80Spg=="
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+        />
+      </head>
       <body className="antialiased">{children}</body>
     </html>
   );
