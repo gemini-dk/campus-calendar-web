@@ -8,6 +8,9 @@
     "start": "next start"
   },
   "dependencies": {
+    "@convex-dev/agent": "^0.2.10",
+    "@openai/agents": "^0.1.9",
+    "convex": "^1.28.0",
     "firebase": "^12.4.0",
     "next": "15.5.5",
     "react": "19.1.0",
