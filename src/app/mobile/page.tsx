@@ -3,21 +3,23 @@
 import { useMemo, useState } from "react";
 
 import { useAuth } from "@/lib/useAuth";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCalendar, faChalkboardTeacher, faHome, faRightToBracket, faTasks, faUserCircle, IconDefinition } from "@fortawesome/free-solid-svg-icons";
 
 type TabId = "home" | "calendar" | "todo" | "classes" | "user";
 
 type TabDefinition = {
   id: TabId;
   label: string;
-  iconClass: string;
+  iconClass: IconDefinition;
 };
 
 const TABS: TabDefinition[] = [
-  { id: "home", label: "Home", iconClass: "fa-solid fa-home" },
-  { id: "calendar", label: "Calendar", iconClass: "fa-solid fa-calendar" },
-  { id: "todo", label: "Todo", iconClass: "fa-solid fa-tasks" },
-  { id: "classes", label: "授業", iconClass: "fa-solid fa-chalkboard-teacher" },
-  { id: "user", label: "ユーザ", iconClass: "fa-solid fa-user-circle" },
+  { id: "home", label: "Home", iconClass: faHome },
+  { id: "calendar", label: "Calendar", iconClass: faCalendar },
+  { id: "todo", label: "Todo", iconClass: faTasks },
+  { id: "classes", label: "授業", iconClass: faChalkboardTeacher },
+  { id: "user", label: "ユーザ", iconClass: faUserCircle }
 ];
 
 export default function MobilePage() {
@@ -158,9 +160,7 @@ export default function MobilePage() {
                     : "text-neutral-600 hover:bg-neutral-100"
                 }`}
               >
-                <span className="text-lg">
-                  <i className={tab.iconClass} aria-hidden="true" />
-                </span>
+                <FontAwesomeIcon icon={tab.iconClass} fontSize={22} />
                 <span>{tab.label}</span>
               </button>
             );
