@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from '@/lib/firebase';
 
-type MainTab = 'home' | 'calendar' | 'tasks' | 'classes';
+import { useAuth, type AuthUserProfile } from '@/lib/useAuth';
+
+type MainTab = 'home' | 'calendar' | 'tasks' | 'classes' | 'user';
 
 type SubTabSelection = Record<MainTab, string>;
 
@@ -13,6 +13,7 @@ const MAIN_TABS = [
   { id: 'calendar', label: 'カレンダー', Icon: CalendarIcon },
   { id: 'tasks', label: '課題・メモ', Icon: TasksIcon },
   { id: 'classes', label: '授業管理', Icon: ClassesIcon },
+  { id: 'user', label: 'ユーザー', Icon: UserIcon },
 ] as const;
 
 const SUB_TAB_OPTIONS: Record<MainTab, { id: string; label: string }[]> = {
@@ -29,6 +30,7 @@ const SUB_TAB_OPTIONS: Record<MainTab, { id: string; label: string }[]> = {
     { id: 'timetable', label: '時間割' },
     { id: 'list', label: '授業一覧' },
   ],
+  user: [{ id: 'profile', label: 'プロフィール' }],
 };
 
 const VIEW_META: Record<
@@ -77,6 +79,12 @@ const VIEW_META: Record<
       description: ['履修科目をまとめて管理', '資料や教室情報も一箇所に'],
     },
   },
+  user: {
+    profile: {
+      title: 'ユーザープロファイル',
+      description: ['アカウント情報とサインアウトはこちらから確認できます'],
+    },
+  },
 };
 
 export default function Home() {
@@ -86,34 +94,22 @@ export default function Home() {
     calendar: 'weekly',
     tasks: 'assignments',
     classes: 'timetable',
+    user: 'profile',
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const {
+    profile,
+    isAuthenticated,
+    initializing,
+    isProcessing,
+    error,
+    successMessage,
+    signInWithGoogle,
+    signOut,
+  } = useAuth();
 
   const subOptions = SUB_TAB_OPTIONS[activeMainTab];
   const currentSubTab = subTabs[activeMainTab];
   const viewMeta = getViewMeta(activeMainTab, currentSubTab);
-
-  const handleGoogleSignIn = async () => {
-    setError(null);
-    setSuccessMessage(null);
-    setIsLoading(true);
-
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const displayName = result.user.displayName ?? 'ゲスト';
-      setSuccessMessage(`${displayName} さんとしてサインインしました。`);
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('予期せぬエラーが発生しました。しばらく待ってから再度お試しください。');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSelectMainTab = (tab: MainTab) => {
     setActiveMainTab(tab);
@@ -127,10 +123,14 @@ export default function Home() {
   };
 
   const content = renderView(activeMainTab, currentSubTab, {
-    isLoading,
+    isLoading: isProcessing,
     error,
     successMessage,
-    handleGoogleSignIn,
+    handleGoogleSignIn: signInWithGoogle,
+    isAuthenticated,
+    profile,
+    initializing,
+    handleSignOut: signOut,
   });
 
   return (
@@ -179,6 +179,10 @@ function renderView(
     error: string | null;
     successMessage: string | null;
     handleGoogleSignIn: () => Promise<void>;
+    isAuthenticated: boolean;
+    profile: AuthUserProfile | null;
+    initializing: boolean;
+    handleSignOut: () => Promise<void>;
   }
 ) {
   switch (mainTab) {
@@ -189,6 +193,8 @@ function renderView(
           error={context.error}
           successMessage={context.successMessage}
           onGoogleSignIn={context.handleGoogleSignIn}
+          isAuthenticated={context.isAuthenticated}
+          profile={context.profile}
         />
       );
     case 'calendar':
@@ -197,6 +203,18 @@ function renderView(
       return subTab === 'memos' ? <MemoContent /> : <AssignmentsContent />;
     case 'classes':
       return subTab === 'list' ? <ClassListContent /> : <TimetableContent />;
+    case 'user':
+      return (
+        <UserContent
+          profile={context.profile}
+          isAuthenticated={context.isAuthenticated}
+          initializing={context.initializing}
+          isLoading={context.isLoading}
+          onLogout={context.handleSignOut}
+          error={context.error}
+          successMessage={context.successMessage}
+        />
+      );
     default:
       return null;
   }
@@ -207,6 +225,8 @@ function HomeContent(props: {
   error: string | null;
   successMessage: string | null;
   onGoogleSignIn: () => Promise<void>;
+  isAuthenticated: boolean;
+  profile: AuthUserProfile | null;
 }) {
   const todaysClasses = [
     { name: '代数学基礎', slot: '1限 / Zoom', attendance: '7 / 20', status: '出席' },
@@ -276,11 +296,15 @@ function HomeContent(props: {
         <button
           type="button"
           onClick={props.onGoogleSignIn}
-          disabled={props.isLoading}
+          disabled={props.isLoading || props.isAuthenticated}
           className="mt-5 inline-flex w-full items-center justify-center gap-3 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-75"
         >
           <GoogleIcon />
-          {props.isLoading ? 'サインイン処理中…' : 'Google でサインイン'}
+          {props.isLoading
+            ? 'サインイン処理中…'
+            : props.isAuthenticated
+              ? 'ログイン済み'
+              : 'Google でサインイン'}
         </button>
 
         {props.error ? (
@@ -294,8 +318,81 @@ function HomeContent(props: {
             {props.successMessage}
           </p>
         ) : null}
+
+        {props.isAuthenticated && props.profile ? (
+          <p className="mt-4 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-xs text-white/80">
+            {props.profile.displayName ?? 'ゲスト'} さんがログインしています。
+          </p>
+        ) : null}
       </section>
     </>
+  );
+}
+
+function UserContent(props: {
+  profile: AuthUserProfile | null;
+  isAuthenticated: boolean;
+  initializing: boolean;
+  isLoading: boolean;
+  onLogout: () => Promise<void>;
+  error: string | null;
+  successMessage: string | null;
+}) {
+  const initials = props.profile?.displayName?.[0] ?? 'U';
+
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/10 p-6">
+      <h2 className="text-lg font-semibold text-white">ユーザープロファイル</h2>
+      <div className="mt-4 space-y-4 text-sm text-white/85">
+        {props.initializing ? (
+          <p className="rounded-2xl bg-white/5 px-4 py-3 text-center text-xs text-white/70">認証情報を確認しています…</p>
+        ) : null}
+
+        {!props.initializing && !props.isAuthenticated ? (
+          <p className="rounded-2xl bg-white/5 px-4 py-3 text-xs text-white/70">
+            まだサインインしていません。Home タブから Google サインインを行ってください。
+          </p>
+        ) : null}
+
+        {props.isAuthenticated && props.profile ? (
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-lg font-semibold text-white">
+                {initials}
+              </div>
+              <div className="flex-1 text-sm text-white/90">
+                <p className="text-base font-semibold text-white">
+                  {props.profile.displayName ?? 'ゲスト'}
+                </p>
+                <p className="mt-1 text-xs text-white/70">{props.profile.email ?? 'メールアドレス未設定'}</p>
+                <p className="mt-2 text-[11px] text-white/50">UID: {props.profile.uid}</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={props.onLogout}
+              disabled={props.isLoading}
+              className="mt-5 inline-flex w-full items-center justify-center rounded-full bg-red-500/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-200 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {props.isLoading ? 'ログアウト処理中…' : 'ログアウト'}
+            </button>
+          </div>
+        ) : null}
+
+        {props.error ? (
+          <p className="rounded-2xl border border-red-500/40 bg-red-500/15 px-4 py-3 text-xs text-red-100">
+            {props.error}
+          </p>
+        ) : null}
+
+        {props.successMessage ? (
+          <p className="rounded-2xl border border-emerald-400/40 bg-emerald-400/15 px-4 py-3 text-xs text-emerald-50">
+            {props.successMessage}
+          </p>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
@@ -567,7 +664,7 @@ function ClassListContent() {
 function BottomNav(props: { activeTab: MainTab; onSelect: (tab: MainTab) => void }) {
   return (
     <nav className="px-6 pb-6 pt-5">
-      <div className="grid grid-cols-4 gap-3 rounded-full border border-white/15 bg-slate-950/50 p-2">
+      <div className="grid grid-cols-5 gap-3 rounded-full border border-white/15 bg-slate-950/50 p-2">
         {MAIN_TABS.map((tab) => {
           const isActive = props.activeTab === tab.id;
           return (
@@ -727,6 +824,23 @@ function ClassesIcon(props: { className?: string }) {
       <path d="M7 18v2.5L12 18l5 2.5V18" />
       <path d="M7 8h10" />
       <path d="M7 12h6" />
+    </svg>
+  );
+}
+
+function UserIcon(props: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={props.className}
+    >
+      <path d="M12 12.5a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12.5Z" />
+      <path d="M5.5 20.5a6.5 6.5 0 0 1 13 0" />
     </svg>
   );
 }
