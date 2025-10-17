@@ -14,11 +14,13 @@ import { faSquare, faSquareCheck } from '@fortawesome/free-regular-svg-icons';
 import {
   addDoc,
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   Timestamp,
+  updateDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
@@ -60,6 +62,16 @@ function createDefaultFormState(): ActivityFormState {
     dueDate: '',
     isCompleted: false,
   };
+}
+
+function createFormStateFromActivity(activity: Activity): ActivityFormState {
+  return {
+    title: activity.title,
+    notes: activity.notes,
+    classId: activity.classId ?? '',
+    dueDate: activity.dueDate ?? '',
+    isCompleted: activity.status === 'done',
+  } satisfies ActivityFormState;
 }
 
 function parseTimestamp(value: unknown): Date | null {
@@ -174,17 +186,42 @@ function ViewToggleButton({
   );
 }
 
-function ActivityListItem({ activity }: { activity: Activity }) {
+function ActivityListItem({
+  activity,
+  onSelect,
+  onToggleStatus,
+}: {
+  activity: Activity;
+  onSelect: (activity: Activity) => void;
+  onToggleStatus?: (activity: Activity) => void;
+}) {
   const { icon, className } = resolveIcon(activity.type, activity.status);
   const dueLabel = formatDueDateLabel(activity.dueDate, activity.type);
   const classLabel = activity.classId ?? '未設定';
   const createdLabel = formatDateLabel(activity.createdAt);
 
   return (
-    <article className="flex w-full gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-neutral-100">
-        <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
-      </div>
+    <article
+      className="flex w-full cursor-pointer gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+      onClick={() => onSelect(activity)}
+    >
+      {activity.type === 'assignment' ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleStatus?.(activity);
+          }}
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200"
+          aria-label={activity.status === 'done' ? '未完了に戻す' : '完了にする'}
+        >
+          <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
+        </button>
+      ) : (
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-neutral-100">
+          <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
+        </div>
+      )}
       <div className="flex flex-1 flex-col gap-2">
         <h3 className="text-base font-semibold text-neutral-900">{activity.title || '無題の項目'}</h3>
         <div className="flex flex-col text-xs text-neutral-500">
@@ -208,10 +245,14 @@ function TodoList({
   items,
   loading,
   error,
+  onSelect,
+  onToggleStatus,
 }: {
   items: Activity[];
   loading: boolean;
   error: string | null;
+  onSelect: (activity: Activity) => void;
+  onToggleStatus: (activity: Activity) => void;
 }) {
   if (loading) {
     return (
@@ -240,7 +281,12 @@ function TodoList({
   return (
     <div className="flex w-full flex-col gap-5">
       {items.map((item) => (
-        <ActivityListItem key={item.id} activity={item} />
+        <ActivityListItem
+          key={item.id}
+          activity={item}
+          onSelect={onSelect}
+          onToggleStatus={onToggleStatus}
+        />
       ))}
     </div>
   );
@@ -250,10 +296,12 @@ function MemoList({
   items,
   loading,
   error,
+  onSelect,
 }: {
   items: Activity[];
   loading: boolean;
   error: string | null;
+  onSelect: (activity: Activity) => void;
 }) {
   if (loading) {
     return (
@@ -282,7 +330,7 @@ function MemoList({
   return (
     <div className="flex w-full flex-col gap-5">
       {items.map((memo) => (
-        <ActivityListItem key={memo.id} activity={memo} />
+        <ActivityListItem key={memo.id} activity={memo} onSelect={onSelect} />
       ))}
     </div>
   );
@@ -291,10 +339,11 @@ function MemoList({
 type CreateActivityDialogProps = {
   open: boolean;
   type: ActivityType;
+  mode: 'create' | 'edit';
   formState: ActivityFormState;
   onChange: (field: keyof ActivityFormState, value: string | boolean) => void;
   onClose: () => void;
-  onSave: () => void;
+  onSubmit: () => void;
   isSaving: boolean;
   error: string | null;
 };
@@ -302,10 +351,11 @@ type CreateActivityDialogProps = {
 function CreateActivityDialog({
   open,
   type,
+  mode,
   formState,
   onChange,
   onClose,
-  onSave,
+  onSubmit,
   isSaving,
   error,
 }: CreateActivityDialogProps) {
@@ -314,6 +364,7 @@ function CreateActivityDialog({
   }
 
   const isAssignment = type === 'assignment';
+  const isEditing = mode === 'edit';
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 px-4 py-6">
@@ -321,7 +372,13 @@ function CreateActivityDialog({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-neutral-900">
-              {isAssignment ? '課題を追加' : 'メモを追加'}
+              {isAssignment
+                ? isEditing
+                  ? '課題を編集'
+                  : '課題を追加'
+                : isEditing
+                  ? 'メモを編集'
+                  : 'メモを追加'}
             </h2>
             <p className="mt-1 text-sm text-neutral-600">
               {isAssignment
@@ -410,11 +467,11 @@ function CreateActivityDialog({
           </button>
           <button
             type="button"
-            onClick={onSave}
+            onClick={onSubmit}
             disabled={isSaving}
             className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
           >
-            {isSaving ? '保存中...' : '保存する'}
+            {isSaving ? (isEditing ? '更新中...' : '保存中...') : isEditing ? '更新する' : '保存する'}
           </button>
         </div>
       </div>
@@ -433,6 +490,7 @@ export default function TodoTab() {
   const [formState, setFormState] = useState<ActivityFormState>(() => createDefaultFormState());
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
   const { profile, isAuthenticated, initializing: authInitializing } = useAuth();
 
@@ -485,6 +543,7 @@ export default function TodoTab() {
     setDialogType(nextType);
     setFormState(createDefaultFormState());
     setDialogError(null);
+    setSelectedActivity(null);
     setIsDialogOpen(true);
   }, [viewMode]);
 
@@ -492,6 +551,7 @@ export default function TodoTab() {
     setIsDialogOpen(false);
     setDialogError(null);
     setIsSaving(false);
+    setSelectedActivity(null);
   }, []);
 
   const handleFormChange = useCallback(
@@ -504,7 +564,7 @@ export default function TodoTab() {
     [],
   );
 
-  const handleSave = useCallback(async () => {
+  const handleSubmit = useCallback(async () => {
     if (!profile?.uid) {
       setDialogError('ログイン状態を確認できませんでした。再度サインインしてください。');
       return;
@@ -523,22 +583,58 @@ export default function TodoTab() {
         dialogType === 'assignment' && formState.dueDate.trim().length > 0
           ? formState.dueDate
           : null,
-      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
 
     try {
-      const parent = collection(db, 'users', profile.uid, 'activities');
-      await addDoc(parent, payload);
+      if (selectedActivity) {
+        const docRef = doc(db, 'users', profile.uid, 'activities', selectedActivity.id);
+        await updateDoc(docRef, payload);
+      } else {
+        const parent = collection(db, 'users', profile.uid, 'activities');
+        await addDoc(parent, { ...payload, createdAt: serverTimestamp() });
+      }
       setIsDialogOpen(false);
       setFormState(createDefaultFormState());
+      setSelectedActivity(null);
     } catch (err) {
       console.error('Failed to save activity', err);
       setDialogError('保存に失敗しました。時間をおいて再度お試しください。');
     } finally {
       setIsSaving(false);
     }
-  }, [dialogType, formState, profile?.uid]);
+  }, [dialogType, formState, profile?.uid, selectedActivity]);
+
+  const handleSelectActivity = useCallback(
+    (activity: Activity) => {
+      setDialogType(activity.type);
+      setFormState(createFormStateFromActivity(activity));
+      setDialogError(null);
+      setSelectedActivity(activity);
+      setIsDialogOpen(true);
+    },
+    [],
+  );
+
+  const handleToggleAssignmentStatus = useCallback(
+    async (activity: Activity) => {
+      if (!profile?.uid) {
+        return;
+      }
+
+      try {
+        const docRef = doc(db, 'users', profile.uid, 'activities', activity.id);
+        const nextStatus: ActivityStatus = activity.status === 'done' ? 'pending' : 'done';
+        await updateDoc(docRef, {
+          status: nextStatus,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error('Failed to toggle assignment status', err);
+      }
+    },
+    [profile?.uid],
+  );
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
@@ -557,9 +653,20 @@ export default function TodoTab() {
             Todo やメモを利用するにはログインしてください。ユーザタブからサインインできます。
           </div>
         ) : viewMode === 'todo' ? (
-          <TodoList items={assignments} loading={loading} error={error} />
+          <TodoList
+            items={assignments}
+            loading={loading}
+            error={error}
+            onSelect={handleSelectActivity}
+            onToggleStatus={handleToggleAssignmentStatus}
+          />
         ) : (
-          <MemoList items={memos} loading={loading} error={error} />
+          <MemoList
+            items={memos}
+            loading={loading}
+            error={error}
+            onSelect={handleSelectActivity}
+          />
         )}
       </div>
 
@@ -591,10 +698,11 @@ export default function TodoTab() {
       <CreateActivityDialog
         open={isDialogOpen}
         type={dialogType}
+        mode={selectedActivity ? 'edit' : 'create'}
         formState={formState}
         onChange={handleFormChange}
         onClose={handleCloseDialog}
-        onSave={handleSave}
+        onSubmit={handleSubmit}
         isSaving={isSaving}
         error={dialogError}
       />
