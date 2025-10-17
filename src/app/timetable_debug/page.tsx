@@ -1,35 +1,15 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, doc, getDoc, getDocs, type DocumentData } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
+import { fetchCalendarData, isClassDayType, type CalendarDay, type CalendarSummary, type CalendarTerm } from '@/lib/firestore/calendars';
 import { useAuth } from '@/lib/useAuth';
-
-type CalendarDayType = 'class_day' | 'holiday' | 'exam';
-
-type CalendarTerm = {
-  id: string;
-  name: string;
-  shortName: string | null;
-  order: number | null;
-  classCount: number | null;
-  holidayFlag: 1 | 2 | null;
-};
 
 type CalendarTermStats = {
   classDayCount: number;
   firstClassDate: string | null;
   lastClassDate: string | null;
-};
-
-type CalendarDay = {
-  id: string;
-  date: string;
-  dayOfWeek: number;
-  termId: string | null;
-  termName: string | null;
-  type: CalendarDayType | string;
 };
 
 type WeeklySlot = {
@@ -45,13 +25,6 @@ type ClassDatePreview = {
   periods: number[];
 };
 
-type CalendarSummary = {
-  name: string | null;
-  fiscalYear: number | null;
-  fiscalStart: string | null;
-  fiscalEnd: string | null;
-};
-
 const WEEKDAYS: { value: number; label: string; longLabel: string }[] = [
   { value: 1, label: '月', longLabel: '月曜日' },
   { value: 2, label: '火', longLabel: '火曜日' },
@@ -64,112 +37,6 @@ const WEEKDAYS: { value: number; label: string; longLabel: string }[] = [
 
 const PERIODS = [1, 2, 3, 4, 5, 6];
 
-const CLASS_DAY_KEYWORDS = ['授業', 'class', '試験'];
-
-const normalizeString = (value: unknown): string | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-};
-
-const normalizeNumber = (value: unknown): number | null => {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return null;
-  }
-  return Number.isFinite(value) ? value : null;
-};
-
-const toMondayBasedWeekday = (jsWeekday: number): number =>
-  jsWeekday === 0 ? 7 : jsWeekday;
-
-const deriveWeekdayFromDate = (dateIso: string): number => {
-  const timestamp = Date.parse(`${dateIso}T00:00:00Z`);
-  if (Number.isNaN(timestamp)) {
-    return 1;
-  }
-  const date = new Date(timestamp);
-  return toMondayBasedWeekday(date.getUTCDay());
-};
-
-const isClassDayType = (value: string | null | undefined): boolean => {
-  if (!value) {
-    return false;
-  }
-  const lower = value.toLowerCase();
-  if (lower === 'class_day') {
-    return true;
-  }
-  return CLASS_DAY_KEYWORDS.some((keyword) => lower.includes(keyword));
-};
-
-const extractTermId = (data: DocumentData): string | null => {
-  const raw = data.termId ?? data.term_id;
-  if (typeof raw === 'string') {
-    const trimmed = raw.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  if (raw && typeof raw === 'object') {
-    const refId = 'id' in raw && typeof raw.id === 'string' ? raw.id.trim() : null;
-    if (refId) {
-      return refId;
-    }
-    if ('path' in raw && typeof raw.path === 'string') {
-      const segments = raw.path.split('/');
-      const last = segments[segments.length - 1];
-      return last && last.length > 0 ? last : null;
-    }
-  }
-  return null;
-};
-
-const parseCalendarTerm = (id: string, data: DocumentData): CalendarTerm | null => {
-  const name = normalizeString(data.name ?? data.termName);
-  if (!name) {
-    return null;
-  }
-  const shortName = normalizeString(data.shortName ?? data.short_name);
-  const orderValue = normalizeNumber(data.order ?? data.termOrder);
-  const classCountValue = normalizeNumber(data.classCount ?? data.class_count);
-  const holidayFlagValue = normalizeNumber(data.holidayFlag ?? data.holiday_flag);
-
-  let holidayFlag: 1 | 2 | null = null;
-  if (holidayFlagValue === 1 || holidayFlagValue === 2) {
-    holidayFlag = holidayFlagValue;
-  }
-
-  return {
-    id,
-    name,
-    shortName: shortName ?? null,
-    order: orderValue !== null ? Math.trunc(orderValue) : null,
-    classCount: classCountValue !== null ? Math.trunc(classCountValue) : null,
-    holidayFlag,
-  } satisfies CalendarTerm;
-};
-
-const parseCalendarDay = (id: string, data: DocumentData): CalendarDay | null => {
-  const date = normalizeString(data.date);
-  if (!date) {
-    return null;
-  }
-  const type = normalizeString(data.type) ?? '未指定';
-  const classWeekday = normalizeNumber(data.classWeekday ?? data.class_weekday);
-  const termId = extractTermId(data);
-  const termName = normalizeString(data.termName ?? data.term_name);
-
-  const dayOfWeek = classWeekday !== null ? Math.min(Math.max(Math.trunc(classWeekday), 1), 7) : deriveWeekdayFromDate(date);
-
-  return {
-    id,
-    date,
-    dayOfWeek,
-    termId,
-    termName: termName ?? null,
-    type,
-  } satisfies CalendarDay;
-};
 
 const formatTermOrder = (order: number | null): string => {
   if (order === null || Number.isNaN(order)) {
@@ -268,66 +135,23 @@ export default function TimetableDebugPage() {
 
     const fetchData = async () => {
       try {
-        const calendarRef = doc(db, 'users', profile.uid, 'calendars', trimmedCalendarId);
-        const [calendarSnap, termSnap, daySnap] = await Promise.all([
-          getDoc(calendarRef),
-          getDocs(collection(calendarRef, 'terms')),
-          getDocs(collection(calendarRef, 'days')),
-        ]);
+        const fiscalYearNumber = Number.parseInt(trimmedFiscalYear, 10);
+        const resolvedFiscalYear = Number.isNaN(fiscalYearNumber) ? null : fiscalYearNumber;
+
+        const { summary, terms, days } = await fetchCalendarData({
+          db,
+          uid: profile.uid,
+          calendarId: trimmedCalendarId,
+          fiscalYear: resolvedFiscalYear,
+        });
 
         if (isCancelled) {
           return;
         }
 
-        if (calendarSnap.exists()) {
-          const calendarData = calendarSnap.data() as DocumentData;
-          const summary: CalendarSummary = {
-            name: normalizeString(calendarData.name) ?? null,
-            fiscalYear: normalizeNumber(calendarData.fiscalYear) ?? null,
-            fiscalStart: normalizeString(calendarData.fiscalStart ?? calendarData.fiscal_start) ?? null,
-            fiscalEnd: normalizeString(calendarData.fiscalEnd ?? calendarData.fiscal_end) ?? null,
-          };
-          setCalendarSummary(summary);
-        } else {
-          setCalendarSummary(null);
-        }
-
-        const loadedTerms: CalendarTerm[] = [];
-        termSnap.forEach((docSnap) => {
-          const parsed = parseCalendarTerm(docSnap.id, docSnap.data());
-          if (parsed) {
-            loadedTerms.push(parsed);
-          }
-        });
-        loadedTerms.sort((a, b) => {
-          const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
-          const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
-          if (orderA !== orderB) {
-            return orderA - orderB;
-          }
-          return a.name.localeCompare(b.name, 'ja');
-        });
-        setTermOptions(loadedTerms);
-
-        const loadedDays: CalendarDay[] = [];
-        daySnap.forEach((docSnap) => {
-          const parsed = parseCalendarDay(docSnap.id, docSnap.data());
-          if (parsed) {
-            loadedDays.push(parsed);
-          }
-        });
-        loadedDays.sort((a, b) => a.date.localeCompare(b.date));
-
-        const fiscalYearNumber = Number.parseInt(trimmedFiscalYear, 10);
-        if (!Number.isNaN(fiscalYearNumber)) {
-          const rangeStart = `${fiscalYearNumber}-04-01`;
-          const rangeEnd = `${fiscalYearNumber + 1}-03-31`;
-          setCalendarDays(
-            loadedDays.filter((day) => day.date >= rangeStart && day.date <= rangeEnd),
-          );
-        } else {
-          setCalendarDays(loadedDays);
-        }
+        setCalendarSummary(summary);
+        setTermOptions(terms);
+        setCalendarDays(days);
       } catch (error) {
         if (isCancelled) {
           return;

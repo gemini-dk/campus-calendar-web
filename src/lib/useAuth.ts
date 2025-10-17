@@ -6,7 +6,7 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { auth, googleProvider } from '@/lib/firebase';
 
@@ -36,23 +36,29 @@ type UseAuthState = {
 };
 
 export function useAuth(): UseAuthState {
-  const initialProfile = useMemo(() => {
-    const cookie = readAuthCookie();
-    if (!cookie) {
-      return null;
-    }
-    if (cookie.expiresAt <= Date.now()) {
-      clearAuthCookie();
-      return null;
-    }
-    return extractProfile(cookie);
-  }, []);
-
-  const [profile, setProfile] = useState<AuthUserProfile | null>(initialProfile);
-  const [initializing, setInitializing] = useState(!initialProfile);
+  const [profile, setProfile] = useState<AuthUserProfile | null>(null);
+  const [initializing, setInitializing] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const cookie = readAuthCookie();
+    if (!cookie) {
+      return;
+    }
+
+    if (cookie.expiresAt <= Date.now()) {
+      clearAuthCookie();
+      return;
+    }
+
+    setProfile(extractProfile(cookie));
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onIdTokenChanged(auth, async (user) => {
