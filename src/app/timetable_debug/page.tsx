@@ -15,7 +15,7 @@ type WeeklySlot = {
 type GeneratedClassDate = {
   date: string;
   dayOfWeek: number;
-  period: number;
+  period: number | null;
   termName: string;
 };
 
@@ -31,19 +31,36 @@ export default function TimetableDebugPage() {
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [selectedTerms, setSelectedTerms] = useState<string[]>([]);
+  const [selectedTermIds, setSelectedTermIds] = useState<string[]>([]);
   const [selectedSlots, setSelectedSlots] = useState<WeeklySlot[]>([]);
 
   const [scheduleState, setScheduleState] = useState<LoadState>('idle');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [generatedDates, setGeneratedDates] = useState<GeneratedClassDate[]>([]);
 
+  const selectableTerms = useMemo(
+    () => terms.filter((term) => term.holidayFlag === 2),
+    [terms],
+  );
+
+  const getCalendarWeekdayLabel = useCallback((date: string) => {
+    const parsed = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) {
+      return '-';
+    }
+    const labels = ['日', '月', '火', '水', '木', '金', '土'] as const;
+    return labels[parsed.getDay()] ?? '-';
+  }, []);
+
   const periodNumbers = useMemo(() => {
     const numbers = Array.from(
       new Set(
         days
           .map((day) => day.classOrder)
-          .filter((period): period is number => typeof period === 'number' && period > 0),
+          .filter(
+            (period): period is number =>
+              typeof period === 'number' && period > 0 && period <= 7,
+          ),
       ),
     ).sort((a, b) => a - b);
 
@@ -77,7 +94,7 @@ export default function TimetableDebugPage() {
       ]);
       setTerms(termItems);
       setDays(dayItems);
-      setSelectedTerms([]);
+      setSelectedTermIds([]);
       setSelectedSlots([]);
       setGeneratedDates([]);
       setScheduleState('idle');
@@ -91,12 +108,12 @@ export default function TimetableDebugPage() {
     }
   }, [calendarId, fiscalYear]);
 
-  const handleToggleTerm = useCallback((termName: string) => {
-    setSelectedTerms((prev) => {
-      if (prev.includes(termName)) {
-        return prev.filter((name) => name !== termName);
+  const handleToggleTerm = useCallback((termId: string) => {
+    setSelectedTermIds((prev) => {
+      if (prev.includes(termId)) {
+        return prev.filter((id) => id !== termId);
       }
-      return [...prev, termName];
+      return [...prev, termId];
     });
   }, []);
 
@@ -120,52 +137,58 @@ export default function TimetableDebugPage() {
       return;
     }
 
-    if (selectedTerms.length === 0) {
+    if (selectedTermIds.length === 0) {
       setScheduleError('学期を選択してください。');
       setScheduleState('error');
       return;
     }
 
-    if (selectedSlots.length === 0) {
-      setScheduleError('曜日・時限を少なくとも1つ選択してください。');
+    const selectedDayNumbers = new Set(selectedSlots.map((slot) => slot.dayOfWeek));
+    if (selectedDayNumbers.size === 0) {
+      setScheduleError('曜日を少なくとも1つ選択してください。');
       setScheduleState('error');
       return;
     }
 
-    const termSet = new Set(selectedTerms);
+    const termSet = new Set(selectedTermIds);
+    const termNameMap = new Map(selectableTerms.map((term) => [term.id, term.name]));
     const results: GeneratedClassDate[] = [];
 
     for (const day of days) {
-      if (!day.date || typeof day.classWeekday !== 'number' || !day.termName) {
+      if (day.type !== '授業日') {
+        continue;
+      }
+      if (!day.date || typeof day.classWeekday !== 'number' || !day.termId) {
         continue;
       }
 
-      if (!termSet.has(day.termName)) {
+      if (!termSet.has(day.termId)) {
         continue;
       }
 
+      if (!selectedDayNumbers.has(day.classWeekday)) {
+        continue;
+      }
+
+      const termLabel = termNameMap.get(day.termId) ?? day.termName ?? day.termId;
       const periodNumber = typeof day.classOrder === 'number' ? day.classOrder : null;
 
-      for (const slot of selectedSlots) {
-        if (day.classWeekday === slot.dayOfWeek) {
-          if (periodNumber === slot.period) {
-            results.push({
-              date: day.date,
-              dayOfWeek: slot.dayOfWeek,
-              period: slot.period,
-              termName: day.termName,
-            });
-          }
-        }
-      }
+      results.push({
+        date: day.date,
+        dayOfWeek: day.classWeekday,
+        period: periodNumber,
+        termName: termLabel,
+      });
     }
 
     results.sort((a, b) => {
       if (a.date !== b.date) {
         return a.date.localeCompare(b.date);
       }
-      if (a.period !== b.period) {
-        return a.period - b.period;
+      const periodA = typeof a.period === 'number' ? a.period : Number.MAX_SAFE_INTEGER;
+      const periodB = typeof b.period === 'number' ? b.period : Number.MAX_SAFE_INTEGER;
+      if (periodA !== periodB) {
+        return periodA - periodB;
       }
       return a.dayOfWeek - b.dayOfWeek;
     });
@@ -173,7 +196,7 @@ export default function TimetableDebugPage() {
     setGeneratedDates(results);
     setScheduleError(null);
     setScheduleState('success');
-  }, [days, loadState, selectedSlots, selectedTerms]);
+  }, [days, loadState, selectedSlots, selectedTermIds, selectableTerms]);
 
   useEffect(() => {
     void handleLoadCalendar();
@@ -240,12 +263,12 @@ export default function TimetableDebugPage() {
             Firestore の calendar_terms コレクションから取得した学期を表示しています。
           </p>
         </header>
-        {terms.length === 0 ? (
-          <p className="text-sm text-neutral-500">学期情報が取得できていません。</p>
+        {selectableTerms.length === 0 ? (
+          <p className="text-sm text-neutral-500">対象となる学期が取得できていません。</p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-            {terms.map((term) => {
-              const checked = selectedTerms.includes(term.name);
+            {selectableTerms.map((term) => {
+              const checked = selectedTermIds.includes(term.id);
               return (
                 <label
                   key={term.id}
@@ -254,7 +277,7 @@ export default function TimetableDebugPage() {
                   <input
                     type="checkbox"
                     checked={checked}
-                    onChange={() => handleToggleTerm(term.name)}
+                    onChange={() => handleToggleTerm(term.id)}
                     className="mt-1"
                   />
                   <span>
@@ -366,7 +389,7 @@ export default function TimetableDebugPage() {
                     <tr>
                       <th className="border border-neutral-200 px-3 py-2">日付</th>
                       <th className="border border-neutral-200 px-3 py-2">曜日</th>
-                      <th className="border border-neutral-200 px-3 py-2">時限</th>
+                      <th className="border border-neutral-200 px-3 py-2">回数</th>
                       <th className="border border-neutral-200 px-3 py-2">学期</th>
                     </tr>
                   </thead>
@@ -375,9 +398,11 @@ export default function TimetableDebugPage() {
                       <tr key={`${item.date}-${item.dayOfWeek}-${item.period}`}>
                         <td className="border border-neutral-200 px-3 py-2 font-mono">{item.date}</td>
                         <td className="border border-neutral-200 px-3 py-2">
-                          {WEEKDAY_LABELS[item.dayOfWeek - 1]}曜
+                          {item.date ? `${getCalendarWeekdayLabel(item.date)}曜` : '-'}
                         </td>
-                        <td className="border border-neutral-200 px-3 py-2">{item.period}限</td>
+                        <td className="border border-neutral-200 px-3 py-2">
+                          {typeof item.period === 'number' ? item.period : '-'}
+                        </td>
                         <td className="border border-neutral-200 px-3 py-2">{item.termName}</td>
                       </tr>
                     ))}

@@ -43,6 +43,28 @@ function coerceTermData(data: unknown): CalendarTerm {
   return calendarTermSchema.parse(candidate);
 }
 
+function coerceDayData(data: unknown): CalendarDay {
+  const candidate = calendarDaySchema.parse(data);
+  if (typeof candidate.classWeekday === 'number' && Number.isFinite(candidate.classWeekday)) {
+    return candidate;
+  }
+  if (!candidate.date) {
+    return candidate;
+  }
+  if (candidate.type !== '授業日') {
+    return candidate;
+  }
+  const parsed = new Date(`${candidate.date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return candidate;
+  }
+  const weekday = ((parsed.getDay() + 6) % 7) + 1;
+  return {
+    ...candidate,
+    classWeekday: weekday,
+  };
+}
+
 export async function listCalendarTerms(
   fiscalYear: string,
   calendarId: string,
@@ -78,7 +100,7 @@ export async function listCalendarDays(
 
   return snapshot.docs
     .map((doc) =>
-      calendarDaySchema.parse({
+      coerceDayData({
         id: doc.id,
         ...doc.data(),
       }),
@@ -103,7 +125,7 @@ export async function getCalendarDay(
 
   if (!dateSnapshot.empty) {
     const docSnap = dateSnapshot.docs[0];
-    return calendarDaySchema.parse({
+    return coerceDayData({
       id: docSnap.id,
       ...docSnap.data(),
     });
@@ -113,7 +135,7 @@ export async function getCalendarDay(
   const ref = doc(db, ...segments, 'calendar_days', dateId);
   const snapshot = await getDoc(ref);
   if (snapshot.exists()) {
-    return calendarDaySchema.parse({
+    return coerceDayData({
       id: snapshot.id,
       ...snapshot.data(),
     });
@@ -123,7 +145,7 @@ export async function getCalendarDay(
   const normalizedRef = doc(db, ...segments, 'calendar_days', normalizedId);
   const normalizedSnapshot = await getDoc(normalizedRef);
   if (normalizedSnapshot.exists()) {
-    return calendarDaySchema.parse({
+    return coerceDayData({
       id: normalizedSnapshot.id,
       ...normalizedSnapshot.data(),
     });
