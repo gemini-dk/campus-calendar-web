@@ -451,13 +451,13 @@ export default function CalendarTab() {
   );
 
   return (
-    <div className="flex min-h-full flex-col bg-neutral-50">
-      <header className="border-b border-neutral-200 bg-white px-6 py-4">
+    <div className="flex h-full flex-col bg-neutral-50">
+      <header className="border-b border-neutral-200 bg-white px-3 py-2">
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={handlePrevMonth}
-            className="rounded-full bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200"
+            className="bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200"
           >
             前月
           </button>
@@ -465,54 +465,52 @@ export default function CalendarTab() {
           <button
             type="button"
             onClick={handleNextMonth}
-            className="rounded-full bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200"
+            className="bg-neutral-100 px-3 py-1 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200"
           >
             翌月
           </button>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-neutral-600">
-          {WEEKDAY_HEADERS.map((weekday) => (
-            <div key={weekday.label} className="flex flex-col items-center gap-2">
-              <div
-                className="h-1 w-full rounded-full"
-                style={{ backgroundColor: weekday.color }}
-              />
-              <span>{weekday.label}</span>
-            </div>
+      <div className="flex-1 overflow-hidden">
+        <div className="flex h-full flex-col">
+          <div className="grid grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
+            {WEEKDAY_HEADERS.map((weekday) => (
+              <div key={weekday.label} className="flex flex-col items-center justify-center">
+                <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
+                <span className="pt-1">{weekday.label}</span>
+              </div>
           ))}
-        </div>
+          </div>
+          <div
+            ref={viewportRef}
+            className="flex flex-1 select-none overflow-hidden touch-pan-y"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerCancel}
+          >
+            <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
+              {months.map((monthDate) => {
+                const monthKey = getMonthKey(monthDate);
+                const state = monthStates[monthKey];
+                const style = containerWidth
+                  ? { width: containerWidth }
+                  : { width: '100%' };
 
-        <div
-          ref={viewportRef}
-          className="mt-4 select-none overflow-hidden touch-pan-y"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerEnd}
-          onPointerCancel={handlePointerCancel}
-        >
-          <div className="flex" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
-            {months.map((monthDate) => {
-              const monthKey = getMonthKey(monthDate);
-              const state = monthStates[monthKey];
-              const style = containerWidth
-                ? { width: containerWidth }
-                : { width: '100%' };
-
-              return (
-                <div key={monthKey} className="w-full flex-shrink-0 px-1" style={style}>
-                  <CalendarMonthSlide
-                    monthDate={monthDate}
-                    monthState={state}
-                    infoMap={infoMap}
-                    todayId={todayId}
-                    onRetry={handleRetry}
-                  />
-                </div>
-              );
-            })}
+                return (
+                  <div key={monthKey} className="flex h-full w-full flex-shrink-0" style={style}>
+                    <CalendarMonthSlide
+                      monthDate={monthDate}
+                      monthState={state}
+                      infoMap={infoMap}
+                      todayId={todayId}
+                      onRetry={handleRetry}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -545,8 +543,8 @@ function CalendarMonthSlide({
   const errorMessage = monthState?.errorMessage ?? null;
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="grid grid-cols-7 grid-rows-6 border border-neutral-200">
+    <div className="flex h-full flex-col">
+      <div className="grid flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
         {dates.map((date, index) => {
           const dateId = dateIds[index];
           const info = infoMap[dateId];
@@ -585,6 +583,7 @@ function CalendarMonthSlide({
                 borderRightWidth: showRightBorder ? 1 : 0,
                 borderBottomWidth: showBottomBorder ? 1 : 0,
                 borderColor: 'rgba(212, 212, 216, 1)',
+                borderStyle: 'solid',
               }}
             >
               <div className="flex items-start justify-between">
@@ -616,16 +615,16 @@ function CalendarMonthSlide({
       </div>
 
       {isLoading ? (
-        <div className="mt-6 text-center text-sm text-neutral-600">読み込み中...</div>
+        <div className="flex items-center justify-center py-2 text-sm text-neutral-600">読み込み中...</div>
       ) : null}
 
       {errorMessage ? (
-        <div className="mt-4 flex flex-col items-center gap-2 text-sm text-red-600">
+        <div className="flex flex-col items-center gap-2 py-2 text-sm text-red-600">
           <span>{errorMessage}</span>
           <button
             type="button"
             onClick={() => onRetry(monthDate)}
-            className="rounded-full border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+            className="border border-red-200 px-3 py-1 text-xs font-medium text-red-600"
           >
             再読み込み
           </button>
