@@ -661,7 +661,7 @@ function CalendarMonthSlide({
               key={dateId}
               type="button"
               onClick={() => onDateSelect?.(dateId)}
-              className={`flex min-h-0 flex-col overflow-hidden text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
+              className={`flex h-full min-h-0 w-full flex-col overflow-hidden text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
                 isCurrentMonth ? '' : 'opacity-50'
               } ${
                 isToday
