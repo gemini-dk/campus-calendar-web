@@ -1,170 +1,125 @@
 # Web版CampusCalendar Firestore仕様（授業作成・時間割）
 
-本書はiOS版CampusCalendarのSQLite実装【F:docs/schema.md†L1-L121】と授業作成処理【F:CampusCalendar/Database/Repositories/TimetableClassRepository.swift†L1-L720】【F:CampusCalendar/Views/Classes/ClassDraftModel.swift†L131-L220】を基に、Web版をFirestore上で再構築するためのデータ仕様を定義します。Firestore設計は、授業作成時に必要なプロパティの設定方法と、学期・曜日時限から授業日程を自動展開するプロセスを中心に整理しています。
+本書は iOS 版で SQLite を利用していた授業作成・時間割機能を、Firestore の `/users/{uid}` 配下に移植するための設計をまとめます。全体的なデータモデルは「Firestoreデータモデル設計（SQLite移行版）」を前提とし、本書では授業（`timetable_classes`）とその周辺データにフォーカスします。
 
-## Firestoreコレクション構造
+## コレクションツリー
 
 ```
-/academic_calendars/{calendarId}
-    name, fiscalYear, universityCode, ...
-    /terms/{termId}
-        termName, shortName, termOrder, ...
-    /days/{yyyymmdd}
-        termName, classWeekday, type, ...
-
-/academic_years/{fiscalYear}
-    classTimeSetId, classesPerDay, ...
-    /timetable_classes/{classId}
-        <授業本体フィールド>
-        /weekly_slots/{slotId}
-            dayOfWeek, period
-        /class_dates/{classDateId}
-            classDate, periods, ...
+/users/{uid}
+  /academic_years/{fiscalYear}
+      ...年度設定...
+      /timetable_classes/{classId}
+          <授業本体フィールド>
+          /weekly_slots/{slotId}
+              dayOfWeek, period, displayOrder
+          /class_dates/{classDateId}
+              classDate, periods, attendanceStatus, ...
 ```
 
-### `/academic_calendars`
+- 各ユーザーは年度ごとに授業を保持します。年度ドキュメントは `academic_year_settings` の移植先に相当します。
+- 授業ドキュメントは SQLite の `timetable_classes` レコードを 1:1 で移行し、週次枠 (`timetable_weekly_slots`) と授業日 (`timetable_class_dates`) はサブコレクションとして保持します。
 
-- **役割**: Convex由来の学務カレンダーを年次で保持し、授業日判定に必要なメタ情報を提供します。SQLite版の`calendar_summaries`と`calendar_days`の置換です。【F:docs/schema.md†L8-L121】【F:CampusCalendar/Database/Models/LocalCalendarDay.swift†L1-L108】
-- **フィールド例**: `name`、`fiscal_year`、`university_code`、`fiscal_start`/`fiscal_end`、`synced_at`など。
-- **`days`サブコレクション**: ドキュメントIDは`yyyy-MM-dd`。必須フィールドは以下の通り。
-  - `date` (string ISO)。
-  - `type` (enum: `class_day`/`exam_day`/`makeup_day`/`holiday`/`unspecified`)。
-  - `termName`、`termShortName`。
-  - `classWeekday` (number: 1=Mon〜7=Sun, 0は未定義)。【F:CampusCalendar/Database/Models/LocalCalendarDay.swift†L1-L108】
-  - `classOrder` (number、必要に応じて授業順序のソートに利用)。
-  - `isDeleted`フラグ、`updatedAt`、`syncedAt`等のメタデータ。
-- **`terms`サブコレクション**: 元`calendar_terms`を保持。`termName`、`shortName`、`termOrder`、`classCount`、`holidayFlag`などを格納します。【F:docs/schema.md†L24-L83】
+## 授業ドキュメント仕様
 
-### `/academic_years/{fiscalYear}`
+### `/users/{uid}/academic_years/{fiscalYear}/timetable_classes/{classId}`
 
-- **役割**: 年度単位の時間割設定 (`class_time_sets` と `academic_year_settings`) を保持します。【F:docs/schema.md†L100-L190】
-- **フィールド例**: `classesPerDay`、`hasSaturdayClasses`、`classTimeSetId`。
-- **`class_time_sets` サブコレクション** (必要な場合): 各セットの`periods`配列を保持し、1コマの`start`/`end`時刻を記録します。【F:docs/schema.md†L136-L179】
-- **`timetable_classes` サブコレクション**: 授業本体ドキュメントと、その下に週次枠・日程のサブコレクションを持ちます（後述）。
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `className` | string | 必須。前後空白トリム。 |
+| `fiscalYear` | number | 親ドキュメントの年度と一致。クエリ用に冗長保持。 |
+| `calendarId` | string | 紐づく学務カレンダー ID。 |
+| `termNames` | array<string> | UI 選択順を保持。重複排除。 |
+| `termDisplayName` | string|null | 表示用（`,` 結合）。 |
+| `classType` | enum string (`in_person`/`online`/`hybrid`/`on_demand`) | 実施形態。 |
+| `credits` | number|null | 単位数。 |
+| `creditsStatus` | enum string (`in_progress`/`completed`/`failed`) | 取得状況。 |
+| `teacher` | string|null | 教員名。 |
+| `location` | string|null | 教室。 |
+| `memo` | string|null | 任意メモ。 |
+| `omitWeeklySlots` | boolean | 完全オンデマンド授業。 |
+| `maxAbsenceDays` | number | 欠席許容上限。 |
+| `createdAt` / `updatedAt` | timestamp | Firestore サーバタイムスタンプ。 |
 
-## 授業ドキュメント仕様（`/academic_years/{year}/timetable_classes/{classId}`）
+### `weekly_slots` サブコレクション
 
-授業作成UIで入力するプロパティと、Firestore保存形式の対応は以下の通りです。各プロパティは`TimetableClassInsertRequest`に基づきます。【F:CampusCalendar/Database/Repositories/TimetableClassRepository.swift†L18-L38】【F:CampusCalendar/Views/Classes/ClassDraftModel.swift†L131-L183】
+- パス: `/users/{uid}/academic_years/{fiscalYear}/timetable_classes/{classId}/weekly_slots/{slotId}`
+- フィールド: `dayOfWeek`(1=Mon〜7=Sun), `period`(1〜N, 0=オンデマンド), `displayOrder`(number), `createdAt`, `updatedAt`。
+- 週次枠は授業作成 UI のフォームから登録し、曜日＋時限の組み合わせで一意制約をかける（クライアントバリデーション + ルール）。
 
-| UIプロパティ | Firestoreフィールド | 型 / コード値 | 保存ルール |
-| --- | --- | --- | --- |
-| 授業名 (`className`) | `className` | string | 前後空白を除去し、必須。空なら作成不可。|
-| 開講年度 | パス (`academic_years/{year}`) と `fiscalYear` | number | 学年選択に基づく。ドキュメントにも冗長保存してクエリを容易化。|
-| 教室 (`location`) | `location` | string|null | 全角半角空白トリム。空の場合は`null`。|
-| 教員名 (`teacher`) | `teacher` | string|null | トリム。空なら`null`。|
-| 学期選択 (`selectedTerms`) | `termNames` | array<string> | UIで選択した順序を保持。空配列はオンデマンド授業で許容。保存時は重複排除。|
-| 表示用学期文字列 | `termDisplayName` | string|null | 上記配列を`,`で結合した文字列。従来の`term`列との互換保持。|
-| 授業形態 (`classType`) | `classType` | enum string (`in_person`/`online`/`hybrid`/`on_demand`) | SQLiteの日本語ラベルをコード値へ正規化。【F:CampusCalendar/Database/Models/TimetableClassModels.swift†L1-L38】|
-| 単位数 (`credits`) | `credits` | number|null | 小数（例:2.0）。未入力は`null`。|
-| 単位取得状況 (`creditsStatus`) | `creditsStatus` | enum string (`in_progress`/`completed`/`failed`) | 既存の`0/1/2`を可読なコードへ変換。【F:CampusCalendar/Database/Models/TimetableClassModels.swift†L11-L31】|
-| 受講メモ | `memo` | string|null | 現行実装は未使用だが拡張用にフィールドを残す。|
-| スケジュール適用範囲 (`scheduleScope`) | `scheduleScope` | enum string (`all`/`first_half`/`second_half`/`even_weeks`/`odd_weeks`/`other`) | オンデマンド授業（週次枠なし）でもユーザー選択を保持。`other`は自動生成不可。【F:CampusCalendar/Models/ScheduleScopeOption.swift†L3-L23】|
-| 週次枠省略フラグ (`omitWeeklySlots`) | `omitWeeklySlots` | boolean | オンデマンド授業や手動日程入力時に`true`。|
-| 欠席許容回数 (`maxAbsenceDays`) | `maxAbsenceDays` | number | 自動生成後に授業回数の33%で再計算（端数切捨て、最大で授業数）。【F:CampusCalendar/Views/Classes/ClassDraftModel.swift†L184-L213】|
-| 日程手動入力済みフラグ | `hasManualDates` | boolean | `classDates`配列にユーザー編集済みが存在する場合に`true`。差分判定とUI制御用。|
-| 作成元 (`createdFrom`) | `createdFrom` | string | `web`などクライアント種別を明示。監査用途。|
+### `class_dates` サブコレクション
 
-> **ID採番**: `classId`はFirestoreの自動IDまたはクライアント生成UUIDを推奨。従来の`INTEGER`主キーから移行する場合は既存IDをそのまま文字列化し、`legacyId`フィールドに保存する。
+- パス: `/users/{uid}/academic_years/{fiscalYear}/timetable_classes/{classId}/class_dates/{classDateId}`
+- おすすめドキュメント ID: `YYYY-MM-DD` もしくは `YYYY-MM-DD#slotHash`（複数枠対応）。
+- フィールド:
+  | フィールド | 型 | 説明 |
+  | --- | --- | --- |
+  | `classDate` | string (ISO 日付) | 集計・ソート用。 |
+  | `periods` | array<number|string> | 対象コマ。オンデマンドは `"OD"` を推奨。 |
+  | `attendanceStatus` | enum (`present`/`absent`/`late`/`null`) | 出欠結果。 |
+  | `isTest` | boolean | 試験回。 |
+  | `isExcludedFromSummary` | boolean | 集計対象外。 |
+  | `isAutoGenerated` | boolean | 自動生成フラグ。 |
+  | `isCancelled` | boolean | 休講フラグ。 |
+  | `deliveryType` | enum (`unknown`/`in_person`/`remote`) | 実施形態。 |
+  | `hasUserModifications` | boolean | 手動編集済み。 |
+  | `periodsOrderKey` | number | 並べ替え用（例: 最小 period、オンデマンドは 999）。 |
+  | `updatedAt` | timestamp | Firestore サーバタイムスタンプ。 |
 
-### 週次枠サブコレクション（`/weekly_slots/{slotId}`）
+## 授業自動生成フロー
 
-- **必須フィールド**:
-  - `dayOfWeek`: number (1=月〜7=日)。SQLiteの`TimetableWeeklySlotInput.dayOfWeek`に対応。【F:CampusCalendar/Database/Repositories/TimetableClassRepository.swift†L6-L33】
-  - `period`: number (`1`以上の整数、オンデマンド枠は`0`で表現)。
-- **保存ルール**:
-  - 授業形態が`on_demand`または`omitWeeklySlots`が`true`の場合はコレクション自体を作成しない。
-  - 同一曜日・時限の重複を禁止するため、`slotId`は`{dayOfWeek}-{period}`形式を推奨。Firestoreルールで一意性を担保するか、トランザクションで検証する。
+1. **入力の検証**  
+   - UI で選択した曜日・時限セットが空の場合、`omitWeeklySlots` を `true` に設定し `maxAbsenceDays = 0` に固定します。  
+   - オンデマンド以外では少なくとも 1 件の週次枠が必要です。
+2. **日付展開**  
+   - Convex 由来の学務カレンダーデータを `/users/{uid}/calendars/{calendarId}/days` から取得し、`type` が授業日に該当する日付を抽出します。  
+   - 抽出した日付に対し、週次枠の曜日一致と学期フィルタを適用して `class_dates` 用の候補リストを構築します。
+3. **ドキュメント生成**  
+   - 候補リストを `classDate` × `periods` でグループ化し、既存 `class_dates` と照合。  
+   - `isAutoGenerated == true` かつ `hasUserModifications == false` のレコードのみ上書き。ユーザー編集済みは保持します。
+4. **欠席許容回数の計算**  
+   - `isExcludedFromSummary == false` かつ `isCancelled == false` の件数を `count` とし、`floor(count * 0.33)` を上限 `count` でクリップして `maxAbsenceDays` に保存。  
+   - `omitWeeklySlots == true` の場合は常に 0。
+5. **バッチ書き込み**  
+   - 授業本体とサブコレクション更新はバッチまたはトランザクションで実行し、中途半端な状態を避けます。
 
-### 授業日サブコレクション（`/class_dates/{classDateId}`）
+## 日程編集・出欠更新
 
-- **必須フィールド**:
-  - `classDate`: string (`yyyy-MM-dd`)。
-  - `periods`: array<number|string>。通常は整数配列。オンデマンド枠（period=0）は`"OD"`などの文字列ラベルで判別します。
-  - `isTest`: boolean。
-  - `isExcludedFromSummary`: boolean（成績計算対象外）。
-  - `isAutoGenerated`: boolean（自動展開で作成されたレコード）。
-  - `deliveryType`: enum string (`undecided`/`in_person`/`online`)。【F:CampusCalendar/Database/Models/TimetableClassModels.swift†L33-L80】
-  - `attendanceStatus`: enum string|null (`present`/`absent`/`late`)。未入力は`null`。【F:CampusCalendar/Database/Models/TimetableClassModels.swift†L21-L52】
-  - `isCancelled`: boolean。
-- **補助フィールド**:
-  - `periodsOrderKey`: number。`periods`配列の最小値（`OD`は`Infinity`扱い）を保存し、クエリ並び替えを容易にする。【F:CampusCalendar/Database/Models/TimetableClassModels.swift†L254-L316】
-  - `createdAt`/`updatedAt`: timestamp。
-  - `generatedBy`: string|null（自動生成アルゴリズム名やバージョン）。
-- **IDルール**: `classDateId`は`{classDate}-{hash(periods)}`などの決定的IDとし、再生成時の重複挿入を防ぎます。
+- ユーザーが日程を編集した場合は、対象 `class_dates` の `hasUserModifications` を `true` にセットし、自動生成処理では上書きしません。
+- 休講設定時は `isCancelled = true`、`attendanceStatus = null` に戻します。
+- 出欠変更はクライアントで即時反映しつつ、Cloud Functions で `maxAbsenceDays` 超過を監査して警告を発行する運用を推奨します。
 
-## 授業作成フローとデータ処理仕様
+## セキュリティルールとバリデーション
 
-### 1. 入力バリデーション
+- ルール例:
+  ```
+  match /users/{uid}/academic_years/{year}/timetable_classes/{classId} {
+    allow read, write: if request.auth.uid == uid;
+    allow update: if request.resource.data.className is string
+                  && request.resource.data.className.size() > 0;
+  }
+  ```
+- `weekly_slots` 書き込みでは `dayOfWeek` が `1..7`、`period >= 0` をチェックします。
+- `class_dates` 書き込みでは Future 日付を許可するかどうかをルールで制御できます（必要に応じて Cloud Functions で補完）。
 
-1. 授業名の必須チェック。空文字列はエラー (`missingClassName`)。【F:CampusCalendar/Views/Classes/ClassDraftModel.swift†L131-L148】
-2. `weeklySlots`は`omitWeeklySlots=false`の場合にのみ必須。曜日は1〜7、時限は1以上（オンデマンド枠は0）に正規化。
-3. 学期選択は`termNames`配列に保存。選択された順序を保持しつつ、余白や重複をトリム。
-4. `scheduleScope`が`other`の場合は自動生成を行わず、日程は手動入力または既存データを維持。
+## インデックス指針
 
-### 2. 週次枠の保存
+| コレクション | クエリ | 推奨インデックス |
+| --- | --- | --- |
+| `timetable_classes` | 学期別フィルタ + 名称昇順 | `termNames ARRAY_CONTAINS`, `className ASC` |
+| `class_dates` | `isExcludedFromSummary == false` で `classDate ASC` | 複合インデックス (`isExcludedFromSummary`, `classDate`) |
+| `class_dates` | `attendanceStatus == null` かつ `classDate <= today` | (`attendanceStatus`, `classDate`) |
 
-- Firestoreトランザクション内で、授業本体ドキュメント作成後に週次枠をバルク書き込み。
-- 週次枠は授業本体フィールド`weeklySlotCount`（number）でも冗長保持し、クエリで「週◯回」などを高速表示できるようにします。
+## マイグレーション手順
 
-### 3. 学期・曜日・時限から授業日程を展開
+1. SQLite から `timetable_classes`, `timetable_weekly_slots`, `timetable_class_dates` を抽出。
+2. ユーザー UID ごとに年度別でまとめ、Firestore バッチに投入。
+3. `class_dates` 生成時に `attendanceStatus` の整数値を enum 文字列へマッピング（`1 -> present`, `0 -> absent`, `2 -> late` など）。
+4. 書き込み完了後に Cloud Functions を呼び出し、`maxAbsenceDays` の再計算や履修状況確認を実行。
 
-このステップがシステムの中核です。SQLite実装の`generateScheduleDates`ロジックをFirestoreで再構築します。【F:CampusCalendar/Database/Repositories/TimetableClassRepository.swift†L540-L669】
+## 関連ドキュメント
 
-1. **対象学期の特定**: `termNames`配列から空要素を除去し集合化。空集合の場合は自動生成をスキップ。
-2. **日付候補の抽出**: `academic_calendars/{calendarId}/days`から、以下条件を満たすドキュメントをクエリします。
-   - `date`が`{fiscalYear}-04-01`〜`{fiscalYear+1}-03-31`の範囲。
-   - `type == "class_day"`（授業日）。
-   - `termName`が対象学期集合に含まれる。
-   - `classWeekday`が`weekly_slots.dayOfWeek`と一致。
-3. **スコープ適用**: `scheduleScope`に応じて日付配列をフィルタリングします。
-   - `all`: 全件。
-   - `first_half`: 上位半数（`count/2`を切り捨て、最低1件）。
-   - `second_half`: 下位半数（残数が0なら1件）。
-   - `even_weeks`/`odd_weeks`: `date`をGregorianカレンダー週番号に変換し、偶奇でフィルタ。
-   - `other`: 自動生成不可。既存`class_dates`を維持し、ユーザー操作のみ許可。
-   フィルタ実装はSQLite版`apply(scope:to:)`に相当します。【F:CampusCalendar/Database/Repositories/TimetableClassRepository.swift†L620-L669】
-4. **日付ごとの時限統合**:
-   - 同じ`date`に複数の週次枠が重なる場合、`periods`セットへ統合。
-   - `period=0`はオンデマンド扱いで`"OD"`に変換。
-   - 整列時は`period=0`を最大値として扱い、他の数値より後ろに配置します。【F:CampusCalendar/Views/Classes/ClassDraftModel.swift†L196-L213】
-5. **Firestore書き込み形式への変換**:
-   - `class_dates/{id}`に以下を保存。
-     - `classDate`: ISO文字列。
-     - `periods`: 整列済み配列。
-     - `isAutoGenerated = true`。
-     - `isTest = false`、`isExcludedFromSummary = false`、`attendanceStatus = null`。
-     - `periodsOrderKey`: 整列配列の先頭値（`"OD"`は`999`などの擬似値）。
-   - 既存日程がある場合は日付単位でマージし、ユーザー編集済み (`hasUserModifications=true`) のレコードは上書きしない。SQLite版では`existingByDate`を参照しているため、同様のマージ戦略を採用します。【F:CampusCalendar/Views/Classes/ClassDraftModel.swift†L184-L220】
-6. **欠席許容回数の再計算**: 自動生成後、`isExcludedFromSummary=false`な日程数を数え、`floor(count * 0.33)`を上限`count`で切り詰めて`maxAbsenceDays`に保存します。オンデマンド授業 (`omitWeeklySlots=true`) の場合は常に`0`です。【F:CampusCalendar/Views/Classes/ClassDraftModel.swift†L184-L213】
+- `docs/schema.md`（Firestore 全体構造）
+- `docs/attendance-management.md`（出欠集計仕様）
+- `docs/calendar_display_logic.md`（学務カレンダー表示ロジック）
 
-### 4. 日程編集と整合性維持
-
-- 手動追加・削除時は以下の整合性を担保します。
-  - `isAutoGenerated=false`なレコードは自動再生成で削除しない。
-  - 週次枠が変更された場合は`class_dates`を再生成し、`isAutoGenerated=true`かつ`hasUserModifications=false`のレコードのみ上書き。
-  - 休講設定時は`isCancelled=true`とし、併せて`attendanceStatus`を`null`に戻します（SQLite版`updateClassDateCancellation`と同等）。【F:CampusCalendar/Database/Repositories/TimetableClassRepository.swift†L620-L669】
-
-## Firestoreルールとインデックス指針
-
-- **セキュリティルール**:
-  - 授業本体とサブコレクションに対し、同一年度への書き込みはトランザクションで一貫性を確保。
-  - `termNames`や`weeklySlots`の書き込み時に、曜日・時限の値域チェックをCloud Functionsまたはルールで実施。
-- **インデックス**:
-  - `academic_calendars/{calendarId}/days`で`termName`と`classWeekday`、`date`範囲を組み合わせた複合インデックスを作成（自動生成クエリで利用）。
-  - `class_dates`では`classDate`順ソートのため`periodsOrderKey`との複合インデックスが必要。
-  - `timetable_classes`の`classType`、`creditsStatus`、`termNames`にはフィルタリング用途に応じてアレイ含む複合インデックスを設計。
-
-## マイグレーションと既存データ移行
-
-1. `timetable_classes`テーブルの各行をFirestoreの授業ドキュメントへ変換。列→フィールド変換は前述のテーブル通り。
-2. `timetable_weekly_slots`、`timetable_class_dates`は各授業のサブコレクションへ移行。`periods`は文字列`"1,2"`から整数配列へパースします。【F:docs/schema.md†L84-L133】
-3. `calendar_days`は`academic_calendars/{calendarId}/days`へ、`id`はそのまま`{calendarId}_{date}`等に変換。授業日判定に必要な`termName`、`classWeekday`等を欠損なく移植します。【F:CampusCalendar/Database/Models/LocalCalendarDay.swift†L1-L108】
-4. 欠席許容回数は移行後にCloud Functionsで再計算し、Firestoreへ更新。
-
-## 今後の拡張ポイント
-
-- **リアルタイム更新**: Firestoreのストリームで授業一覧を購読し、日程の変更を即座に反映。
-- **バッチ生成API**: Cloud Functionsで`generateScheduleDates`処理をREST化し、Webクライアントから呼び出す。Firestoreの`days`クエリを集約し、キャッシュ層を導入。
-- **監査ログ**: `timetable_classes`および`class_dates`にCloud Loggingを連携させ、誰がどの授業を編集したかを追跡。
-
-以上の仕様により、Web版CampusCalendarはFirestoreを用いて授業作成・管理機能を完全に再現しつつ、学期・曜日時限からの日程自動展開を高い信頼性で実装できます。
+以上により、SQLite 時代と同等の授業管理機能を Firestore 上で構築しつつ、ユーザー単位でのデータ分離とリアルタイム更新に対応できます。

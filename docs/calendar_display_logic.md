@@ -1,7 +1,7 @@
 # カレンダー表示仕様（Firestore移行用の論理整理）
 
 ## データソースの整理
-- アプリはローカルSQLiteの`calendar_days`テーブルに学事情報を保持し、`LocalCalendarDay`モデルに読み込んで利用する。フィールドには学期ID・名称、授業日の曜日（`class_weekday`）、授業回数（`class_order`）、祝日名称、通知理由などが含まれる。【F:docs/schema.md†L25-L47】【F:CampusCalendar/Database/Models/LocalCalendarDay.swift†L14-L103】
+- Firestore では `/users/{uid}/calendars/{calendarId}/days/{yyyymmdd}` に学務カレンダー情報を保持し、`CalendarDay` モデルに読み込んで利用する。フィールドには学期 ID・名称、授業日の曜日（`classWeekday`）、授業回数（`classOrder`）、祝日名称、通知理由などが含まれる。【F:CampusCalendar/Database/Models/LocalCalendarDay.swift†L14-L103】
 - 表示用データは`CalendarDataService`経由で読み込まれ、日付文字列（`yyyy-MM-dd`）をキーにしてビュー・ビューModelに引き渡される。授業予定やタスク件数も同じサービスから日付単位で取得される。【F:CampusCalendar/Views/ViewModels/CalendarDataService.swift†L18-L92】
 - 日付ごとの表示は`CalendarDayHeaderFormatter`が共通のフォーマッタとして担当し、日付・曜日テキスト色、学事詳細文、強調判定などを計算する。【F:CampusCalendar/Views/Components/CalendarDayHeaderFormatter.swift†L32-L227】
 
