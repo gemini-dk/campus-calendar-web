@@ -542,9 +542,12 @@ export default function CalendarTab() {
           <div className="flex h-full w-full flex-col">
             <div className="grid w-full grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
               {WEEKDAY_HEADERS.map((weekday) => (
-                <div key={weekday.label} className="flex flex-col items-center justify-center">
+                <div
+                  key={weekday.label}
+                  className="flex flex-col items-center justify-center gap-1"
+                >
+                  <span>{weekday.label}</span>
                   <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
-                  <span className="pt-1">{weekday.label}</span>
                 </div>
               ))}
             </div>
