@@ -1,7 +1,7 @@
 "use client";
 
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CalendarTerm } from "@/lib/data/schema/calendar";
 import { getCalendarTerms } from "@/lib/data/service/calendar.service";
@@ -37,7 +37,8 @@ const WEEKDAY_HEADERS = [
 const ADDITIONAL_PERIOD_LABELS = ["OD", "FOD"];
 const PERIOD_COLUMN_WIDTH = "2ch";
 
-const DRAG_THRESHOLD_PX = 60;
+const DRAG_DETECTION_THRESHOLD = 6;
+const SWIPE_TRIGGER_RATIO = 0.25;
 
 export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) {
   const [terms, setTerms] = useState<CalendarTerm[]>([]);
@@ -51,6 +52,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
+  const isPointerDownRef = useRef(false);
   const dragStartRef = useRef(0);
   const baseOffsetRef = useRef(0);
   const dragDeltaRef = useRef(0);
@@ -107,7 +109,9 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     if (viewportWidth <= 0) {
       return;
     }
-    setTranslateX(-clampedTermIndex * viewportWidth);
+    const offset = -clampedTermIndex * viewportWidth;
+    baseOffsetRef.current = offset;
+    setTranslateX(offset);
   }, [clampedTermIndex, viewportWidth]);
 
   useEffect(() => {
@@ -117,6 +121,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
       setTermError("学事カレンダー設定が見つかりません。設定タブから登録してください。");
       setActiveTermIndex(0);
       setTranslateX(0);
+      baseOffsetRef.current = 0;
       setIsAnimating(false);
       return;
     }
@@ -135,6 +140,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         setTerms(filtered);
         setActiveTermIndex(0);
         setTranslateX(0);
+        baseOffsetRef.current = 0;
         setIsAnimating(false);
         setTermLoadState("success");
       } catch (error) {
@@ -146,6 +152,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         setTerms([]);
         setActiveTermIndex(0);
         setTranslateX(0);
+        baseOffsetRef.current = 0;
         setIsAnimating(false);
         setTermError(message);
         setTermLoadState("error");
@@ -179,69 +186,170 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
 
   const enableSwipe = pagerItems.length > 1;
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const releasePointerCapture = useCallback((pointerId: number | null) => {
+    if (pointerId == null) {
+      return;
+    }
+    const element = viewportRef.current;
+    if (!element) {
+      return;
+    }
+    try {
+      if (element.hasPointerCapture(pointerId)) {
+        element.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // no-op: capture may already be released
+    }
+  }, []);
+
+  const resetPointerState = useCallback(() => {
+    isPointerDownRef.current = false;
+    isDraggingRef.current = false;
+    pointerIdRef.current = null;
+    dragStartRef.current = 0;
+    dragDeltaRef.current = 0;
+  }, []);
+
+  const settleToIndex = useCallback(
+    (index: number) => {
+      setIsAnimating(true);
+      setActiveTermIndex((prev) => {
+        if (prev === index) {
+          return prev;
+        }
+        return index;
+      });
+      const offset = -index * viewportWidth;
+      baseOffsetRef.current = offset;
+      setTranslateX(offset);
+    },
+    [viewportWidth],
+  );
+
+  const finishPointerInteraction = useCallback(
+    (options: { cancelled?: boolean; pointerId?: number; deltaOverride?: number } = {}) => {
+      const { cancelled, pointerId, deltaOverride } = options;
+      const currentIndex = clampedTermIndex;
+      const delta = deltaOverride ?? dragDeltaRef.current;
+      let nextIndex = currentIndex;
+
+      if (!cancelled && viewportWidth > 0 && pagerItems.length > 1) {
+        const threshold = viewportWidth * SWIPE_TRIGGER_RATIO;
+        if (Math.abs(delta) > threshold) {
+          if (delta < 0 && currentIndex < pagerItems.length - 1) {
+            nextIndex = currentIndex + 1;
+          } else if (delta > 0 && currentIndex > 0) {
+            nextIndex = currentIndex - 1;
+          }
+        }
+      }
+
+      settleToIndex(nextIndex);
+      if (pointerId != null) {
+        releasePointerCapture(pointerId);
+      }
+      resetPointerState();
+    },
+    [clampedTermIndex, pagerItems.length, releasePointerCapture, resetPointerState, settleToIndex, viewportWidth],
+  );
+
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!enableSwipe) {
+        return;
+      }
+      if (event.pointerType === "mouse" && event.button !== 0) {
+        return;
+      }
+      if (isPointerDownRef.current) {
+        return;
+      }
+      isPointerDownRef.current = true;
+      pointerIdRef.current = event.pointerId;
+      dragStartRef.current = event.clientX;
+      dragDeltaRef.current = 0;
+      baseOffsetRef.current = -clampedTermIndex * viewportWidth;
+      isDraggingRef.current = false;
+      setIsAnimating(false);
+    },
+    [clampedTermIndex, enableSwipe, viewportWidth],
+  );
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     if (!enableSwipe) {
       return;
     }
-    if (isDraggingRef.current) {
-      return;
-    }
-    isDraggingRef.current = true;
-    pointerIdRef.current = event.pointerId;
-    dragStartRef.current = event.clientX;
-    baseOffsetRef.current = -clampedTermIndex * viewportWidth;
-    dragDeltaRef.current = 0;
-    setIsAnimating(false);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!isDraggingRef.current) {
+    if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
       return;
     }
     const delta = event.clientX - dragStartRef.current;
-    dragDeltaRef.current = delta;
-    setTranslateX(baseOffsetRef.current + delta);
-  };
-
-  const finishDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!isDraggingRef.current) {
-      return;
-    }
-    isDraggingRef.current = false;
-    const delta = dragDeltaRef.current;
-    const threshold = Math.min(DRAG_THRESHOLD_PX, viewportWidth / 4 || DRAG_THRESHOLD_PX);
-    let nextIndex = clampedTermIndex;
-    if (delta <= -threshold && clampedTermIndex < pagerItems.length - 1) {
-      nextIndex = clampedTermIndex + 1;
-    } else if (delta >= threshold && clampedTermIndex > 0) {
-      nextIndex = clampedTermIndex - 1;
-    }
-    setIsAnimating(true);
-    setActiveTermIndex(nextIndex);
-    setTranslateX(-nextIndex * viewportWidth);
-    if (pointerIdRef.current !== null) {
+      if (Math.abs(delta) <= DRAG_DETECTION_THRESHOLD) {
+        return;
+      }
+      isDraggingRef.current = true;
       try {
-        event.currentTarget.releasePointerCapture(pointerIdRef.current);
-      } catch (error) {
-        // noop: releasing pointer capture may throw if already released
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+        // no-op
       }
     }
-    pointerIdRef.current = null;
-  };
 
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    finishDrag(event);
-  };
+    dragDeltaRef.current = delta;
+    setTranslateX(baseOffsetRef.current + delta);
+  }, [enableSwipe]);
 
-  const handlePointerCancel = (event: ReactPointerEvent<HTMLDivElement>) => {
-    finishDrag(event);
-  };
+  const handlePointerUp = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      finishPointerInteraction({ pointerId: event.pointerId });
+    },
+    [finishPointerInteraction],
+  );
+
+  const handlePointerCancel = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      finishPointerInteraction({ pointerId: event.pointerId, cancelled: true });
+    },
+    [finishPointerInteraction],
+  );
+
+  useEffect(() => {
+    if (!enableSwipe) {
+      return;
+    }
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      finishPointerInteraction({ pointerId: event.pointerId });
+    };
+    const handleWindowPointerCancel = (event: PointerEvent) => {
+      if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      finishPointerInteraction({ pointerId: event.pointerId, cancelled: true });
+    };
+
+    window.addEventListener("pointerup", handleWindowPointerUp);
+    window.addEventListener("pointercancel", handleWindowPointerCancel);
+
+    return () => {
+      window.removeEventListener("pointerup", handleWindowPointerUp);
+      window.removeEventListener("pointercancel", handleWindowPointerCancel);
+    };
+  }, [enableSwipe, finishPointerInteraction]);
 
   const activePagerItem = pagerItems[clampedTermIndex] ?? null;
 
   return (
-    <div className="flex h-full min-h-[480px] w-full flex-col bg-white">
+    <div className="flex min-h-full w-full flex-1 flex-col bg-white">
       <div className="flex flex-col border-b border-neutral-200">
         <div className="flex items-baseline justify-between px-4 pt-3">
           <div className="text-sm font-medium text-neutral-500">
