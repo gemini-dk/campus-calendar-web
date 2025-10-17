@@ -31,7 +31,16 @@ const SUB_TAB_OPTIONS: Record<MainTab, { id: string; label: string }[]> = {
   ],
 };
 
-const VIEW_META = {
+const VIEW_META: Record<
+  MainTab,
+  Record<
+    string,
+    {
+      title: string;
+      description: string[];
+    }
+  >
+> = {
   home: {
     overview: {
       title: 'Home',
@@ -68,7 +77,7 @@ const VIEW_META = {
       description: ['履修科目をまとめて管理', '資料や教室情報も一箇所に'],
     },
   },
-} as const;
+};
 
 export default function Home() {
   const [activeMainTab, setActiveMainTab] = useState<MainTab>('home');
@@ -752,7 +761,7 @@ function GoogleIcon() {
 }
 
 function getViewMeta(mainTab: MainTab, subTab: string) {
-  const record = VIEW_META[mainTab] as Record<string, { title: string; description: string[] }>;
+  const record = VIEW_META[mainTab];
   return record[subTab] ?? { title: 'Coming Soon', description: [] };
 }
 
