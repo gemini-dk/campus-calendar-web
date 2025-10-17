@@ -1,87 +1,162 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faClock,
-  faFlagCheckered,
   faListCheck,
   faNoteSticky,
   faPlus,
+  faXmark,
 } from '@fortawesome/free-solid-svg-icons';
-import { faCircleCheck } from '@fortawesome/free-regular-svg-icons';
+import { faSquare, faSquareCheck } from '@fortawesome/free-regular-svg-icons';
+import {
+  addDoc,
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+} from 'firebase/firestore';
+
+import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/lib/useAuth';
 
 type ViewMode = 'todo' | 'memo';
 
-type TodoItem = {
+type ActivityType = 'assignment' | 'memo';
+
+type ActivityStatus = 'pending' | 'done';
+
+type Activity = {
   id: string;
   title: string;
-  category: string;
-  due: string;
-  status: 'done' | 'in-progress';
-  description: string;
+  notes: string;
+  type: ActivityType;
+  status: ActivityStatus;
+  dueDate: string | null;
+  classId: string | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
 };
 
-type MemoItem = {
-  id: string;
+type ActivityFormState = {
   title: string;
-  updatedAt: string;
-  body: string;
-  tags: string[];
+  notes: string;
+  classId: string;
+  dueDate: string;
+  isCompleted: boolean;
 };
 
-const TODO_ITEMS: TodoItem[] = [
-  {
-    id: 'todo-1',
-    title: 'ゼミ発表スライドの最終チェック',
-    category: '研究',
-    due: '今日 18:00 まで',
-    status: 'in-progress',
-    description: '発表者ノートを含めた最終確認と練習時間の調整。',
-  },
-  {
-    id: 'todo-2',
-    title: '教育心理学レポート提出',
-    category: '授業',
-    due: '明日 12:00 締切',
-    status: 'in-progress',
-    description: '引用箇所の最終確認とアップロード手順の再チェック。',
-  },
-  {
-    id: 'todo-3',
-    title: '就活イベント申し込み',
-    category: 'キャリア',
-    due: '今週末まで',
-    status: 'done',
-    description: 'オンライン企業説明会（商社）の参加登録。',
-  },
-];
+function createDefaultFormState(): ActivityFormState {
+  return {
+    title: '',
+    notes: '',
+    classId: '',
+    dueDate: '',
+    isCompleted: false,
+  };
+}
 
-const MEMO_ITEMS: MemoItem[] = [
-  {
-    id: 'memo-1',
-    title: '卒論テーマ案ブレスト',
-    updatedAt: '12/14 更新',
-    body: '・研究対象は地域コミュニティの防災活動\n・先行研究の整理を冬休み中に実施\n・教授との面談日程を 12/22 に調整する',
-    tags: ['研究', 'TODO案'],
-  },
-  {
-    id: 'memo-2',
-    title: '買い出しリスト',
-    updatedAt: '12/12 更新',
-    body: '・プロジェクター用HDMIケーブル\n・A4 クリアファイル\n・ゼミ懇親会用お菓子（予算 1,500 円）',
-    tags: ['生活', 'ゼミ'],
-  },
-  {
-    id: 'memo-3',
-    title: '資格勉強のチェックポイント',
-    updatedAt: '12/10 更新',
-    body: '・公式テキストの章末問題を 1 章ずつ進める\n・週末に模擬試験を 1 回実施\n・Discord 勉強会は木曜の 21:00 から',
-    tags: ['学習計画'],
-  },
-];
+function createFormStateFromActivity(activity: Activity): ActivityFormState {
+  return {
+    title: activity.title,
+    notes: activity.notes,
+    classId: activity.classId ?? '',
+    dueDate: activity.dueDate ?? '',
+    isCompleted: activity.status === 'done',
+  } satisfies ActivityFormState;
+}
+
+function parseTimestamp(value: unknown): Date | null {
+  if (value instanceof Timestamp) {
+    return value.toDate();
+  }
+  if (typeof value === 'number') {
+    const fromNumber = new Date(value);
+    return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
+  }
+  if (typeof value === 'string') {
+    const fromString = new Date(value);
+    return Number.isNaN(fromString.getTime()) ? null : fromString;
+  }
+  return null;
+}
+
+function mapActivity(doc: QueryDocumentSnapshot<DocumentData>): Activity {
+  const data = doc.data();
+
+  const type: ActivityType = data.type === 'memo' ? 'memo' : 'assignment';
+  const status: ActivityStatus = data.status === 'done' ? 'done' : 'pending';
+  const dueDate = typeof data.dueDate === 'string' ? data.dueDate : null;
+  const classId =
+    typeof data.classId === 'string' && data.classId.trim().length > 0
+      ? data.classId.trim()
+      : null;
+
+  return {
+    id: doc.id,
+    title: typeof data.title === 'string' ? data.title : '',
+    notes: typeof data.notes === 'string' ? data.notes : '',
+    type,
+    status,
+    dueDate,
+    classId,
+    createdAt: parseTimestamp(data.createdAt),
+    updatedAt: parseTimestamp(data.updatedAt),
+  } satisfies Activity;
+}
+
+function formatDueDateLabel(value: string | null, type: ActivityType): string {
+  if (type === 'memo') {
+    return '未設定';
+  }
+
+  if (!value) {
+    return '未設定';
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function formatDateLabel(value: Date | null): string {
+  if (!value) {
+    return '-';
+  }
+
+  return new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(value);
+}
+
+function resolveIcon(type: ActivityType, status: ActivityStatus) {
+  if (type === 'memo') {
+    return { icon: faNoteSticky, className: 'text-blue-600' };
+  }
+
+  if (status === 'done') {
+    return { icon: faSquareCheck, className: 'text-emerald-500' };
+  }
+
+  return { icon: faSquare, className: 'text-neutral-500' };
+}
 
 function ViewToggleButton({
   icon,
@@ -111,116 +186,455 @@ function ViewToggleButton({
   );
 }
 
-function TodoList() {
-  const summary = useMemo(() => {
-    const total = TODO_ITEMS.length;
-    const completed = TODO_ITEMS.filter((item) => item.status === 'done').length;
-    const remaining = total - completed;
-    const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
+function ActivityListItem({
+  activity,
+  onSelect,
+  onToggleStatus,
+}: {
+  activity: Activity;
+  onSelect: (activity: Activity) => void;
+  onToggleStatus?: (activity: Activity) => void;
+}) {
+  const { icon, className } = resolveIcon(activity.type, activity.status);
+  const dueLabel = formatDueDateLabel(activity.dueDate, activity.type);
+  const classLabel = activity.classId ?? '未設定';
+  const createdLabel = formatDateLabel(activity.createdAt);
 
-    return { total, completed, remaining, completionRate };
-  }, []);
+  return (
+    <article
+      className="flex w-full cursor-pointer gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+      onClick={() => onSelect(activity)}
+    >
+      {activity.type === 'assignment' ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleStatus?.(activity);
+          }}
+          className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200"
+          aria-label={activity.status === 'done' ? '未完了に戻す' : '完了にする'}
+        >
+          <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
+        </button>
+      ) : (
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-neutral-100">
+          <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
+        </div>
+      )}
+      <div className="flex flex-1 flex-col gap-2">
+        <h3 className="text-base font-semibold text-neutral-900">{activity.title || '無題の項目'}</h3>
+        <div className="flex flex-col text-xs text-neutral-500">
+          <span>期限: {dueLabel}</span>
+          <span className="mt-1">関連授業: {classLabel}</span>
+        </div>
+        {activity.notes ? (
+          <p className="whitespace-pre-line text-sm leading-relaxed text-neutral-600">
+            {activity.notes}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex items-end justify-end text-right text-xs text-neutral-400">
+        <span>作成日 {createdLabel}</span>
+      </div>
+    </article>
+  );
+}
+
+function TodoList({
+  items,
+  loading,
+  error,
+  onSelect,
+  onToggleStatus,
+}: {
+  items: Activity[];
+  loading: boolean;
+  error: string | null;
+  onSelect: (activity: Activity) => void;
+  onToggleStatus: (activity: Activity) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
+        読み込み中です...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-red-600">
+        {error}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
+        課題はまだ登録されていません。右下のボタンから追加できます。
+      </div>
+    );
+  }
 
   return (
     <div className="flex w-full flex-col gap-5">
-      <section className="flex w-full flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-blue-600">今日の進捗</p>
-            <h2 className="mt-2 text-lg font-semibold text-neutral-900">タスク管理のサマリー</h2>
-            <p className="mt-1 text-sm text-neutral-500">
-              完了 {summary.completed} 件 / 残り {summary.remaining} 件
-            </p>
-          </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
-            {summary.completionRate}%
-          </span>
-        </div>
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-neutral-200">
-          <div
-            className="h-full rounded-full bg-blue-500"
-            style={{ width: `${summary.completionRate}%` }}
-            aria-hidden="true"
-          />
-        </div>
-      </section>
-
-      {TODO_ITEMS.map((item) => {
-        const isDone = item.status === 'done';
-        return (
-          <article
-            key={item.id}
-            className="flex w-full flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-1 flex-col">
-                <h3 className="text-base font-semibold text-neutral-900">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-neutral-600">{item.description}</p>
-              </div>
-              <span className="flex h-8 items-center rounded-full bg-neutral-100 px-3 text-xs font-semibold text-neutral-600">
-                {item.category}
-              </span>
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-neutral-500">
-              <div className="flex items-center gap-2 text-neutral-600">
-                <FontAwesomeIcon icon={faClock} className="text-blue-500" />
-                <span>{item.due}</span>
-              </div>
-              <div className="flex items-center gap-2 text-neutral-600">
-                <FontAwesomeIcon
-                  icon={isDone ? faCircleCheck : faFlagCheckered}
-                  className={isDone ? 'text-emerald-500' : 'text-orange-500'}
-                />
-                <span>{isDone ? '完了済み' : '進行中'}</span>
-              </div>
-            </div>
-          </article>
-        );
-      })}
+      {items.map((item) => (
+        <ActivityListItem
+          key={item.id}
+          activity={item}
+          onSelect={onSelect}
+          onToggleStatus={onToggleStatus}
+        />
+      ))}
     </div>
   );
 }
 
-function MemoList() {
+function MemoList({
+  items,
+  loading,
+  error,
+  onSelect,
+}: {
+  items: Activity[];
+  loading: boolean;
+  error: string | null;
+  onSelect: (activity: Activity) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
+        読み込み中です...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-red-600">
+        {error}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
+        メモはまだ登録されていません。右下のボタンから追加できます。
+      </div>
+    );
+  }
+
   return (
     <div className="flex w-full flex-col gap-5">
-      <section className="flex w-full flex-col gap-2 rounded-2xl bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-semibold text-neutral-900">メモ一覧</h2>
-        <p className="text-sm text-neutral-500">
-          発想メモや買い出しリストなど、自由に書き留めたメモをここから見返せます。
-        </p>
-      </section>
-
-      {MEMO_ITEMS.map((memo) => (
-        <article
-          key={memo.id}
-          className="flex w-full flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex flex-col">
-              <h3 className="text-base font-semibold text-neutral-900">{memo.title}</h3>
-              <span className="mt-1 text-xs font-semibold text-blue-600">{memo.updatedAt}</span>
-            </div>
-          </div>
-          <p className="whitespace-pre-line text-sm leading-relaxed text-neutral-600">{memo.body}</p>
-          <div className="flex flex-wrap gap-2">
-            {memo.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
-              >
-                #{tag}
-              </span>
-            ))}
-          </div>
-        </article>
+      {items.map((memo) => (
+        <ActivityListItem key={memo.id} activity={memo} onSelect={onSelect} />
       ))}
+    </div>
+  );
+}
+
+type CreateActivityDialogProps = {
+  open: boolean;
+  type: ActivityType;
+  mode: 'create' | 'edit';
+  formState: ActivityFormState;
+  onChange: (field: keyof ActivityFormState, value: string | boolean) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+  isSaving: boolean;
+  error: string | null;
+};
+
+function CreateActivityDialog({
+  open,
+  type,
+  mode,
+  formState,
+  onChange,
+  onClose,
+  onSubmit,
+  isSaving,
+  error,
+}: CreateActivityDialogProps) {
+  if (!open) {
+    return null;
+  }
+
+  const isAssignment = type === 'assignment';
+  const isEditing = mode === 'edit';
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 px-4 py-6">
+      <div className="w-full max-w-[480px] rounded-2xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-neutral-900">
+              {isAssignment
+                ? isEditing
+                  ? '課題を編集'
+                  : '課題を追加'
+                : isEditing
+                  ? 'メモを編集'
+                  : 'メモを追加'}
+            </h2>
+            <p className="mt-1 text-sm text-neutral-600">
+              {isAssignment
+                ? '基本情報とステータスを入力してください。'
+                : '基本情報を入力してください。'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition hover:bg-neutral-200"
+          >
+            <FontAwesomeIcon icon={faXmark} fontSize={18} />
+            <span className="sr-only">閉じる</span>
+          </button>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-4">
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-neutral-700">タイトル</span>
+            <input
+              type="text"
+              value={formState.title}
+              onChange={(event) => onChange('title', event.target.value)}
+              placeholder="タイトルを入力"
+              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </label>
+
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-neutral-700">詳細</span>
+            <textarea
+              value={formState.notes}
+              onChange={(event) => onChange('notes', event.target.value)}
+              rows={4}
+              placeholder="詳細を入力"
+              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </label>
+
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-neutral-700">関連授業</span>
+            <input
+              type="text"
+              value={formState.classId}
+              onChange={(event) => onChange('classId', event.target.value)}
+              placeholder="授業名やIDをメモ"
+              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </label>
+
+          {isAssignment ? (
+            <div className="flex flex-col gap-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+              <label className="flex items-center gap-3 text-sm font-medium text-neutral-700">
+                <input
+                  type="checkbox"
+                  checked={formState.isCompleted}
+                  onChange={(event) => onChange('isCompleted', event.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-200"
+                />
+                完了した課題として保存する
+              </label>
+
+              <label className="flex flex-col gap-2">
+                <span className="text-sm font-medium text-neutral-700">期限</span>
+                <input
+                  type="date"
+                  value={formState.dueDate}
+                  onChange={(event) => onChange('dueDate', event.target.value)}
+                  className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+
+        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100"
+          >
+            キャンセル
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={isSaving}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+          >
+            {isSaving ? (isEditing ? '更新中...' : '保存中...') : isEditing ? '更新する' : '保存する'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 export default function TodoTab() {
   const [viewMode, setViewMode] = useState<ViewMode>('todo');
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogType, setDialogType] = useState<ActivityType>('assignment');
+  const [formState, setFormState] = useState<ActivityFormState>(() => createDefaultFormState());
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+
+  const { profile, isAuthenticated, initializing: authInitializing } = useAuth();
+
+  useEffect(() => {
+    if (!profile?.uid) {
+      setActivities([]);
+      setLoading(false);
+      setError(null);
+      return () => {};
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const collectionRef = collection(db, 'users', profile.uid, 'activities');
+    const activitiesQuery = query(collectionRef, orderBy('createdAt', 'desc'));
+
+    const unsubscribe = onSnapshot(
+      activitiesQuery,
+      (snapshot) => {
+        const items = snapshot.docs.map(mapActivity);
+        setActivities(items);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Failed to fetch activities', err);
+        setActivities([]);
+        setError('データの取得に失敗しました。時間をおいて再度お試しください。');
+        setLoading(false);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [profile?.uid]);
+
+  const assignments = useMemo(
+    () => activities.filter((activity) => activity.type === 'assignment'),
+    [activities],
+  );
+
+  const memos = useMemo(
+    () => activities.filter((activity) => activity.type === 'memo'),
+    [activities],
+  );
+
+  const handleOpenDialog = useCallback(() => {
+    const nextType: ActivityType = viewMode === 'todo' ? 'assignment' : 'memo';
+    setDialogType(nextType);
+    setFormState(createDefaultFormState());
+    setDialogError(null);
+    setSelectedActivity(null);
+    setIsDialogOpen(true);
+  }, [viewMode]);
+
+  const handleCloseDialog = useCallback(() => {
+    setIsDialogOpen(false);
+    setDialogError(null);
+    setIsSaving(false);
+    setSelectedActivity(null);
+  }, []);
+
+  const handleFormChange = useCallback(
+    (field: keyof ActivityFormState, value: string | boolean) => {
+      setFormState((prev) => ({
+        ...prev,
+        [field]: field === 'isCompleted' ? Boolean(value) : (value as string),
+      }));
+    },
+    [],
+  );
+
+  const handleSubmit = useCallback(async () => {
+    if (!profile?.uid) {
+      setDialogError('ログイン状態を確認できませんでした。再度サインインしてください。');
+      return;
+    }
+
+    setIsSaving(true);
+    setDialogError(null);
+
+    const payload: Record<string, unknown> = {
+      title: formState.title,
+      notes: formState.notes,
+      classId: formState.classId.trim().length > 0 ? formState.classId.trim() : null,
+      type: dialogType,
+      status: dialogType === 'assignment' && formState.isCompleted ? 'done' : 'pending',
+      dueDate:
+        dialogType === 'assignment' && formState.dueDate.trim().length > 0
+          ? formState.dueDate
+          : null,
+      updatedAt: serverTimestamp(),
+    };
+
+    try {
+      if (selectedActivity) {
+        const docRef = doc(db, 'users', profile.uid, 'activities', selectedActivity.id);
+        await updateDoc(docRef, payload);
+      } else {
+        const parent = collection(db, 'users', profile.uid, 'activities');
+        await addDoc(parent, { ...payload, createdAt: serverTimestamp() });
+      }
+      setIsDialogOpen(false);
+      setFormState(createDefaultFormState());
+      setSelectedActivity(null);
+    } catch (err) {
+      console.error('Failed to save activity', err);
+      setDialogError('保存に失敗しました。時間をおいて再度お試しください。');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [dialogType, formState, profile?.uid, selectedActivity]);
+
+  const handleSelectActivity = useCallback(
+    (activity: Activity) => {
+      setDialogType(activity.type);
+      setFormState(createFormStateFromActivity(activity));
+      setDialogError(null);
+      setSelectedActivity(activity);
+      setIsDialogOpen(true);
+    },
+    [],
+  );
+
+  const handleToggleAssignmentStatus = useCallback(
+    async (activity: Activity) => {
+      if (!profile?.uid) {
+        return;
+      }
+
+      try {
+        const docRef = doc(db, 'users', profile.uid, 'activities', activity.id);
+        const nextStatus: ActivityStatus = activity.status === 'done' ? 'pending' : 'done';
+        await updateDoc(docRef, {
+          status: nextStatus,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error('Failed to toggle assignment status', err);
+      }
+    },
+    [profile?.uid],
+  );
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
@@ -229,8 +643,31 @@ export default function TodoTab() {
         <p className="text-sm text-neutral-500">やることの整理とメモの管理をひとつの画面で行えます。</p>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-[160px]">
-        {viewMode === 'todo' ? <TodoList /> : <MemoList />}
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-[160px]">
+        {authInitializing ? (
+          <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
+            認証情報を確認しています...
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
+            Todo やメモを利用するにはログインしてください。ユーザタブからサインインできます。
+          </div>
+        ) : viewMode === 'todo' ? (
+          <TodoList
+            items={assignments}
+            loading={loading}
+            error={error}
+            onSelect={handleSelectActivity}
+            onToggleStatus={handleToggleAssignmentStatus}
+          />
+        ) : (
+          <MemoList
+            items={memos}
+            loading={loading}
+            error={error}
+            onSelect={handleSelectActivity}
+          />
+        )}
       </div>
 
       <div className="pointer-events-none fixed bottom-[84px] right-6 z-20 flex items-center gap-4">
@@ -250,12 +687,25 @@ export default function TodoTab() {
         </div>
         <button
           type="button"
-          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-700 text-white shadow-xl shadow-blue-500/30"
+          onClick={handleOpenDialog}
+          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-700 text-white shadow-xl shadow-blue-500/30 transition hover:bg-blue-600"
           aria-label="新規作成"
         >
           <FontAwesomeIcon icon={faPlus} fontSize={22} />
         </button>
       </div>
+
+      <CreateActivityDialog
+        open={isDialogOpen}
+        type={dialogType}
+        mode={selectedActivity ? 'edit' : 'create'}
+        formState={formState}
+        onChange={handleFormChange}
+        onClose={handleCloseDialog}
+        onSubmit={handleSubmit}
+        isSaving={isSaving}
+        error={dialogError}
+      />
     </div>
   );
 }
