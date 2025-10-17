@@ -570,10 +570,10 @@ export default function CalendarTab() {
               {WEEKDAY_HEADERS.map((weekday) => (
                 <div
                   key={weekday.label}
-                  className="flex flex-col-reverse items-center justify-center gap-1"
+                  className="flex flex-col items-center justify-center gap-1"
                 >
-                  <span>{weekday.label}</span>
                   <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
+                  <span>{weekday.label}</span>
                 </div>
               ))}
             </div>
