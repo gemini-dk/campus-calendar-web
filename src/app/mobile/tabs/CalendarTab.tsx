@@ -369,6 +369,23 @@ export default function CalendarTab() {
     [isAnimating, pendingDirection],
   );
 
+  const releasePointerCapture = useCallback((pointerId: number | null) => {
+    if (pointerId == null) {
+      return;
+    }
+    const element = viewportRef.current;
+    if (!element) {
+      return;
+    }
+    try {
+      if (element.hasPointerCapture(pointerId)) {
+        element.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // no-op: element may already be detached or capture released
+    }
+  }, []);
+
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.pointerType === 'mouse' && event.button !== 0) {
@@ -410,24 +427,18 @@ export default function CalendarTab() {
     dragDeltaRef.current = 0;
   }, []);
 
-  const handlePointerEnd = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
-        return;
-      }
-
-      event.currentTarget.releasePointerCapture(event.pointerId);
-
+  const finishDrag = useCallback(
+    (options?: { cancelled?: boolean }) => {
       const delta = dragDeltaRef.current;
       const threshold = containerWidth * 0.25;
 
       setIsDragging(false);
+      setPendingDirection(null);
 
-      if (containerWidth > 0 && Math.abs(delta) > threshold) {
+      if (!options?.cancelled && containerWidth > 0 && Math.abs(delta) > threshold) {
         const direction: 'prev' | 'next' = delta > 0 ? 'prev' : 'next';
         startTransition(direction);
       } else {
-        setPendingDirection(null);
         if (containerWidth > 0) {
           setIsAnimating(true);
         } else {
@@ -438,7 +449,19 @@ export default function CalendarTab() {
 
       resetDragState();
     },
-    [containerWidth, isDragging, resetDragState, startTransition],
+    [containerWidth, resetDragState, startTransition],
+  );
+
+  const handlePointerEnd = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      releasePointerCapture(event.pointerId);
+      finishDrag();
+    },
+    [finishDrag, isDragging, releasePointerCapture],
   );
 
   const handlePointerCancel = useCallback(
@@ -446,19 +469,39 @@ export default function CalendarTab() {
       if (!isDragging || pointerIdRef.current !== event.pointerId) {
         return;
       }
-      event.currentTarget.releasePointerCapture(event.pointerId);
-      setIsDragging(false);
-      setPendingDirection(null);
-      if (containerWidth > 0) {
-        setIsAnimating(true);
-      } else {
-        setIsAnimating(false);
-      }
-      setTranslate(0);
-      resetDragState();
+      releasePointerCapture(event.pointerId);
+      finishDrag({ cancelled: true });
     },
-    [containerWidth, isDragging, resetDragState],
+    [finishDrag, isDragging, releasePointerCapture],
   );
+
+  useEffect(() => {
+    if (!isDragging) {
+      return;
+    }
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      releasePointerCapture(event.pointerId);
+      finishDrag();
+    };
+    const handleWindowPointerCancel = (event: PointerEvent) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      releasePointerCapture(event.pointerId);
+      finishDrag({ cancelled: true });
+    };
+
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerCancel);
+
+    return () => {
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerCancel);
+    };
+  }, [finishDrag, isDragging, releasePointerCapture]);
 
   const todayId = useMemo(() => formatDateId(new Date()), []);
   const monthFormatter = useMemo(
@@ -499,7 +542,7 @@ export default function CalendarTab() {
   const calendarAvailable = initialized && isCalendarConfigured;
 
   return (
-    <div className="flex h-full flex-col bg-neutral-50">
+    <div className="flex h-full w-full flex-col bg-neutral-50">
       <header className="border-b border-neutral-200 bg-white px-3 py-2">
         <div className="flex items-center justify-between">
           <button
@@ -521,45 +564,43 @@ export default function CalendarTab() {
       </header>
 
       <div className="flex-1 overflow-hidden">
-        {calendarAvailable ? (
-          <div className="flex h-full flex-col">
-            <div className="grid grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
-              {WEEKDAY_HEADERS.map((weekday) => (
-                <div key={weekday.label} className="flex flex-col items-center justify-center">
-                  <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
-                  <span className="pt-1">{weekday.label}</span>
-                </div>
-              ))}
-            </div>
-            <div
-              ref={viewportRef}
-              className="flex flex-1 select-none overflow-hidden touch-pan-y"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerEnd}
-              onPointerCancel={handlePointerCancel}
-            >
-              <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
-                {months.map((monthDate) => {
-                  const monthKey = getMonthKey(monthDate);
-                  const state = monthStates[monthKey];
-                  const style = containerWidth
-                    ? { width: containerWidth }
-                    : { width: '100%' };
-
-                  return (
-                    <div key={monthKey} className="flex h-full w-full flex-shrink-0" style={style}>
-                      <CalendarMonthSlide
-                        monthDate={monthDate}
-                        monthState={state}
-                        infoMap={infoMap}
-                        todayId={todayId}
-                        onRetry={handleRetry}
-                      />
-                    </div>
-                  );
-                })}
+        <div className="flex h-full w-full flex-col">
+          <div className="grid w-full grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
+            {WEEKDAY_HEADERS.map((weekday) => (
+              <div key={weekday.label} className="flex flex-col items-center justify-center">
+                <div className="h-[3px] w-full" style={{ backgroundColor: weekday.color }} />
+                <span className="pt-1">{weekday.label}</span>
               </div>
+          ))}
+          </div>
+          <div
+            ref={viewportRef}
+            className="flex w-full flex-1 select-none overflow-hidden touch-pan-y"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerEnd}
+            onPointerCancel={handlePointerCancel}
+          >
+            <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
+              {months.map((monthDate) => {
+                const monthKey = getMonthKey(monthDate);
+                const state = monthStates[monthKey];
+                const style = containerWidth
+                  ? { width: containerWidth }
+                  : { width: '100%' };
+
+                return (
+                  <div key={monthKey} className="flex h-full w-full flex-shrink-0" style={style}>
+                    <CalendarMonthSlide
+                      monthDate={monthDate}
+                      monthState={state}
+                      infoMap={infoMap}
+                      todayId={todayId}
+                      onRetry={handleRetry}
+                    />
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : (
@@ -600,8 +641,8 @@ function CalendarMonthSlide({
   const isCalendarSettingsError = errorMessage === CALENDAR_SETTINGS_ERROR_MESSAGE;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="grid flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
+    <div className="flex h-full w-full flex-col">
+      <div className="grid w-full flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
         {dates.map((date, index) => {
           const dateId = dateIds[index];
           const info = infoMap[dateId];
@@ -632,7 +673,7 @@ function CalendarMonthSlide({
           return (
             <div
               key={dateId}
-              className={`flex flex-col text-[11px] leading-tight ${
+              className={`flex min-h-0 flex-col overflow-hidden text-[11px] leading-tight ${
                 isCurrentMonth ? '' : 'opacity-50'
               } ${isToday ? 'outline outline-2 outline-blue-400' : ''}`}
               style={{
@@ -643,7 +684,7 @@ function CalendarMonthSlide({
                 borderStyle: 'solid',
               }}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex flex-shrink-0 items-start justify-between">
                 <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
                 {isClassDay && typeof classOrder === 'number' ? (
                   <span
@@ -655,16 +696,16 @@ function CalendarMonthSlide({
                 ) : null}
               </div>
 
-              <div className="mt-1 flex flex-col">
-                <span className="text-[11px] font-semibold text-neutral-800">
+              <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden gap-[2px]">
+                <span className="block w-full min-h-[24px] line-clamp-2 text-[11px] font-semibold text-neutral-800">
                   {academic?.label ?? '予定なし'}
                 </span>
-                {academic?.subLabel ? (
-                  <span className="text-[10px] text-neutral-600">{academic.subLabel}</span>
-                ) : null}
-                {day?.description ? (
-                  <span className="text-[10px] text-neutral-600">{day.description}</span>
-                ) : null}
+                <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
+                  {academic?.subLabel ?? ''}
+                </span>
+                <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
+                  {day?.description ?? ''}
+                </span>
               </div>
             </div>
           );
