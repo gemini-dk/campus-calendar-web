@@ -3,20 +3,23 @@
 import { useMemo, useState } from "react";
 
 import { useAuth } from "@/lib/useAuth";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCalendar, faChalkboardTeacher, faHome, faRightToBracket, faTasks, faUserCircle, IconDefinition } from "@fortawesome/free-solid-svg-icons";
 
 type TabId = "home" | "calendar" | "todo" | "classes" | "user";
 
 type TabDefinition = {
   id: TabId;
   label: string;
+  iconClass: IconDefinition;
 };
 
 const TABS: TabDefinition[] = [
-  { id: "home", label: "Home" },
-  { id: "calendar", label: "Calendar" },
-  { id: "todo", label: "Todo" },
-  { id: "classes", label: "授業" },
-  { id: "user", label: "ユーザ" },
+  { id: "home", label: "Home", iconClass: faHome },
+  { id: "calendar", label: "Calendar", iconClass: faCalendar },
+  { id: "todo", label: "Todo", iconClass: faTasks },
+  { id: "classes", label: "授業", iconClass: faChalkboardTeacher },
+  { id: "user", label: "ユーザ", iconClass: faUserCircle }
 ];
 
 export default function MobilePage() {
@@ -133,8 +136,8 @@ export default function MobilePage() {
   ]);
 
   return (
-    <div className="flex min-h-screen w-full justify-center bg-neutral-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-[800px] flex-col bg-white">
+    <div className="flex min-h-[100dvh] w-full justify-center bg-neutral-100">
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[800px] flex-col bg-white">
         <header className="flex h-[30px] flex-shrink-0 items-center justify-center border-b border-neutral-200">
           <span className="text-sm font-semibold text-neutral-900">CampusCalendar</span>
         </header>
@@ -143,7 +146,7 @@ export default function MobilePage() {
           <div className="flex-1 overflow-y-auto bg-blue-50">{tabContent}</div>
         </main>
 
-        <nav className="flex h-[50px] flex-shrink-0 border-t border-neutral-200">
+        <nav className="flex h-[60px] flex-shrink-0 border-t border-neutral-200">
           {TABS.map((tab) => {
             const isActive = tab.id === activeTab;
             return (
@@ -151,13 +154,14 @@ export default function MobilePage() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex h-full flex-1 items-center justify-center text-sm font-medium transition ${
+                className={`flex h-full flex-1 flex-col items-center justify-center gap-1 text-sm font-medium transition ${
                   isActive
                     ? "bg-blue-100 text-blue-700"
                     : "text-neutral-600 hover:bg-neutral-100"
                 }`}
               >
-                {tab.label}
+                <FontAwesomeIcon icon={tab.iconClass} fontSize={22} />
+                <span>{tab.label}</span>
               </button>
             );
           })}
