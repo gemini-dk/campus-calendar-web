@@ -35,6 +35,7 @@ const WEEKDAY_HEADERS = [
 ];
 
 const ADDITIONAL_PERIOD_LABELS = ["OD", "FOD"];
+const PERIOD_COLUMN_WIDTH = "2ch";
 
 const DRAG_THRESHOLD_PX = 60;
 
@@ -173,7 +174,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
 
   const columnTemplate = useMemo(() => {
     const weekdayCount = Math.max(weekdayHeaders.length, 1);
-    return `80px repeat(${weekdayCount}, minmax(0, 1fr))`;
+    return `${PERIOD_COLUMN_WIDTH} repeat(${weekdayCount}, minmax(0, 1fr))`;
   }, [weekdayHeaders.length]);
 
   const enableSwipe = pagerItems.length > 1;
@@ -240,27 +241,54 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
   const activePagerItem = pagerItems[clampedTermIndex] ?? null;
 
   return (
-    <div className="flex h-full min-h-[480px] w-full flex-col gap-4">
-      <div className="flex h-12 w-full items-center justify-between px-1">
-        <div>
-          <div className="text-base font-semibold text-neutral-900">
-            {activePagerItem?.name ?? "学期未設定"}
-          </div>
-          <div className="text-xs text-neutral-500">
+    <div className="flex h-full min-h-[480px] w-full flex-col bg-white">
+      <div className="flex flex-col border-b border-neutral-200">
+        <div className="flex items-baseline justify-between px-4 pt-3">
+          <div className="text-sm font-medium text-neutral-500">
             {calendar ? `${calendar.fiscalYear}年度` : "年度未設定"}
           </div>
+          {pagerItems.length > 1 ? (
+            <div className="text-xs text-neutral-400">
+              {clampedTermIndex + 1} / {pagerItems.length}
+            </div>
+          ) : null}
         </div>
-        {pagerItems.length > 1 ? (
-          <div className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
-            {clampedTermIndex + 1} / {pagerItems.length}
-          </div>
-        ) : null}
+        <nav className="mt-2 flex items-center gap-4 overflow-x-auto px-4 pb-2" role="tablist">
+          {pagerItems.map((item, index) => {
+            const isActive = index === clampedTermIndex;
+            const isDisabled = Boolean(item.isPlaceholder);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  if (isDisabled) {
+                    return;
+                  }
+                  setIsAnimating(true);
+                  setActiveTermIndex(index);
+                }}
+                disabled={isDisabled}
+                className={`whitespace-nowrap border-b-2 pb-2 text-sm font-semibold transition ${
+                  isActive
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-neutral-500 hover:text-neutral-700"
+                } ${isDisabled ? "cursor-default text-neutral-400" : ""}`}
+                aria-selected={isActive}
+                aria-disabled={isDisabled}
+                role="tab"
+              >
+                {item.name}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
-      <div className="relative flex min-h-[380px] flex-1">
+      <div className="relative flex min-h-[360px] flex-1">
         <div
           ref={viewportRef}
-          className="h-full w-full overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
+          className="h-full w-full overflow-hidden"
           style={{ touchAction: enableSwipe ? "pan-y" : "auto" }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -277,49 +305,43 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
             {pagerItems.map((item, index) => (
               <div
                 key={item.id}
-                className="flex h-full w-full flex-shrink-0 flex-grow-0 flex-col px-4 py-4"
+                className="flex h-full w-full flex-shrink-0 flex-grow-0 flex-col"
                 style={{ width: `${100 / Math.max(pagerItems.length, 1)}%` }}
                 aria-hidden={index !== clampedTermIndex}
               >
                 <div className="flex h-full w-full flex-col">
                   <div
-                    className="grid w-full flex-shrink-0"
+                    className="grid w-full border-b border-l border-t border-neutral-200"
                     style={{ gridTemplateColumns: columnTemplate }}
                   >
-                    <div className="flex h-12 items-center justify-center rounded-tl-2xl border-b border-neutral-200 bg-neutral-100 text-sm font-semibold text-neutral-600">
-                      時限
-                    </div>
-                    {weekdayHeaders.map((weekday, weekdayIndex) => (
+                    <div className="h-12 border-r border-neutral-200" />
+                    {weekdayHeaders.map((weekday) => (
                       <div
                         key={weekday.key}
-                        className={`flex h-12 items-center justify-center border-b border-neutral-200 bg-neutral-100 text-sm font-semibold text-neutral-600 ${
-                          weekdayIndex === weekdayHeaders.length - 1 ? "rounded-tr-2xl" : ""
-                        } ${weekdayIndex > 0 ? "border-l" : ""}`}
+                        className="flex h-12 items-center justify-center border-r border-neutral-200 bg-white text-sm font-semibold text-neutral-700"
                       >
                         {weekday.label}
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex-1 min-h-0">
+                  <div className="flex-1">
                     <div
-                      className="grid h-full w-full"
+                      className="grid h-full w-full border-b border-l border-neutral-200"
                       style={{
                         gridTemplateColumns: columnTemplate,
-                        gridAutoRows: "minmax(72px, 1fr)",
+                        gridAutoRows: "minmax(64px, 1fr)",
                       }}
                     >
                       {periodLabels.map((label) => (
                         <Fragment key={label}>
-                          <div className="flex h-full items-center justify-center border-b border-neutral-200 bg-neutral-50 text-sm font-semibold text-neutral-600">
-                            {label}
+                          <div className="flex items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                            <span className="block truncate">{label}</span>
                           </div>
-                          {weekdayHeaders.map((weekday, weekdayIndex) => (
+                          {weekdayHeaders.map((weekday) => (
                             <div
                               key={`${label}-${weekday.key}`}
-                              className={`border-b border-neutral-200 ${
-                                weekdayIndex > 0 ? "border-l" : ""
-                              }`}
+                              className="border-b border-r border-neutral-200 bg-white"
                             />
                           ))}
                         </Fragment>
@@ -333,20 +355,24 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         </div>
 
         {termLoadState === "loading" ? (
-          <div className="pointer-events-none absolute inset-0 flex h-full w-full items-center justify-center rounded-2xl bg-white/60 text-sm text-neutral-500">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/70 text-sm text-neutral-500">
             学期情報を読み込んでいます…
           </div>
         ) : null}
       </div>
 
+      {activePagerItem?.isPlaceholder && termLoadState === "success" ? (
+        <div className="px-4 pt-3 text-sm text-neutral-500">学期情報が設定されていません。</div>
+      ) : null}
+
       {termLoadState === "error" && termError ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mt-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {termError}
         </div>
       ) : null}
 
       {enableSwipe ? (
-        <div className="flex h-5 w-full items-center justify-center gap-2">
+        <div className="flex h-5 w-full items-center justify-center gap-2 pb-4">
           {pagerItems.map((item, index) => (
             <button
               key={item.id}
@@ -355,7 +381,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                 setIsAnimating(true);
                 setActiveTermIndex(index);
               }}
-              className={`h-2.5 w-2.5 rounded-full transition ${
+              className={`h-2 w-2 rounded-full transition ${
                 index === clampedTermIndex ? "bg-blue-600" : "bg-neutral-300 hover:bg-neutral-400"
               }`}
               aria-label={`${index + 1}番目の学期を表示`}
