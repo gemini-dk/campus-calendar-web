@@ -8,6 +8,7 @@ import {
   type CalendarDisplayInfo,
 } from '@/lib/data/service/calendarDisplay.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
+import UserHamburgerMenu from '../components/UserHamburgerMenu';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -122,6 +123,9 @@ function HomeTabContent() {
 
   return (
     <div className="flex min-h-full flex-col">
+      <header className="flex h-[56px] w-full items-center justify-end border-b border-neutral-200 bg-white px-4">
+        <UserHamburgerMenu />
+      </header>
       <section
         className="flex w-full min-h-[200px] flex-col justify-end px-8 pt-6 pb-8 shadow-sm"
         style={{ backgroundColor }}
