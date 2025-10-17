@@ -3,6 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 
+import {
+  fetchCalendarDetails,
+  type FirestoreCalendarDay,
+  type FirestoreCalendarDetails,
+  type FirestoreCalendarTerm,
+} from '@/lib/data/calendars';
+import { useAuth } from '@/lib/useAuth';
+
 const DEFAULT_FISCAL_YEAR = 2025;
 const DEFAULT_CALENDAR_ID = 'jd70dxbqvevcf5kj43cbaf4rjn7rs93e';
 const UNASSIGNED_TERM_ID = '__unassigned__';
@@ -19,36 +27,9 @@ const WEEKDAYS: Array<{ value: number; label: string }> = [
 
 const PERIODS = Array.from({ length: 7 }, (_, index) => index + 1);
 
-type CalendarTerm = {
-  _id: string;
-  termName: string;
-  shortName?: string;
-  order?: number;
-  classCount?: number;
-  holidayFlag?: boolean;
-};
-
-type CalendarDay = {
-  _id: string;
-  date: string;
-  type: '未指定' | '授業日' | '試験日' | '予備日' | '休講日';
-  termId?: string;
-  termName?: string;
-  classWeekday?: number;
-  classOrder?: number;
-};
-
-type CalendarSummary = {
-  calendar: {
-    _id: string;
-    name: string;
-    fiscalYear: number;
-    fiscalStart: string;
-    fiscalEnd: string;
-  };
-  terms: CalendarTerm[];
-  days: CalendarDay[];
-};
+type CalendarSummary = FirestoreCalendarDetails;
+type CalendarTerm = FirestoreCalendarTerm;
+type CalendarDay = FirestoreCalendarDay;
 
 type WeeklySlot = {
   dayOfWeek: number;
@@ -109,6 +90,16 @@ const buildTermDisplayName = (term: CalendarTerm) => {
 };
 
 export default function TimetableDebugPage() {
+  const {
+    profile,
+    isAuthenticated,
+    initializing: authInitializing,
+    isProcessing: authProcessing,
+    error: authError,
+    successMessage: authSuccess,
+    signInWithGoogle,
+    signOut,
+  } = useAuth();
   const [calendarIdInput, setCalendarIdInput] = useState(DEFAULT_CALENDAR_ID);
   const [calendarId, setCalendarId] = useState(DEFAULT_CALENDAR_ID);
   const [calendarData, setCalendarData] = useState<CalendarSummary | null>(null);
@@ -126,39 +117,60 @@ export default function TimetableDebugPage() {
   });
 
   useEffect(() => {
-    const controller = new AbortController();
-    const fetchCalendar = async () => {
+    let cancelled = false;
+
+    if (authInitializing) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!profile?.uid) {
+      setCalendarData(null);
+      setSelectedTermIds([]);
+      setLoading(false);
+      setError('Firestore のデータを取得するにはサインインしてください。');
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(
-          `/api/calendars/${encodeURIComponent(calendarId)}?fiscalYear=${DEFAULT_FISCAL_YEAR}`,
-          { signal: controller.signal }
-        );
-
-        if (!response.ok) {
-          const data = (await response.json().catch(() => null)) as { error?: string } | null;
-          setCalendarData(null);
-          setError(data?.error ?? 'カレンダー情報の取得に失敗しました。');
+        const details = await fetchCalendarDetails({
+          userId: profile.uid,
+          calendarId,
+        });
+        if (cancelled) {
           return;
         }
-
-        const data = (await response.json()) as CalendarSummary;
-        setCalendarData(data);
+        setCalendarData(details);
       } catch (fetchError) {
-        if (!(fetchError instanceof DOMException && fetchError.name === 'AbortError')) {
-          setCalendarData(null);
+        if (cancelled) {
+          return;
+        }
+        console.error('Failed to fetch Firestore calendar details', fetchError);
+        setCalendarData(null);
+        if (fetchError instanceof Error && fetchError.message) {
+          setError(fetchError.message);
+        } else {
           setError('カレンダー情報の取得中にエラーが発生しました。');
-          console.error(fetchError);
         }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchCalendar();
-    return () => controller.abort();
-  }, [calendarId]);
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [calendarId, profile?.uid, authInitializing]);
 
   useEffect(() => {
     if (!calendarData) {
@@ -309,6 +321,22 @@ export default function TimetableDebugPage() {
     }));
   };
 
+  const currentUserLabel = useMemo(() => {
+    if (authInitializing) {
+      return '初期化中…';
+    }
+    if (!profile) {
+      return '未サインイン';
+    }
+    if (profile.displayName && profile.displayName.trim().length > 0) {
+      return profile.displayName;
+    }
+    if (profile.email && profile.email.trim().length > 0) {
+      return profile.email;
+    }
+    return profile.uid;
+  }, [authInitializing, profile]);
+
   const calendarMeta = calendarData?.calendar;
 
   return (
@@ -330,6 +358,37 @@ export default function TimetableDebugPage() {
             を使用します。
           </p>
 
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-300">
+            <span>
+              サインイン状態:
+              <span className="ml-1 font-semibold text-slate-100">{currentUserLabel}</span>
+            </span>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                className="inline-flex items-center rounded-lg border border-slate-600/80 bg-slate-950/70 px-3 py-1 text-xs font-semibold text-slate-100 hover:border-blue-400 hover:text-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+                onClick={signOut}
+                disabled={authProcessing || authInitializing}
+              >
+                サインアウト
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="inline-flex items-center rounded-lg border border-blue-500/70 bg-blue-500/30 px-3 py-1 text-xs font-semibold text-blue-100 hover:bg-blue-500/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300"
+                onClick={signInWithGoogle}
+                disabled={authProcessing || authInitializing}
+              >
+                Google でサインイン
+              </button>
+            )}
+            {(authProcessing || authInitializing) && (
+              <span className="text-xs text-slate-400">処理中…</span>
+            )}
+          </div>
+          {authError && <p className="mt-2 text-sm text-red-300">{authError}</p>}
+          {authSuccess && <p className="mt-2 text-sm text-emerald-300">{authSuccess}</p>}
+
           <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={handleCalendarIdSubmit}>
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium text-slate-200">カレンダー ID</span>
@@ -337,7 +396,7 @@ export default function TimetableDebugPage() {
                 className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-400"
                 value={calendarIdInput}
                 onChange={(event) => setCalendarIdInput(event.target.value)}
-                placeholder="Convex カレンダー ID"
+                placeholder="Firestore カレンダー ID"
               />
             </label>
             <button
@@ -357,11 +416,20 @@ export default function TimetableDebugPage() {
                   <span className="font-semibold text-slate-100">名称:</span> {calendarMeta.name}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-100">年度:</span> {calendarMeta.fiscalYear}年度
+                  <span className="font-semibold text-slate-100">年度:</span>{' '}
+                  {calendarMeta.fiscalYear !== undefined
+                    ? `${calendarMeta.fiscalYear}年度`
+                    : '---'}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-100">期間:</span> {calendarMeta.fiscalStart} 〜 {calendarMeta.fiscalEnd}
+                  <span className="font-semibold text-slate-100">期間:</span> {calendarMeta.fiscalStart ?? '---'} 〜{' '}
+                  {calendarMeta.fiscalEnd ?? '---'}
                 </p>
+                {calendarMeta.syncedAt && (
+                  <p>
+                    <span className="font-semibold text-slate-100">最終同期:</span> {calendarMeta.syncedAt}
+                  </p>
+                )}
                 <p>
                   <span className="font-semibold text-slate-100">授業日総数:</span> {
                     calendarData?.days.filter((day) => day.type === '授業日').length ?? 0
@@ -447,7 +515,11 @@ export default function TimetableDebugPage() {
         <section className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-xl shadow-black/30">
           <h2 className="text-xl font-semibold text-blue-200">学期選択</h2>
           <p className="mt-2 text-sm text-slate-300">
-            Convex の <code className="rounded bg-slate-800 px-2 py-1 text-xs text-blue-100">calendar_terms</code> から取得した学期を選択してください。
+            Firestore の{' '}
+            <code className="rounded bg-slate-800 px-2 py-1 text-xs text-blue-100">
+              /users/&lbrace;uid&rbrace;/calendars/&lbrace;calendarId&rbrace;/terms
+            </code>{' '}
+            コレクションから取得した学期を選択してください。
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {termOptions.length === 0 && (
@@ -536,7 +608,7 @@ export default function TimetableDebugPage() {
         <section className="rounded-2xl border border-slate-700/60 bg-slate-900/60 p-6 shadow-xl shadow-black/30">
           <h2 className="text-xl font-semibold text-blue-200">授業日程プレビュー</h2>
           <p className="mt-2 text-sm text-slate-300">
-            選択した学期と曜日・時限に基づいて授業日程を算出しています。Convex のカレンダーデータにある授業日のみが対象です。
+            選択した学期と曜日・時限に基づいて授業日程を算出しています。Firestore のカレンダーデータに登録されている授業日のみが対象です。
           </p>
 
           <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-200">
