@@ -3,20 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import type { CalendarDay, CalendarTerm } from '@/lib/data/schema/calendar';
-import { getCalendarDays, getCalendarTerms } from '@/lib/data/service/calendar.service';
+import {
+  getCalendarDays,
+  getCalendarTerms,
+} from '@/lib/data/service/calendar.service';
+import {
+  generateClassSchedule,
+  type ClassScheduleItem,
+} from '@/lib/data/service/class.service';
 
 type LoadState = 'idle' | 'loading' | 'success' | 'error';
 
 type WeeklySlot = {
   dayOfWeek: number;
   period: number;
-};
-
-type GeneratedClassDate = {
-  date: string;
-  dayOfWeek: number;
-  period: number | null;
-  termName: string;
 };
 
 const DEFAULT_FISCAL_YEAR = '2025';
@@ -36,7 +36,7 @@ export default function TimetableDebugPage() {
 
   const [scheduleState, setScheduleState] = useState<LoadState>('idle');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const [generatedDates, setGeneratedDates] = useState<GeneratedClassDate[]>([]);
+  const [generatedDates, setGeneratedDates] = useState<ClassScheduleItem[]>([]);
 
   const selectableTerms = useMemo(
     () => terms.filter((term) => term.holidayFlag === 2),
@@ -130,7 +130,7 @@ export default function TimetableDebugPage() {
     });
   }, []);
 
-  const handleGenerateSchedule = useCallback(() => {
+  const handleGenerateSchedule = useCallback(async () => {
     if (loadState !== 'success') {
       setScheduleError('カレンダー情報を先に取得してください。');
       setScheduleState('error');
@@ -150,53 +150,26 @@ export default function TimetableDebugPage() {
       return;
     }
 
-    const termSet = new Set(selectedTermIds);
-    const termNameMap = new Map(selectableTerms.map((term) => [term.id, term.name]));
-    const results: GeneratedClassDate[] = [];
-
-    for (const day of days) {
-      if (day.type !== '授業日') {
-        continue;
-      }
-      if (!day.date || typeof day.classWeekday !== 'number' || !day.termId) {
-        continue;
-      }
-
-      if (!termSet.has(day.termId)) {
-        continue;
-      }
-
-      if (!selectedDayNumbers.has(day.classWeekday)) {
-        continue;
-      }
-
-      const termLabel = termNameMap.get(day.termId) ?? day.termName ?? day.termId;
-      const periodNumber = typeof day.classOrder === 'number' ? day.classOrder : null;
-
-      results.push({
-        date: day.date,
-        dayOfWeek: day.classWeekday,
-        period: periodNumber,
-        termName: termLabel,
+    try {
+      setScheduleState('loading');
+      setScheduleError(null);
+      const results = await generateClassSchedule({
+        fiscalYear,
+        calendarId,
+        termIds: selectedTermIds,
+        weekdays: Array.from(selectedDayNumbers),
       });
+      setGeneratedDates(results);
+      setScheduleError(null);
+      setScheduleState('success');
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : '授業日程の算出に失敗しました。';
+      setScheduleError(message);
+      setGeneratedDates([]);
+      setScheduleState('error');
     }
-
-    results.sort((a, b) => {
-      if (a.date !== b.date) {
-        return a.date.localeCompare(b.date);
-      }
-      const periodA = typeof a.period === 'number' ? a.period : Number.MAX_SAFE_INTEGER;
-      const periodB = typeof b.period === 'number' ? b.period : Number.MAX_SAFE_INTEGER;
-      if (periodA !== periodB) {
-        return periodA - periodB;
-      }
-      return a.dayOfWeek - b.dayOfWeek;
-    });
-
-    setGeneratedDates(results);
-    setScheduleError(null);
-    setScheduleState('success');
-  }, [days, loadState, selectedSlots, selectedTermIds, selectableTerms]);
+  }, [calendarId, fiscalYear, loadState, selectedSlots, selectedTermIds]);
 
   useEffect(() => {
     void handleLoadCalendar();
@@ -365,7 +338,9 @@ export default function TimetableDebugPage() {
           </div>
           <button
             type="button"
-            onClick={handleGenerateSchedule}
+            onClick={() => {
+              void handleGenerateSchedule();
+            }}
             className="self-start rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:bg-neutral-400"
             disabled={loadState !== 'success'}
           >
@@ -376,6 +351,9 @@ export default function TimetableDebugPage() {
           <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
             {scheduleError}
           </p>
+        ) : null}
+        {scheduleState === 'loading' ? (
+          <p className="text-sm text-neutral-500">授業日程を算出中です…</p>
         ) : null}
         {scheduleState === 'success' ? (
           generatedDates.length > 0 ? (
@@ -395,7 +373,7 @@ export default function TimetableDebugPage() {
                   </thead>
                   <tbody>
                     {generatedDates.map((item) => (
-                      <tr key={`${item.date}-${item.dayOfWeek}-${item.period}`}>
+                      <tr key={`${item.date}-${item.classWeekday ?? 'na'}-${item.period ?? 'na'}`}>
                         <td className="border border-neutral-200 px-3 py-2 font-mono">{item.date}</td>
                         <td className="border border-neutral-200 px-3 py-2">
                           {item.date ? `${getCalendarWeekdayLabel(item.date)}曜` : '-'}
