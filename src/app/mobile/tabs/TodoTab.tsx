@@ -229,11 +229,11 @@ export default function TodoTab() {
         <p className="text-sm text-neutral-500">やることの整理とメモの管理をひとつの画面で行えます。</p>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-28">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-[160px]">
         {viewMode === 'todo' ? <TodoList /> : <MemoList />}
       </div>
 
-      <div className="pointer-events-none absolute bottom-6 right-6 flex items-center gap-4">
+      <div className="pointer-events-none fixed bottom-[84px] right-6 z-20 flex items-center gap-4">
         <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-blue-100 bg-white/90 px-3 py-2 shadow-lg backdrop-blur">
           <ViewToggleButton
             icon={faListCheck}
