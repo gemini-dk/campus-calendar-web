@@ -35,6 +35,8 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
   reserve: '#e1f4ff',
 };
 
+const CALENDAR_CELL_COUNT = 42;
+
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
 
 type MonthState = {
@@ -533,14 +535,18 @@ function CalendarMonthSlide({
   todayId,
   onRetry,
 }: CalendarMonthSlideProps) {
-  const dates = monthState?.dates ?? generateMonthDates(monthDate);
-  const dateIds = monthState?.dateIds ?? dates.map((date) => formatDateId(date));
+  const rawDates = monthState?.dates ?? generateMonthDates(monthDate);
+  const rawDateIds = monthState?.dateIds ?? rawDates.map((date) => formatDateId(date));
+
+  const dates = rawDates.slice(0, CALENDAR_CELL_COUNT);
+  const dateIds = rawDateIds.slice(0, dates.length);
+  const totalCells = dates.length;
   const isLoading = Boolean(monthState?.loading && !monthState?.loaded);
   const errorMessage = monthState?.errorMessage ?? null;
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="grid grid-cols-7 gap-3">
+      <div className="grid grid-cols-7 grid-rows-6 border border-neutral-200">
         {dates.map((date, index) => {
           const dateId = dateIds[index];
           const info = infoMap[dateId];
@@ -565,19 +571,27 @@ function CalendarMonthSlide({
               ? WEEKDAY_HEADERS[classWeekday]?.color ?? '#2563eb'
               : '#2563eb';
 
+          const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
+          const showBottomBorder = index < totalCells - WEEKDAY_HEADERS.length;
+
           return (
             <div
               key={dateId}
-              className={`flex min-h-24 flex-col rounded-xl border border-neutral-200 p-3 transition ${
-                isToday ? 'ring-2 ring-blue-400' : ''
-              } ${isCurrentMonth ? '' : 'opacity-50'}`}
-              style={{ backgroundColor }}
+              className={`flex flex-col text-[11px] leading-tight ${
+                isCurrentMonth ? '' : 'opacity-50'
+              } ${isToday ? 'outline outline-2 outline-blue-400' : ''}`}
+              style={{
+                backgroundColor,
+                borderRightWidth: showRightBorder ? 1 : 0,
+                borderBottomWidth: showBottomBorder ? 1 : 0,
+                borderColor: 'rgba(212, 212, 216, 1)',
+              }}
             >
-              <div className="flex items-start justify-between gap-2">
-                <span className={`text-sm font-semibold ${dateColorClass}`}>{dateNumber}</span>
+              <div className="flex items-start justify-between">
+                <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
                 {isClassDay && typeof classOrder === 'number' ? (
                   <span
-                    className="flex min-w-[28px] items-center justify-center rounded-full px-2 text-xs font-bold text-white"
+                    className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
                     style={{ backgroundColor: weekdayColor }}
                   >
                     {classOrder}
@@ -585,15 +599,15 @@ function CalendarMonthSlide({
                 ) : null}
               </div>
 
-              <div className="mt-2 flex flex-col gap-1">
-                <span className="text-xs font-semibold text-neutral-800">
+              <div className="mt-1 flex flex-col">
+                <span className="text-[11px] font-semibold text-neutral-800">
                   {academic?.label ?? '予定なし'}
                 </span>
                 {academic?.subLabel ? (
-                  <span className="text-[11px] text-neutral-600">{academic.subLabel}</span>
+                  <span className="text-[10px] text-neutral-600">{academic.subLabel}</span>
                 ) : null}
                 {day?.description ? (
-                  <span className="text-[11px] text-neutral-600">{day.description}</span>
+                  <span className="text-[10px] text-neutral-600">{day.description}</span>
                 ) : null}
               </div>
             </div>
