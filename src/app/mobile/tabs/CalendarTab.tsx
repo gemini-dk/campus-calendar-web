@@ -324,6 +324,23 @@ export default function CalendarTab() {
     [isAnimating, pendingDirection],
   );
 
+  const releasePointerCapture = useCallback((pointerId: number | null) => {
+    if (pointerId == null) {
+      return;
+    }
+    const element = viewportRef.current;
+    if (!element) {
+      return;
+    }
+    try {
+      if (element.hasPointerCapture(pointerId)) {
+        element.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // no-op: element may already be detached or capture released
+    }
+  }, []);
+
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.pointerType === 'mouse' && event.button !== 0) {
@@ -365,24 +382,18 @@ export default function CalendarTab() {
     dragDeltaRef.current = 0;
   }, []);
 
-  const handlePointerEnd = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!isDragging || pointerIdRef.current !== event.pointerId) {
-        return;
-      }
-
-      event.currentTarget.releasePointerCapture(event.pointerId);
-
+  const finishDrag = useCallback(
+    (options?: { cancelled?: boolean }) => {
       const delta = dragDeltaRef.current;
       const threshold = containerWidth * 0.25;
 
       setIsDragging(false);
+      setPendingDirection(null);
 
-      if (containerWidth > 0 && Math.abs(delta) > threshold) {
+      if (!options?.cancelled && containerWidth > 0 && Math.abs(delta) > threshold) {
         const direction: 'prev' | 'next' = delta > 0 ? 'prev' : 'next';
         startTransition(direction);
       } else {
-        setPendingDirection(null);
         if (containerWidth > 0) {
           setIsAnimating(true);
         } else {
@@ -393,7 +404,19 @@ export default function CalendarTab() {
 
       resetDragState();
     },
-    [containerWidth, isDragging, resetDragState, startTransition],
+    [containerWidth, resetDragState, startTransition],
+  );
+
+  const handlePointerEnd = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      releasePointerCapture(event.pointerId);
+      finishDrag();
+    },
+    [finishDrag, isDragging, releasePointerCapture],
   );
 
   const handlePointerCancel = useCallback(
@@ -401,19 +424,39 @@ export default function CalendarTab() {
       if (!isDragging || pointerIdRef.current !== event.pointerId) {
         return;
       }
-      event.currentTarget.releasePointerCapture(event.pointerId);
-      setIsDragging(false);
-      setPendingDirection(null);
-      if (containerWidth > 0) {
-        setIsAnimating(true);
-      } else {
-        setIsAnimating(false);
-      }
-      setTranslate(0);
-      resetDragState();
+      releasePointerCapture(event.pointerId);
+      finishDrag({ cancelled: true });
     },
-    [containerWidth, isDragging, resetDragState],
+    [finishDrag, isDragging, releasePointerCapture],
   );
+
+  useEffect(() => {
+    if (!isDragging) {
+      return;
+    }
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      releasePointerCapture(event.pointerId);
+      finishDrag();
+    };
+    const handleWindowPointerCancel = (event: PointerEvent) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      releasePointerCapture(event.pointerId);
+      finishDrag({ cancelled: true });
+    };
+
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerCancel);
+
+    return () => {
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerCancel);
+    };
+  }, [finishDrag, isDragging, releasePointerCapture]);
 
   const todayId = useMemo(() => formatDateId(new Date()), []);
   const monthFormatter = useMemo(
