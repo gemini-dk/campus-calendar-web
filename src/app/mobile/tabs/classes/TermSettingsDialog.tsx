@@ -36,6 +36,10 @@ const SPECIAL_SCHEDULE_LABELS: Record<SpecialScheduleOption, string> = {
   even_weeks: "偶数週",
 };
 
+function filterEligibleTerms(terms: CalendarTerm[]): CalendarTerm[] {
+  return terms.filter((term) => term.holidayFlag === 2);
+}
+
 export function TermSettingsDialog({
   isOpen,
   onClose,
@@ -60,11 +64,14 @@ export function TermSettingsDialog({
     if (!isOpen) {
       return;
     }
+    const filteredInitial = filterEligibleTerms(initialTerms);
     setSelectedOption(initialOption ?? calendarOptions[0] ?? null);
-    setSelectedTermIds(initialTermIds);
+    setSelectedTermIds(
+      initialTermIds.filter((termId) => filteredInitial.some((term) => term.id === termId)),
+    );
     setSelectedSpecialOption(initialSpecialOption);
-    setTerms(initialTerms);
-    setLoadState(initialTerms.length > 0 ? "success" : "idle");
+    setTerms(filteredInitial);
+    setLoadState(filteredInitial.length > 0 ? "success" : "idle");
     setErrorMessage(null);
   }, [
     calendarOptions,
@@ -100,14 +107,13 @@ export function TermSettingsDialog({
       try {
         setLoadState("loading");
         setErrorMessage(null);
-        const nextTerms = await loadTerms(selectedOption);
+        const loadedTerms = await loadTerms(selectedOption);
+        const filtered = filterEligibleTerms(loadedTerms);
         if (!active) {
           return;
         }
-        setTerms(nextTerms);
-        setSelectedTermIds((prev) =>
-          prev.filter((id) => nextTerms.some((term) => term.id === id)),
-        );
+        setTerms(filtered);
+        setSelectedTermIds((prev) => prev.filter((id) => filtered.some((term) => term.id === id)));
         setLoadState("success");
       } catch (error) {
         if (!active) {

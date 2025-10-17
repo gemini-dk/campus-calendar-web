@@ -84,6 +84,10 @@ function buildCalendarKey(option: CalendarOption): string {
   return `${option.fiscalYear}::${option.calendarId}`;
 }
 
+function filterEligibleTerms(terms: CalendarTerm[]): CalendarTerm[] {
+  return terms.filter((term) => term.holidayFlag === 2);
+}
+
 export function CreateClassDialog({
   isOpen,
   onClose,
@@ -119,8 +123,9 @@ export function CreateClassDialog({
       return cached;
     }
     const items = await getCalendarTerms(option.fiscalYear, option.calendarId);
-    termCacheRef.current.set(key, items);
-    return items;
+    const filtered = filterEligibleTerms(items);
+    termCacheRef.current.set(key, filtered);
+    return filtered;
   }, []);
 
   useEffect(() => {
@@ -162,6 +167,12 @@ export function CreateClassDialog({
     const cached = termCacheRef.current.get(key);
     if (cached) {
       setCalendarTerms(cached);
+      setFormState((prev) => ({
+        ...prev,
+        selectedTermIds: prev.selectedTermIds.filter((termId) =>
+          cached.some((term) => term.id === termId),
+        ),
+      }));
       setTermLoadState("success");
       setTermError(null);
       return;
@@ -178,6 +189,12 @@ export function CreateClassDialog({
           return;
         }
         setCalendarTerms(terms);
+        setFormState((prev) => ({
+          ...prev,
+          selectedTermIds: prev.selectedTermIds.filter((termId) =>
+            terms.some((term) => term.id === termId),
+          ),
+        }));
         setTermLoadState("success");
         setTermError(null);
       } catch (error) {
@@ -313,15 +330,18 @@ export function CreateClassDialog({
     if (!selectedCalendar) {
       return "年度設定が必要です。";
     }
-    const yearText = `${selectedCalendar.fiscalYear}年`;
-    const termLabels =
+    const parts = [
+      `${selectedCalendar.fiscalYear}年`,
       formState.selectedTermIds.length > 0
         ? formState.selectedTermIds
             .map((termId) => termNameMap.get(termId) ?? termId)
             .join("、")
-        : "学期未選択";
-    const specialLabel = SPECIAL_SCHEDULE_LABELS[formState.specialOption];
-    return `${yearText} ${termLabels} ${specialLabel}`;
+        : "学期未選択",
+    ];
+    if (formState.specialOption !== "all") {
+      parts.push(SPECIAL_SCHEDULE_LABELS[formState.specialOption]);
+    }
+    return parts.join(" ");
   }, [formState.selectedTermIds, formState.specialOption, selectedCalendar, termNameMap]);
 
   const slotSummaryText = useMemo(() => {
@@ -341,6 +361,20 @@ export function CreateClassDialog({
   }, [formState.isFullyOnDemand, formState.weeklySlots]);
 
   const previewDates = generatedClassDates.slice(0, PREVIEW_LIMIT);
+
+  const hasClassName = formState.className.trim().length > 0;
+  const hasTermSelection = formState.selectedTermIds.length > 0;
+  const hasWeeklyOrOnDemand = formState.isFullyOnDemand || formState.weeklySlots.length > 0;
+  const isScheduleReady =
+    formState.isFullyOnDemand ||
+    (scheduleLoadState === "success" && generatedClassDates.length > 0);
+  const canSave =
+    hasClassName &&
+    hasTermSelection &&
+    hasWeeklyOrOnDemand &&
+    Boolean(selectedCalendar) &&
+    isScheduleReady;
+  const isSaveDisabled = saveState === "loading" || !canSave;
 
   const handleClose = () => {
     onClose();
@@ -365,12 +399,13 @@ export function CreateClassDialog({
       return;
     }
 
+    if (formState.selectedTermIds.length === 0) {
+      setSaveError("学期を選択してください。");
+      setSaveState("error");
+      return;
+    }
+
     if (!formState.isFullyOnDemand) {
-      if (formState.selectedTermIds.length === 0) {
-        setSaveError("学期を選択してください。");
-        setSaveState("error");
-        return;
-      }
       if (formState.weeklySlots.length === 0) {
         setSaveError("曜日・時限を選択してください。");
         setSaveState("error");
@@ -728,7 +763,7 @@ export function CreateClassDialog({
           <button
             type="button"
             onClick={handleSave}
-            disabled={saveState === "loading"}
+            disabled={isSaveDisabled}
             className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
           >
             {saveState === "loading" ? "保存中..." : "保存する"}
