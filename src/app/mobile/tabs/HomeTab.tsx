@@ -8,7 +8,9 @@ import {
   type CalendarDisplayInfo,
 } from '@/lib/data/service/calendarDisplay.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
+import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
+import DailyClassesSection from './HomeTab/DailyClassesSection';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -58,6 +60,7 @@ function extractDayNumber(label: string): string {
 function HomeTabContent() {
   const searchParams = useSearchParams();
   const { settings } = useUserSettings();
+  const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -164,8 +167,14 @@ function HomeTabContent() {
           </div>
         )}
       </section>
-      <div className="flex-1 p-6 text-sm text-neutral-500">
-        {loading ? '読み込み中の情報が表示されます。' : '今日の予定を確認しましょう。'}
+      <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-6 pb-16 pt-6">
+        <DailyClassesSection
+          userId={profile?.uid ?? null}
+          fiscalYear={settings.calendar.fiscalYear}
+          dateId={dateId}
+          authInitializing={authInitializing}
+          isAuthenticated={isAuthenticated}
+        />
       </div>
     </div>
   );
