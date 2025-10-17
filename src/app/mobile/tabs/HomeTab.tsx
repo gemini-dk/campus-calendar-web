@@ -1,0 +1,165 @@
+'use client';
+
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+
+import {
+  getCalendarDisplayInfo,
+  type CalendarDisplayInfo,
+} from '@/lib/data/service/calendarDisplay.service';
+
+const DEFAULT_FISCAL_YEAR = '2025';
+const DEFAULT_CALENDAR_ID = 'jd70dxbqvevcf5kj43cbaf4rjn7rs93e';
+
+const ACCENT_COLOR_CLASS: Record<string, string> = {
+  default: 'text-neutral-900',
+  holiday: 'text-red-500',
+  saturday: 'text-blue-600',
+};
+
+const BACKGROUND_COLOR_MAP: Record<string, string> = {
+  none: '#f5f5f4',
+  sunday: '#ffe5e5',
+  holiday: '#fff2d6',
+  exam: '#ebe5ff',
+  reserve: '#e1f4ff',
+};
+
+function resolveAccentColor(accent: string | null | undefined): string {
+  return ACCENT_COLOR_CLASS[accent ?? ''] ?? ACCENT_COLOR_CLASS.default;
+}
+
+function resolveBackgroundColor(color: string | null | undefined): string {
+  if (!color) {
+    return BACKGROUND_COLOR_MAP.none;
+  }
+  return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
+}
+
+function normalizeDateId(value: string | null): string {
+  const today = new Date();
+  const fallback = today.toISOString().slice(0, 10);
+  if (!value) {
+    return fallback;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return fallback;
+  }
+  return value;
+}
+
+function extractDayNumber(label: string): string {
+  const match = label.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return label;
+  }
+  return String(Number(match[3]));
+}
+
+function HomeTabContent() {
+  const searchParams = useSearchParams();
+  const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const dateId = useMemo(
+    () => normalizeDateId(searchParams?.get('date') ?? null),
+    [searchParams],
+  );
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setErrorMessage(null);
+
+    getCalendarDisplayInfo(DEFAULT_FISCAL_YEAR, DEFAULT_CALENDAR_ID, dateId)
+      .then((info) => {
+        if (!active) {
+          return;
+        }
+        setDisplayInfo(info);
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+        setErrorMessage('学事情報の取得に失敗しました。');
+        setDisplayInfo(null);
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [dateId]);
+
+  const general = displayInfo?.calendar;
+  const academic = displayInfo?.academic;
+
+  const dateLabel = general?.dateLabel ?? dateId;
+  const dayNumber = extractDayNumber(dateLabel);
+  const weekdayLabel = general?.weekdayLabel?.toUpperCase() ?? '-';
+  const supplementalText = general?.calendarSupplementalText ?? '-';
+
+  const dateColorClass = resolveAccentColor(general?.dateTextColor);
+  const weekdayColorClass = resolveAccentColor(general?.weekdayTextColor);
+  const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <section
+        className="w-full rounded-b-3xl px-6 py-8 shadow-sm"
+        style={{ backgroundColor }}
+      >
+        {loading ? (
+          <div className="text-center text-sm text-neutral-700">読み込み中...</div>
+        ) : errorMessage ? (
+          <div className="text-center text-sm text-red-600">{errorMessage}</div>
+        ) : (
+          <div className="flex items-start justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <p className={`text-6xl font-semibold leading-none ${dateColorClass}`}>
+                {dayNumber}
+              </p>
+              <div className="flex flex-col">
+                <span className={`text-lg font-semibold ${weekdayColorClass}`}>{weekdayLabel}</span>
+                <span className="mt-2 text-sm text-neutral-700">{supplementalText}</span>
+              </div>
+            </div>
+            <div className="flex flex-col items-end text-right">
+              <span className="text-base font-semibold text-neutral-900">
+                {academic?.label ?? '-'}
+              </span>
+              {academic?.subLabel ? (
+                <span className="mt-1 text-xs font-bold text-neutral-800">
+                  {academic.subLabel}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </section>
+      <div className="flex-1 p-6 text-sm text-neutral-500">
+        {loading ? '読み込み中の情報が表示されます。' : '今日の予定を確認しましょう。'}
+      </div>
+    </div>
+  );
+}
+
+export default function HomeTab() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-full items-center justify-center p-6 text-sm text-neutral-600">
+          読み込み中...
+        </div>
+      }
+    >
+      <HomeTabContent />
+    </Suspense>
+  );
+}
