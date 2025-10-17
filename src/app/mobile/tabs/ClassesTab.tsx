@@ -8,6 +8,7 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 
 import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
+import UserHamburgerMenu from "../components/UserHamburgerMenu";
 
 import ClassScheduleView from "./classes/ClassScheduleView";
 import ClassSubjectsListView from "./classes/ClassSubjectsListView";
@@ -22,6 +23,8 @@ export default function ClassesTab() {
   const [viewMode, setViewMode] = useState<ClassesViewMode>("schedule");
 
   const calendarOptions = settings.calendar.entries ?? [];
+
+  const viewTitle = viewMode === "schedule" ? "時間割" : "授業科目一覧";
 
   const handleOpenDialog = () => {
     if (!isAuthenticated) {
@@ -42,9 +45,11 @@ export default function ClassesTab() {
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
-      <header className="flex h-[88px] w-full flex-col justify-center gap-2 px-6">
-        <h1 className="text-xl font-semibold text-neutral-900">授業</h1>
-        <p className="text-sm text-neutral-500">時間割や授業科目の情報を確認できます。</p>
+      <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-white px-4">
+        <div className="flex w-full items-center justify-between gap-3">
+          <div className="text-lg font-semibold text-neutral-900">{viewTitle}</div>
+          <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-[160px]">
@@ -104,14 +109,15 @@ function ViewToggleButton({ icon, label, isActive, onClick }: ViewToggleButtonPr
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition ${
+      className={`flex h-12 w-12 items-center justify-center rounded-full transition ${
         isActive
-          ? "bg-blue-600 text-white shadow-sm shadow-blue-200"
-          : "text-neutral-500 hover:bg-neutral-100"
+          ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+          : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200"
       }`}
+      aria-pressed={isActive}
     >
-      <FontAwesomeIcon icon={icon} fontSize={16} />
-      <span>{label}</span>
+      <FontAwesomeIcon icon={icon} fontSize={18} />
+      <span className="sr-only">{label}</span>
     </button>
   );
 }
