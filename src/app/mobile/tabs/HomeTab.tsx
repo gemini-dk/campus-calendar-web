@@ -70,6 +70,18 @@ function HomeTabContent() {
     [searchParams],
   );
 
+  const activeCalendarEntry = useMemo(() => {
+    return (
+      settings.calendar.entries.find(
+        (entry) =>
+          entry.fiscalYear === settings.calendar.fiscalYear &&
+          entry.calendarId === settings.calendar.calendarId,
+      ) ?? null
+    );
+  }, [settings.calendar.calendarId, settings.calendar.entries, settings.calendar.fiscalYear]);
+
+  const hasSaturdayClasses = activeCalendarEntry?.hasSaturdayClasses ?? true;
+
   useEffect(() => {
     let active = true;
     const fiscalYear = settings.calendar.fiscalYear;
@@ -87,7 +99,7 @@ function HomeTabContent() {
     setLoading(true);
     setErrorMessage(null);
 
-    getCalendarDisplayInfo(fiscalYear, calendarId, dateId)
+    getCalendarDisplayInfo(fiscalYear, calendarId, dateId, { hasSaturdayClasses })
       .then((info) => {
         if (!active) {
           return;
@@ -110,7 +122,13 @@ function HomeTabContent() {
     return () => {
       active = false;
     };
-  }, [dateId, settings.calendar.calendarId, settings.calendar.fiscalYear]);
+  }, [
+    dateId,
+    hasSaturdayClasses,
+    settings.calendar.calendarId,
+    settings.calendar.entries,
+    settings.calendar.fiscalYear,
+  ]);
 
   const general = displayInfo?.calendar;
   const academic = displayInfo?.academic;
