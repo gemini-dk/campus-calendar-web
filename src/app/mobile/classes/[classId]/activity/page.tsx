@@ -291,6 +291,15 @@ function formatMonthDayLabel(value: string): string {
   return `${Number.parseInt(month, 10)}/${Number.parseInt(day, 10)}`;
 }
 
+function formatMonthDayCompact(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  const month = value.slice(5, 7);
+  const day = value.slice(8, 10);
+  return `${month}/${day}`;
+}
+
 function formatDateLabel(value: Date | null): string {
   if (!value) {
     return "-";
@@ -300,6 +309,17 @@ function formatDateLabel(value: Date | null): string {
     month: "2-digit",
     day: "2-digit",
   }).format(value);
+}
+
+function parseDueTimestamp(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.getTime();
 }
 
 function formatDueDateLabel(value: string | null, type: ActivityType): string {
@@ -674,6 +694,140 @@ function ActivityRecordItem({
   );
 }
 
+type UpcomingSession = {
+  id: string;
+  classDate: string;
+};
+
+function UpcomingActivityPanel({
+  sessions,
+  assignments,
+  isHybridClass,
+}: {
+  sessions: UpcomingSession[];
+  assignments: ActivityDoc[];
+  isHybridClass: boolean;
+}) {
+  return (
+    <div className="flex w-full flex-col gap-6">
+      <div className="flex w-full flex-col gap-3">
+        <h3 className="text-sm font-semibold text-neutral-900">授業予定</h3>
+        {sessions.length === 0 ? (
+          <div className="flex h-24 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
+            今後の授業予定はありません。
+          </div>
+        ) : (
+          <ul className="flex w-full flex-col gap-3">
+            {sessions.map((session) => (
+              <UpcomingSessionItem
+                key={session.id}
+                session={session}
+                showHybridSelector={isHybridClass}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex w-full flex-col gap-3">
+        <h3 className="text-sm font-semibold text-neutral-900">未完了の課題</h3>
+        {assignments.length === 0 ? (
+          <div className="flex h-24 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
+            未完了の課題はありません。
+          </div>
+        ) : (
+          <ul className="flex w-full flex-col gap-3">
+            {assignments.map((assignment) => (
+              <UpcomingAssignmentItem key={assignment.id} activity={assignment} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UpcomingSessionItem({
+  session,
+  showHybridSelector,
+}: {
+  session: UpcomingSession;
+  showHybridSelector: boolean;
+}) {
+  const dateLabel = formatMonthDayCompact(session.classDate);
+
+  return (
+    <li className="flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="text-sm font-semibold text-neutral-900">授業({dateLabel})</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {showHybridSelector ? <HybridModeSelector /> : null}
+        <button
+          type="button"
+          className="flex h-9 w-[96px] items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+        >
+          日程変更
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function HybridModeSelector() {
+  const [mode, setMode] = useState<"in_person" | "hybrid">("in_person");
+  const baseClass = "flex h-7 w-[88px] items-center justify-center rounded-full text-xs font-semibold transition";
+  const activeClass = "bg-blue-500 text-white";
+  const inactiveClass = "text-neutral-600 hover:bg-neutral-100";
+
+  return (
+    <div className="flex h-9 w-[188px] items-center justify-between rounded-full border border-neutral-200 bg-white px-1 py-1">
+      <button
+        type="button"
+        className={`${baseClass} ${mode === "in_person" ? activeClass : inactiveClass}`}
+        onClick={() => setMode("in_person")}
+        aria-pressed={mode === "in_person"}
+      >
+        対面
+      </button>
+      <button
+        type="button"
+        className={`${baseClass} ${mode === "hybrid" ? activeClass : inactiveClass}`}
+        onClick={() => setMode("hybrid")}
+        aria-pressed={mode === "hybrid"}
+      >
+        ハイブリッド
+      </button>
+    </div>
+  );
+}
+
+function UpcomingAssignmentItem({ activity }: { activity: ActivityDoc }) {
+  const { icon, className: iconClass, background } = resolveActivityIcon(activity.type, activity.status);
+  const dueLabel = formatDueDateLabel(activity.dueDate, activity.type);
+  const classLabel = activity.classId ?? "未設定";
+  const createdLabel = formatDateLabel(activity.createdAt ?? activity.updatedAt);
+
+  return (
+    <li className="flex w-full items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+      <div className="flex w-[50px] flex-shrink-0 items-center justify-center">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-full ${background}`}>
+          <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+        <h3 className="truncate text-base font-semibold text-neutral-900">{activity.title || "無題の項目"}</h3>
+        <div className="flex items-center justify-between text-xs text-neutral-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="whitespace-nowrap">期限: {dueLabel}</span>
+            <span className="whitespace-nowrap">関連授業: {classLabel}</span>
+          </div>
+          <span className="whitespace-nowrap text-neutral-400">作成日 {createdLabel}</span>
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function QuickActionButton({
   icon,
   label,
@@ -741,6 +895,7 @@ export function ClassActivityContent({
 
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [updatingAttendanceId, setUpdatingAttendanceId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"history" | "upcoming">("history");
 
   const handleAttendanceChange = useCallback(
     async (classDateId: string, status: AttendanceStatus) => {
@@ -788,6 +943,56 @@ export function ClassActivityContent({
 
     return [...sessionRecords, ...activityRecords].sort((a, b) => b.timestamp - a.timestamp);
   }, [activities, classDates, todayId]);
+
+  const upcomingSessions = useMemo(() => {
+    return classDates
+      .filter((date) => date.classDate > todayId)
+      .map((date) => ({
+        id: date.id,
+        classDate: date.classDate,
+        dueTimestamp: parseDueTimestamp(date.classDate) ?? Number.POSITIVE_INFINITY,
+      }))
+      .sort((a, b) => a.dueTimestamp - b.dueTimestamp)
+      .map((item) => ({ id: item.id, classDate: item.classDate }));
+  }, [classDates, todayId]);
+
+  const upcomingAssignments = useMemo(() => {
+    if (!normalizedClassId) {
+      return [];
+    }
+    return activities
+      .filter(
+        (activity) =>
+          activity.type === "assignment" &&
+          activity.status !== "done" &&
+          activity.classId === normalizedClassId,
+      )
+      .map((activity) => {
+        const dueTimestamp = parseDueTimestamp(activity.dueDate);
+        const createdTimestamp = activity.createdAt?.getTime() ?? activity.updatedAt?.getTime() ?? 0;
+        return {
+          activity,
+          dueTimestamp,
+          createdTimestamp,
+        };
+      })
+      .sort((a, b) => {
+        if (a.dueTimestamp === null && b.dueTimestamp === null) {
+          return a.createdTimestamp - b.createdTimestamp;
+        }
+        if (a.dueTimestamp === null) {
+          return -1;
+        }
+        if (b.dueTimestamp === null) {
+          return 1;
+        }
+        if (a.dueTimestamp !== b.dueTimestamp) {
+          return a.dueTimestamp - b.dueTimestamp;
+        }
+        return a.createdTimestamp - b.createdTimestamp;
+      })
+      .map((item) => item.activity);
+  }, [activities, normalizedClassId]);
 
   const absenceMessage = attendanceSummary ? buildAbsenceMessage(attendanceSummary) : null;
   const absenceRatioLabel = attendanceSummary
@@ -900,37 +1105,70 @@ export function ClassActivityContent({
         </section>
 
         <section className="flex flex-col gap-4 pb-8">
-          <h2 className="text-base font-semibold text-neutral-900">これまでの活動記録</h2>
-          {attendanceError ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{attendanceError}</div>
-          ) : null}
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
-          ) : null}
-          {loading ? (
-            <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-600">
-              読み込み中です...
-            </div>
-          ) : combinedRecords.length === 0 ? (
-            <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-600">
-              表示できる活動記録がまだありません。
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {combinedRecords.map((record) =>
-                record.kind === "session" ? (
-                  <SessionRecordItem
-                    key={record.id}
-                    record={record}
-                    onChange={handleAttendanceChange}
-                    updating={updatingAttendanceId === record.classDateId}
-                  />
-                ) : (
-                  <ActivityRecordItem key={record.id} record={record.activity} />
-                ),
-              )}
-            </ul>
-          )}
+          <div className="flex w-full items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("upcoming")}
+              className={`flex h-10 w-full max-w-[160px] items-center justify-center rounded-full border text-sm font-semibold transition ${
+                activeTab === "upcoming"
+                  ? "border-blue-500 bg-blue-500 text-white"
+                  : "border-neutral-200 bg-white text-neutral-600 hover:border-blue-200 hover:text-blue-600"
+              }`}
+            >
+              今後の活動
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("history")}
+              className={`flex h-10 w-full max-w-[160px] items-center justify-center rounded-full border text-sm font-semibold transition ${
+                activeTab === "history"
+                  ? "border-blue-500 bg-blue-500 text-white"
+                  : "border-neutral-200 bg-white text-neutral-600 hover:border-blue-200 hover:text-blue-600"
+              }`}
+            >
+              これまでの活動
+            </button>
+          </div>
+          <div className="flex min-h-[200px] w-full flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-4">
+            {attendanceError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{attendanceError}</div>
+            ) : null}
+            {error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+            ) : null}
+            {loading ? (
+              <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
+                読み込み中です...
+              </div>
+            ) : activeTab === "history" ? (
+              combinedRecords.length === 0 ? (
+                <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
+                  表示できる活動記録がまだありません。
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {combinedRecords.map((record) =>
+                    record.kind === "session" ? (
+                      <SessionRecordItem
+                        key={record.id}
+                        record={record}
+                        onChange={handleAttendanceChange}
+                        updating={updatingAttendanceId === record.classDateId}
+                      />
+                    ) : (
+                      <ActivityRecordItem key={record.id} record={record.activity} />
+                    ),
+                  )}
+                </ul>
+              )
+            ) : (
+              <UpcomingActivityPanel
+                sessions={upcomingSessions}
+                assignments={upcomingAssignments}
+                isHybridClass={classDetail?.classType === "hybrid"}
+              />
+            )}
+          </div>
         </section>
       </div>
     );
