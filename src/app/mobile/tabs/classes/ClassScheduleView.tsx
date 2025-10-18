@@ -72,7 +72,6 @@ const WEEKDAY_HEADERS = [
   { key: 6, label: "土" },
 ];
 
-const ADDITIONAL_PERIOD_LABELS = ["OD", "FOD"];
 const PERIOD_COLUMN_WIDTH = "2ch";
 
 const DRAG_DETECTION_THRESHOLD = 6;
@@ -434,18 +433,6 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     return WEEKDAY_HEADERS.slice(0, 5);
   }, [calendar?.hasSaturdayClasses]);
 
-  const additionalPeriodKeys = useMemo(() => {
-    const keys = new Set<string>();
-    Object.values(weeklySlotRecords).forEach((slots) => {
-      slots.forEach((slot) => {
-        if (ADDITIONAL_PERIOD_LABELS.includes(slot.periodKey)) {
-          keys.add(slot.periodKey);
-        }
-      });
-    });
-    return Array.from(keys);
-  }, [weeklySlotRecords]);
-
   const fullOnDemandByTerm = useMemo(() => {
     const result = new Map<string, ScheduleCellItem[]>();
     if (terms.length === 0 || classes.length === 0) {
@@ -495,23 +482,25 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     return result;
   }, [classes, terms]);
 
-  const hasFullOnDemandRow = useMemo(
+  const hasFullOnDemandEntries = useMemo(
     () => Array.from(fullOnDemandByTerm.values()).some((entries) => entries.length > 0),
     [fullOnDemandByTerm],
+  );
+
+  const shouldDisplayFullOnDemandRow = useMemo(
+    () => hasFullOnDemandEntries || classes.some((item) => item.isFullyOnDemand),
+    [classes, hasFullOnDemandEntries],
   );
 
   const periodLabels = useMemo(() => {
     const lessons = Math.max(0, calendar?.lessonsPerDay ?? 0);
     const numbers = Array.from({ length: lessons }, (_, index) => String(index + 1));
-    const extras: string[] = [];
-    if (additionalPeriodKeys.includes("OD")) {
-      extras.push("OD");
+    const labels = [...numbers, "OD"];
+    if (shouldDisplayFullOnDemandRow) {
+      labels.push("FOD");
     }
-    if (hasFullOnDemandRow) {
-      extras.push("FOD");
-    }
-    return [...numbers, ...extras];
-  }, [additionalPeriodKeys, calendar?.lessonsPerDay, hasFullOnDemandRow]);
+    return labels;
+  }, [calendar?.lessonsPerDay, shouldDisplayFullOnDemandRow]);
 
   const columnTemplate = useMemo(() => {
     const weekdayCount = Math.max(weekdayHeaders.length, 1);
