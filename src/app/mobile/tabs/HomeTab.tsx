@@ -142,12 +142,12 @@ function HomeTabContent() {
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline gap-3">
                 <p
-                  className={`text-[64px] font-semibold leading-none tracking-tight ${dateColorClass}`}
+                  className={`text-[56px] font-semibold leading-none tracking-tight ${dateColorClass}`}
                 >
                   {dayNumber}
                 </p>
                 <span
-                  className={`text-xl font-semibold tracking-wide ${weekdayColorClass}`}
+                  className={`text-lg font-semibold tracking-wide ${weekdayColorClass}`}
                 >
                   {weekdayLabel}
                 </span>
