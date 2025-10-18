@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
+  faCalendarDays,
   faChalkboardTeacher,
   faCircleQuestion,
   faListCheck,
@@ -31,11 +32,14 @@ import { useParams, useSearchParams } from "next/navigation";
 
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
-import CreateClassDialog, {
-  type EditClassInitialData,
-} from "@/app/mobile/tabs/classes/CreateClassDialog";
+import DeliveryToggleGroup from "@/app/mobile/components/DeliveryToggleGroup";
+import CreateClassDialog, { type EditClassInitialData } from "@/app/mobile/tabs/classes/CreateClassDialog";
 import type { CalendarOption } from "@/app/mobile/tabs/classes/TermSettingsDialog";
-import type { AttendanceStatus, AttendanceSummary as AttendanceSummaryType } from "@/app/mobile/types";
+import type {
+  AttendanceStatus,
+  AttendanceSummary as AttendanceSummaryType,
+  DeliveryType,
+} from "@/app/mobile/types";
 import {
   buildAbsenceMessage,
   ClassType,
@@ -374,6 +378,15 @@ function formatMonthDayLabel(value: string): string {
   return `${Number.parseInt(month, 10)}/${Number.parseInt(day, 10)}`;
 }
 
+function formatMonthDayCompact(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  const month = value.slice(5, 7);
+  const day = value.slice(8, 10);
+  return `${month}/${day}`;
+}
+
 function formatDateLabel(value: Date | null): string {
   if (!value) {
     return "-";
@@ -383,6 +396,17 @@ function formatDateLabel(value: Date | null): string {
     month: "2-digit",
     day: "2-digit",
   }).format(value);
+}
+
+function parseDueTimestamp(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return date.getTime();
 }
 
 function formatDueDateLabel(value: string | null, type: ActivityType): string {
@@ -689,31 +713,29 @@ function SessionRecordItem({
   const periodLabel = formatPeriodLabel(record.periods);
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-1 items-start gap-3">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
-            授
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
-              {record.isTest ? (
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
-              ) : null}
-              {record.isCancelled ? (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
-              ) : null}
-            </div>
-            <span className="text-xs text-neutral-500">{periodLabel}</span>
-          </div>
+    <li className="flex items-start justify-between gap-3 py-3">
+      <div className="flex flex-1 items-start gap-3">
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+          授
         </div>
-        <AttendanceToggleGroup
-          value={record.attendanceStatus}
-          onChange={(next) => onChange(record.classDateId, next)}
-          disabled={updating}
-        />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
+            {record.isTest ? (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
+            ) : null}
+            {record.isCancelled ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
+            ) : null}
+          </div>
+          <span className="text-xs text-neutral-500">{periodLabel}</span>
+        </div>
       </div>
+      <AttendanceToggleGroup
+        value={record.attendanceStatus}
+        onChange={(next) => onChange(record.classDateId, next)}
+        disabled={updating}
+      />
     </li>
   );
 }
@@ -731,26 +753,136 @@ function ActivityRecordItem({
   const typeLabel = record.type === "memo" ? "授業メモ" : "課題";
 
   return (
-    <li className={`flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm ${className ?? ""}`.trim()}>
-      <div className="flex items-start gap-3">
-        <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
-          <FontAwesomeIcon icon={icon} className={`text-lg ${iconClass}`} aria-hidden="true" />
+    <li className={`flex items-start gap-3 py-3 ${className ?? ""}`.trim()}>
+      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
+        <FontAwesomeIcon icon={icon} className={`text-lg ${iconClass}`} aria-hidden="true" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-semibold text-neutral-900">
+            {record.title || "無題の項目"}
+          </span>
+          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">{typeLabel}</span>
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-semibold text-neutral-900">
-              {record.title || "無題の項目"}
-            </span>
-            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">{typeLabel}</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
+          {record.type === "assignment" ? <span>期限: {dueLabel}</span> : null}
+          <span>状態: {formatActivityStatusLabel(record.status)}</span>
+          <span>作成日: {createdLabel}</span>
+        </div>
+        {record.notes ? (
+          <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-neutral-600">{record.notes}</p>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+type UpcomingSession = {
+  id: string;
+  classDate: string;
+};
+
+type UpcomingAssignmentTimelineItem = {
+  kind: "assignment";
+  id: string;
+  activity: ActivityDoc;
+  dueTimestamp: number | null;
+  createdTimestamp: number;
+};
+
+type UpcomingSessionTimelineItem = {
+  kind: "session";
+  id: string;
+  session: UpcomingSession;
+  dueTimestamp: number;
+};
+
+type UpcomingTimelineItem =
+  | UpcomingAssignmentTimelineItem
+  | UpcomingSessionTimelineItem;
+
+function UpcomingActivityPanel({
+  items,
+  isHybridClass,
+}: {
+  items: UpcomingTimelineItem[];
+  isHybridClass: boolean;
+}) {
+  if (items.length === 0) {
+    return <p className="text-sm text-neutral-600">今後の活動はありません。</p>;
+  }
+
+  return (
+    <ul className="flex w-full flex-col divide-y divide-neutral-200 border-y border-neutral-200">
+      {items.map((item) =>
+        item.kind === "session" ? (
+          <UpcomingSessionItem
+            key={`session-${item.id}`}
+            session={item.session}
+            showHybridSelector={isHybridClass}
+          />
+        ) : (
+          <UpcomingAssignmentItem key={`assignment-${item.id}`} activity={item.activity} />
+        ),
+      )}
+    </ul>
+  );
+}
+
+function UpcomingSessionItem({
+  session,
+  showHybridSelector,
+}: {
+  session: UpcomingSession;
+  showHybridSelector: boolean;
+}) {
+  const dateLabel = formatMonthDayCompact(session.classDate);
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("in_person");
+
+  return (
+    <li className="flex w-full items-center justify-between gap-3 py-3">
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="text-sm font-semibold text-neutral-900">授業({dateLabel})</span>
+      </div>
+      <div className="flex items-center gap-2">
+        {showHybridSelector ? (
+          <DeliveryToggleGroup
+            value={deliveryType}
+            onChange={setDeliveryType}
+            labels={{ remote: "ハイブリッド" }}
+          />
+        ) : null}
+        <button
+          type="button"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+          aria-label="日程変更"
+        >
+          <FontAwesomeIcon icon={faCalendarDays} className="text-base" aria-hidden="true" />
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function UpcomingAssignmentItem({ activity }: { activity: ActivityDoc }) {
+  const { icon, className: iconClass, background } = resolveActivityIcon(activity.type, activity.status);
+  const dueLabel = formatDueDateLabel(activity.dueDate, activity.type);
+  const classLabel = activity.classId ?? "未設定";
+  const createdLabel = formatDateLabel(activity.createdAt ?? activity.updatedAt);
+
+  return (
+    <li className="flex w-full items-center gap-3 py-3">
+      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
+        <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <h3 className="truncate text-base font-semibold text-neutral-900">{activity.title || "無題の項目"}</h3>
+        <div className="flex items-center justify-between text-xs text-neutral-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="whitespace-nowrap">期限: {dueLabel}</span>
+            <span className="whitespace-nowrap">関連授業: {classLabel}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
-            {record.type === "assignment" ? <span>期限: {dueLabel}</span> : null}
-            <span>状態: {formatActivityStatusLabel(record.status)}</span>
-            <span>作成日: {createdLabel}</span>
-          </div>
-          {record.notes ? (
-            <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-neutral-600">{record.notes}</p>
-          ) : null}
+          <span className="whitespace-nowrap text-neutral-400">作成日 {createdLabel}</span>
         </div>
       </div>
     </li>
@@ -824,6 +956,7 @@ export function ClassActivityContent({
 
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [updatingAttendanceId, setUpdatingAttendanceId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"history" | "upcoming">("history");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const handleAttendanceChange = useCallback(
@@ -872,6 +1005,61 @@ export function ClassActivityContent({
 
     return [...sessionRecords, ...activityRecords].sort((a, b) => b.timestamp - a.timestamp);
   }, [activities, classDates, todayId]);
+
+  const upcomingTimelineItems = useMemo<UpcomingTimelineItem[]>(() => {
+    const sessionItems: UpcomingSessionTimelineItem[] = classDates
+      .filter((date) => date.classDate > todayId)
+      .map((date) => ({
+        kind: "session" as const,
+        id: date.id,
+        session: { id: date.id, classDate: date.classDate },
+        dueTimestamp: parseDueTimestamp(date.classDate) ?? Number.POSITIVE_INFINITY,
+      }));
+
+    if (!normalizedClassId) {
+      return sessionItems.sort((a, b) => a.dueTimestamp - b.dueTimestamp);
+    }
+
+    const assignmentItems: UpcomingAssignmentTimelineItem[] = activities
+      .filter(
+        (activity) =>
+          activity.type === "assignment" &&
+          activity.status !== "done" &&
+          activity.classId === normalizedClassId,
+      )
+      .map((activity) => ({
+        kind: "assignment" as const,
+        id: activity.id,
+        activity,
+        dueTimestamp: parseDueTimestamp(activity.dueDate),
+        createdTimestamp: activity.createdAt?.getTime() ?? activity.updatedAt?.getTime() ?? 0,
+      }));
+
+    const undatedAssignments = assignmentItems
+      .filter((item) => item.dueTimestamp === null)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    const datedAssignments = assignmentItems.filter(
+      (item): item is UpcomingAssignmentTimelineItem & { dueTimestamp: number } =>
+        item.dueTimestamp !== null,
+    );
+
+    const datedItems: UpcomingTimelineItem[] = [...sessionItems, ...datedAssignments];
+
+    datedItems.sort((a, b) => {
+      const aDue = a.dueTimestamp ?? Number.POSITIVE_INFINITY;
+      const bDue = b.dueTimestamp ?? Number.POSITIVE_INFINITY;
+      if (aDue !== bDue) {
+        return aDue - bDue;
+      }
+      if (a.kind === "assignment" && b.kind === "assignment") {
+        return a.createdTimestamp - b.createdTimestamp;
+      }
+      return a.id.localeCompare(b.id);
+    });
+
+    return [...undatedAssignments, ...datedItems];
+  }, [activities, classDates, normalizedClassId, todayId]);
 
   const hasAttendanceRecords = useMemo(() => {
     return classDates.some((date) => date.attendanceStatus !== null);
@@ -1068,37 +1256,65 @@ export function ClassActivityContent({
         </section>
 
         <section className="flex flex-col gap-4 pb-8">
-          <h2 className="text-base font-semibold text-neutral-900">これまでの活動記録</h2>
-          {attendanceError ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{attendanceError}</div>
-          ) : null}
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
-          ) : null}
-          {loading ? (
-            <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-600">
-              読み込み中です...
-            </div>
-          ) : combinedRecords.length === 0 ? (
-            <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white text-sm text-neutral-600">
-              表示できる活動記録がまだありません。
-            </div>
-          ) : (
-            <ul className="flex flex-col gap-3">
-              {combinedRecords.map((record) =>
-                record.kind === "session" ? (
-                  <SessionRecordItem
-                    key={record.id}
-                    record={record}
-                    onChange={handleAttendanceChange}
-                    updating={updatingAttendanceId === record.classDateId}
-                  />
-                ) : (
-                  <ActivityRecordItem key={record.id} record={record.activity} />
-                ),
-              )}
-            </ul>
-          )}
+          <div className="flex w-full items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab("upcoming")}
+              className={`flex h-10 w-full max-w-[160px] items-center justify-center rounded-full border text-sm font-semibold transition ${
+                activeTab === "upcoming"
+                  ? "border-blue-500 bg-blue-500 text-white"
+                  : "border-neutral-200 bg-white text-neutral-600 hover:border-blue-200 hover:text-blue-600"
+              }`}
+            >
+              今後の活動
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("history")}
+              className={`flex h-10 w-full max-w-[160px] items-center justify-center rounded-full border text-sm font-semibold transition ${
+                activeTab === "history"
+                  ? "border-blue-500 bg-blue-500 text-white"
+                  : "border-neutral-200 bg-white text-neutral-600 hover:border-blue-200 hover:text-blue-600"
+              }`}
+            >
+              これまでの活動
+            </button>
+          </div>
+          <div className="flex min-h-[200px] w-full flex-col gap-4">
+            {attendanceError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{attendanceError}</div>
+            ) : null}
+            {error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
+            ) : null}
+            {loading ? (
+              <div className="flex h-32 w-full items-center justify-center text-sm text-neutral-600">読み込み中です...</div>
+            ) : activeTab === "history" ? (
+              combinedRecords.length === 0 ? (
+                <p className="text-sm text-neutral-600">表示できる活動記録がまだありません。</p>
+              ) : (
+                <ul className="flex flex-col divide-y divide-neutral-200 border-y border-neutral-200">
+                  {combinedRecords.map((record) =>
+                    record.kind === "session" ? (
+                      <SessionRecordItem
+                        key={record.id}
+                        record={record}
+                        onChange={handleAttendanceChange}
+                        updating={updatingAttendanceId === record.classDateId}
+                      />
+                    ) : (
+                      <ActivityRecordItem key={record.id} record={record.activity} />
+                    ),
+                  )}
+                </ul>
+              )
+            ) : (
+              <UpcomingActivityPanel
+                items={upcomingTimelineItems}
+                isHybridClass={classDetail?.classType === "hybrid"}
+              />
+            )}
+          </div>
         </section>
       </div>
     );
@@ -1137,4 +1353,3 @@ export default function ClassActivityPage() {
     <ClassActivityContent classId={classIdParam} fiscalYearOverride={fiscalYearParam} />
   );
 }
-
