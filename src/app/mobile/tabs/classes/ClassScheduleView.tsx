@@ -3,8 +3,23 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+  type Unsubscribe,
+} from "firebase/firestore";
+
 import type { CalendarTerm } from "@/lib/data/schema/calendar";
 import { getCalendarTerms } from "@/lib/data/service/calendar.service";
+import type { SpecialScheduleOption } from "@/lib/data/service/class.service";
+import { SPECIAL_SCHEDULE_OPTION_LABELS } from "@/lib/data/service/class.service";
+import { db } from "@/lib/firebase/client";
+import { useAuth } from "@/lib/useAuth";
 
 type CalendarEntry = {
   fiscalYear: string;
@@ -25,6 +40,28 @@ type PagerItem = {
   isPlaceholder?: boolean;
 };
 
+type TimetableClassDoc = {
+  id: string;
+  className: string;
+  termIds: string[];
+  termNames: string[];
+  location: string | null;
+  specialScheduleOption: SpecialScheduleOption;
+};
+
+type WeeklySlotDoc = {
+  id: string;
+  dayOfWeek: number;
+  periodKey: string;
+};
+
+type ScheduleCellItem = {
+  classId: string;
+  className: string;
+  location: string | null;
+  specialScheduleOption: SpecialScheduleOption;
+};
+
 const WEEKDAY_HEADERS = [
   { key: 1, label: "月" },
   { key: 2, label: "火" },
@@ -40,11 +77,90 @@ const PERIOD_COLUMN_WIDTH = "2ch";
 const DRAG_DETECTION_THRESHOLD = 6;
 const SWIPE_TRIGGER_RATIO = 0.25;
 
+function mapTimetableClassDoc(
+  doc: QueryDocumentSnapshot<DocumentData>,
+): TimetableClassDoc | null {
+  const data = doc.data();
+  const className = typeof data.className === "string" ? data.className.trim() : "";
+  if (!className) {
+    return null;
+  }
+
+  const location =
+    typeof data.location === "string" && data.location.trim().length > 0
+      ? data.location.trim()
+      : null;
+
+  const termIds = Array.isArray(data.termIds)
+    ? data.termIds
+        .map((termId) => (typeof termId === "string" ? termId.trim() : ""))
+        .filter((termId) => termId.length > 0)
+    : [];
+
+  const termNames = Array.isArray(data.termNames)
+    ? data.termNames
+        .map((term) => (typeof term === "string" ? term.trim() : ""))
+        .filter((term) => term.length > 0)
+    : [];
+
+  const specialValue =
+    typeof data.specialScheduleOption === "string" ? data.specialScheduleOption : "all";
+  const specialScheduleOption: SpecialScheduleOption =
+    specialValue in SPECIAL_SCHEDULE_OPTION_LABELS
+      ? (specialValue as SpecialScheduleOption)
+      : "all";
+
+  return {
+    id: doc.id,
+    className,
+    termIds,
+    termNames,
+    location,
+    specialScheduleOption,
+  } satisfies TimetableClassDoc;
+}
+
+function mapWeeklySlotDoc(doc: QueryDocumentSnapshot<DocumentData>): WeeklySlotDoc | null {
+  const data = doc.data();
+  const dayOfWeek =
+    typeof data.dayOfWeek === "number" && Number.isFinite(data.dayOfWeek)
+      ? Math.trunc(data.dayOfWeek)
+      : null;
+  if (!dayOfWeek || dayOfWeek < 1 || dayOfWeek > 7) {
+    return null;
+  }
+
+  const periodRaw =
+    typeof data.period === "number" && Number.isFinite(data.period)
+      ? Math.trunc(data.period)
+      : null;
+  if (periodRaw === null) {
+    return null;
+  }
+
+  const periodKey = periodRaw <= 0 ? "OD" : String(periodRaw);
+
+  return {
+    id: doc.id,
+    dayOfWeek,
+    periodKey,
+  } satisfies WeeklySlotDoc;
+}
+
 export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) {
+  const { profile } = useAuth();
+  const userId = profile?.uid ?? null;
+
   const [terms, setTerms] = useState<CalendarTerm[]>([]);
   const [termLoadState, setTermLoadState] = useState<LoadState>("idle");
   const [termError, setTermError] = useState<string | null>(null);
   const [activeTermIndex, setActiveTermIndex] = useState(0);
+
+  const [classes, setClasses] = useState<TimetableClassDoc[]>([]);
+  const [classLoadState, setClassLoadState] = useState<LoadState>("idle");
+  const [classError, setClassError] = useState<string | null>(null);
+  const [weeklySlotRecords, setWeeklySlotRecords] = useState<Record<string, WeeklySlotDoc[]>>({});
+  const [initializedWeeklySlots, setInitializedWeeklySlots] = useState<Record<string, true>>({});
 
   const [viewportWidth, setViewportWidth] = useState(0);
   const [translateX, setTranslateX] = useState(0);
@@ -166,6 +282,147 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     };
   }, [calendar]);
 
+  useEffect(() => {
+    if (!userId || !calendar) {
+      setClasses([]);
+      setClassLoadState("idle");
+      setClassError(null);
+      return;
+    }
+
+    const { fiscalYear, calendarId } = calendar;
+    if (!fiscalYear || !calendarId) {
+      setClasses([]);
+      setClassLoadState("idle");
+      setClassError(null);
+      return;
+    }
+
+    setClassLoadState("loading");
+    setClassError(null);
+
+    const classesCollection = collection(
+      db,
+      "users",
+      userId,
+      "academic_years",
+      fiscalYear,
+      "timetable_classes",
+    );
+
+    const classesQuery = query(
+      classesCollection,
+      where("calendarId", "==", calendarId),
+      orderBy("className", "asc"),
+    );
+
+    const unsubscribe = onSnapshot(
+      classesQuery,
+      (snapshot) => {
+        const mapped = snapshot.docs
+          .map((docSnapshot) => mapTimetableClassDoc(docSnapshot))
+          .filter((item): item is TimetableClassDoc => item !== null);
+        setClasses(mapped);
+        setClassLoadState("success");
+        setClassError(null);
+      },
+      (error) => {
+        console.error("Failed to load timetable classes", error);
+        setClasses([]);
+        setClassLoadState("error");
+        setClassError("授業情報の取得に失敗しました。");
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [calendar, userId]);
+
+  useEffect(() => {
+    if (!userId || !calendar) {
+      setWeeklySlotRecords({});
+      setInitializedWeeklySlots({});
+      return;
+    }
+
+    const { fiscalYear } = calendar;
+    if (!fiscalYear || classes.length === 0) {
+      setWeeklySlotRecords({});
+      setInitializedWeeklySlots({});
+      return;
+    }
+
+    const activeClassIds = new Set(classes.map((item) => item.id));
+    setWeeklySlotRecords((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (!activeClassIds.has(key)) {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+    setInitializedWeeklySlots((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(next)) {
+        if (!activeClassIds.has(key)) {
+          delete next[key];
+        }
+      }
+      return next;
+    });
+
+    const unsubscribers: Unsubscribe[] = [];
+
+    for (const classItem of classes) {
+      const slotsCollection = collection(
+        db,
+        "users",
+        userId,
+        "academic_years",
+        fiscalYear,
+        "timetable_classes",
+        classItem.id,
+        "weekly_slots",
+      );
+
+      const unsubscribe = onSnapshot(
+        slotsCollection,
+        (snapshot) => {
+          const mapped = snapshot.docs
+            .map((docSnapshot) => mapWeeklySlotDoc(docSnapshot))
+            .filter((item): item is WeeklySlotDoc => item !== null)
+            .sort((a, b) => {
+              if (a.dayOfWeek !== b.dayOfWeek) {
+                return a.dayOfWeek - b.dayOfWeek;
+              }
+              return a.periodKey.localeCompare(b.periodKey, "ja");
+            });
+          setWeeklySlotRecords((prev) => ({ ...prev, [classItem.id]: mapped }));
+          setInitializedWeeklySlots((prev) => ({ ...prev, [classItem.id]: true }));
+        },
+        (error) => {
+          console.error("Failed to load weekly slots", error);
+          setWeeklySlotRecords((prev) => {
+            const next = { ...prev };
+            delete next[classItem.id];
+            return next;
+          });
+          setInitializedWeeklySlots((prev) => ({ ...prev, [classItem.id]: true }));
+        },
+      );
+
+      unsubscribers.push(unsubscribe);
+    }
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => {
+        unsubscribe();
+      });
+    };
+  }, [calendar, classes, userId]);
+
   const weekdayHeaders = useMemo(() => {
     if (calendar?.hasSaturdayClasses) {
       return WEEKDAY_HEADERS.slice(0, 6);
@@ -185,6 +442,77 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
   }, [weekdayHeaders.length]);
 
   const enableSwipe = pagerItems.length > 1;
+
+  const scheduleByTerm = useMemo(() => {
+    const result = new Map<string, Map<string, ScheduleCellItem[]>>();
+    if (terms.length === 0 || classes.length === 0) {
+      return result;
+    }
+
+    const allowedWeekdays = new Set(weekdayHeaders.map((weekday) => weekday.key));
+    const availablePeriodKeys = new Set(periodLabels);
+    const termNameToId = new Map<string, string>();
+    const orderedTermIds = terms.map((term) => {
+      termNameToId.set(term.name, term.id);
+      return term.id;
+    });
+    const termIdSet = new Set(orderedTermIds);
+
+    for (const classItem of classes) {
+      const slots = weeklySlotRecords[classItem.id] ?? [];
+      const filteredSlots = slots.filter(
+        (slot) => allowedWeekdays.has(slot.dayOfWeek) && availablePeriodKeys.has(slot.periodKey),
+      );
+      if (filteredSlots.length === 0) {
+        continue;
+      }
+
+      const normalizedTermIds = classItem.termIds.filter((termId) => termIdSet.has(termId));
+      const fallbackTermIds = classItem.termNames
+        .map((name) => termNameToId.get(name))
+        .filter((termId): termId is string => typeof termId === "string" && termIdSet.has(termId));
+      const uniqueTermIds = Array.from(new Set([...normalizedTermIds, ...fallbackTermIds]));
+      const targetTermIds = uniqueTermIds.length > 0 ? uniqueTermIds : orderedTermIds;
+
+      for (const termId of targetTermIds) {
+        const termMap = result.get(termId) ?? new Map<string, ScheduleCellItem[]>();
+        for (const slot of filteredSlots) {
+          const cellKey = `${slot.dayOfWeek}-${slot.periodKey}`;
+          const current = termMap.get(cellKey) ?? [];
+          current.push({
+            classId: classItem.id,
+            className: classItem.className,
+            location: classItem.location,
+            specialScheduleOption: classItem.specialScheduleOption,
+          });
+          termMap.set(cellKey, current);
+        }
+        result.set(termId, termMap);
+      }
+    }
+
+    for (const [, termMap] of result) {
+      for (const [key, list] of termMap) {
+        termMap.set(
+          key,
+          list
+            .slice()
+            .sort((a, b) => a.className.localeCompare(b.className, "ja")),
+        );
+      }
+    }
+
+    return result;
+  }, [classes, periodLabels, terms, weekdayHeaders, weeklySlotRecords]);
+
+  const isWeeklySlotsLoading = useMemo(
+    () => classes.some((classItem) => !initializedWeeklySlots[classItem.id]),
+    [classes, initializedWeeklySlots],
+  );
+
+  const isScheduleLoading =
+    classLoadState === "loading" ||
+    (classLoadState === "success" && classes.length > 0 && isWeeklySlotsLoading);
 
   const releasePointerCapture = useCallback((pointerId: number | null) => {
     if (pointerId == null) {
@@ -347,6 +675,10 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
   }, [enableSwipe, finishPointerInteraction]);
 
   const activePagerItem = pagerItems[clampedTermIndex] ?? null;
+  const activeTermId = activePagerItem && !activePagerItem.isPlaceholder ? activePagerItem.id : null;
+  const activeTermHasEntries = activeTermId
+    ? (scheduleByTerm.get(activeTermId)?.size ?? 0) > 0
+    : false;
 
   return (
     <div className="flex min-h-full w-full flex-1 flex-col bg-white">
@@ -410,61 +742,113 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
               transform: `translate3d(${translateX}px, 0, 0)`,
             }}
           >
-            {pagerItems.map((item, index) => (
-              <div
-                key={item.id}
-                className="flex h-full w-full flex-shrink-0 flex-grow-0 flex-col"
-                style={{ width: `${100 / Math.max(pagerItems.length, 1)}%` }}
-                aria-hidden={index !== clampedTermIndex}
-              >
-                <div className="flex h-full w-full flex-col">
-                  <div
-                    className="grid w-full border-b border-l border-t border-neutral-200"
-                    style={{ gridTemplateColumns: columnTemplate }}
-                  >
-                    <div className="h-12 border-r border-neutral-200" />
-                    {weekdayHeaders.map((weekday) => (
-                      <div
-                        key={weekday.key}
-                        className="flex h-12 items-center justify-center border-r border-neutral-200 bg-white text-sm font-semibold text-neutral-700"
-                      >
-                        {weekday.label}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex-1">
+            {pagerItems.map((item, index) => {
+              const scheduleForTerm = !item.isPlaceholder ? scheduleByTerm.get(item.id) : null;
+              return (
+                <div
+                  key={item.id}
+                  className="flex h-full w-full flex-shrink-0 flex-grow-0 flex-col"
+                  style={{ width: `${100 / Math.max(pagerItems.length, 1)}%` }}
+                  aria-hidden={index !== clampedTermIndex}
+                >
+                  <div className="flex h-full w-full flex-col">
                     <div
-                      className="grid h-full w-full border-b border-l border-neutral-200"
-                      style={{
-                        gridTemplateColumns: columnTemplate,
-                        gridAutoRows: "minmax(64px, 1fr)",
-                      }}
+                      className="grid w-full border-b border-l border-t border-neutral-200"
+                      style={{ gridTemplateColumns: columnTemplate }}
                     >
-                      {periodLabels.map((label) => (
-                        <Fragment key={label}>
-                          <div className="flex items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-                            <span className="block truncate">{label}</span>
-                          </div>
-                          {weekdayHeaders.map((weekday) => (
-                            <div
-                              key={`${label}-${weekday.key}`}
-                              className="border-b border-r border-neutral-200 bg-white"
-                            />
-                          ))}
-                        </Fragment>
+                      <div className="h-12 border-r border-neutral-200" />
+                      {weekdayHeaders.map((weekday) => (
+                        <div
+                          key={weekday.key}
+                          className="flex h-12 items-center justify-center border-r border-neutral-200 bg-white text-sm font-semibold text-neutral-700"
+                        >
+                          {weekday.label}
+                        </div>
                       ))}
+                    </div>
+
+                    <div className="flex-1">
+                      <div
+                        className="grid h-full w-full border-b border-l border-neutral-200"
+                        style={{
+                          gridTemplateColumns: columnTemplate,
+                          gridAutoRows: "minmax(64px, 1fr)",
+                        }}
+                      >
+                        {periodLabels.map((label) => (
+                          <Fragment key={label}>
+                            <div className="flex items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                              <span className="block truncate">{label}</span>
+                            </div>
+                            {weekdayHeaders.map((weekday) => {
+                              const periodKey = label;
+                              const cellKey = `${weekday.key}-${periodKey}`;
+                              const entries = scheduleForTerm?.get(cellKey) ?? [];
+                              return (
+                                <div
+                                  key={`${label}-${weekday.key}`}
+                                  className="border-b border-r border-neutral-200 bg-white"
+                                >
+                                  {entries.length > 0 ? (
+                                    <div className="flex h-full w-full flex-col gap-2 p-1">
+                                      {entries.map((entry) => {
+                                        const specialLabel =
+                                          entry.specialScheduleOption !== "all"
+                                            ? SPECIAL_SCHEDULE_OPTION_LABELS[
+                                                entry.specialScheduleOption
+                                              ]
+                                            : null;
+                                        return (
+                                          <div
+                                            key={`${entry.classId}-${weekday.key}-${periodKey}`}
+                                            className="flex min-h-[72px] w-full flex-col rounded-xl border border-blue-200 bg-blue-50 px-2 py-2"
+                                          >
+                                            <div className="flex flex-1 items-center justify-center px-1">
+                                              <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
+                                                {entry.className}
+                                              </p>
+                                            </div>
+                                            {specialLabel ? (
+                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-blue-200/70 px-2 py-0.5 text-center text-[10px] font-semibold text-blue-700">
+                                                <span className="block truncate whitespace-nowrap">
+                                                  {specialLabel}
+                                                </span>
+                                              </p>
+                                            ) : null}
+                                            {entry.location ? (
+                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-neutral-900/10 px-2 py-0.5 text-center text-[10px] font-medium text-neutral-700">
+                                                <span className="block truncate whitespace-nowrap">
+                                                  {entry.location}
+                                                </span>
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </Fragment>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
         {termLoadState === "loading" ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/70 text-sm text-neutral-500">
             学期情報を読み込んでいます…
+          </div>
+        ) : null}
+        {termLoadState !== "loading" && isScheduleLoading ? (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/60 text-sm text-neutral-500">
+            授業情報を読み込んでいます…
           </div>
         ) : null}
       </div>
@@ -477,6 +861,22 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         <div className="mt-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {termError}
         </div>
+      ) : null}
+
+      {classLoadState === "error" && classError ? (
+        <div className="mt-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {classError}
+        </div>
+      ) : null}
+
+      {termLoadState === "success" &&
+      !activePagerItem?.isPlaceholder &&
+      !isScheduleLoading &&
+      classLoadState !== "error" &&
+      userId &&
+      calendar &&
+      !activeTermHasEntries ? (
+        <div className="px-4 pt-3 text-sm text-neutral-500">選択した学期に表示できる授業がありません。</div>
       ) : null}
 
       {enableSwipe ? (

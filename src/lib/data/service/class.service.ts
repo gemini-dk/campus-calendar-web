@@ -40,6 +40,14 @@ export type SpecialScheduleOption =
   | 'odd_weeks'
   | 'even_weeks';
 
+export const SPECIAL_SCHEDULE_OPTION_LABELS: Record<SpecialScheduleOption, string> = {
+  all: 'すべて',
+  first_half: '前半週',
+  second_half: '後半週',
+  odd_weeks: '奇数週',
+  even_weeks: '偶数週',
+};
+
 export type GeneratedClassDate = {
   date: string;
   periods: (number | 'OD')[];
@@ -58,6 +66,7 @@ export type CreateTimetableClassParams = {
   maxAbsenceDays: number;
   termIds: string[];
   termNames: string[];
+  specialOption: SpecialScheduleOption;
   weeklySlots: WeeklySlotSelection[];
   omitWeeklySlots: boolean;
   generatedClassDates: GeneratedClassDate[];
@@ -336,6 +345,7 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     maxAbsenceDays,
     termIds,
     termNames,
+    specialOption,
     weeklySlots,
     omitWeeklySlots,
     generatedClassDates,
@@ -374,6 +384,13 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
   );
   const termDisplayName = uniqueTermNames.length > 0 ? uniqueTermNames.join(', ') : null;
 
+  const uniqueTermIds = Array.from(
+    new Set(termIds.map((termId) => termId.trim()).filter((termId) => termId.length > 0)),
+  );
+
+  const specialScheduleOption: SpecialScheduleOption =
+    SPECIAL_SCHEDULE_OPTION_LABELS[specialOption] ? specialOption : 'all';
+
   const normalizedLocation = location.trim();
   const normalizedTeacher = teacher.trim();
 
@@ -381,9 +398,11 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     className: trimmedClassName,
     fiscalYear: fiscalYearNumber,
     calendarId: calendarId.trim(),
+    termIds: uniqueTermIds,
     termNames: uniqueTermNames,
     termDisplayName,
     classType,
+    specialScheduleOption,
     credits: typeof credits === 'number' && Number.isFinite(credits) ? credits : null,
     creditsStatus,
     teacher: normalizedTeacher.length > 0 ? normalizedTeacher : null,

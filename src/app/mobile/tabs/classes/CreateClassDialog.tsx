@@ -462,6 +462,7 @@ export function CreateClassDialog({
         maxAbsenceDays: maxAbsenceValue,
         termIds: formState.selectedTermIds,
         termNames,
+        specialOption: formState.specialOption,
         weeklySlots: formState.isFullyOnDemand ? [] : formState.weeklySlots,
         omitWeeklySlots: formState.isFullyOnDemand || formState.weeklySlots.length === 0,
         generatedClassDates: formState.isFullyOnDemand ? [] : generatedClassDates,
