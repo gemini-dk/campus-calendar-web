@@ -710,14 +710,12 @@ function UpcomingActivityPanel({
 }) {
   return (
     <div className="flex w-full flex-col gap-6">
-      <div className="flex w-full flex-col gap-3">
+      <div className="flex w-full flex-col gap-2">
         <h3 className="text-sm font-semibold text-neutral-900">授業予定</h3>
         {sessions.length === 0 ? (
-          <div className="flex h-24 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
-            今後の授業予定はありません。
-          </div>
+          <p className="text-sm text-neutral-600">今後の授業予定はありません。</p>
         ) : (
-          <ul className="flex w-full flex-col gap-3">
+          <ul className="flex w-full flex-col divide-y divide-neutral-200 border-y border-neutral-200">
             {sessions.map((session) => (
               <UpcomingSessionItem
                 key={session.id}
@@ -728,12 +726,10 @@ function UpcomingActivityPanel({
           </ul>
         )}
       </div>
-      <div className="flex w-full flex-col gap-3">
+      <div className="flex w-full flex-col gap-2">
         <h3 className="text-sm font-semibold text-neutral-900">未完了の課題</h3>
         {assignments.length === 0 ? (
-          <div className="flex h-24 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
-            未完了の課題はありません。
-          </div>
+          <p className="text-sm text-neutral-600">未完了の課題はありません。</p>
         ) : (
           <ul className="flex w-full flex-col gap-3">
             {assignments.map((assignment) => (
@@ -756,7 +752,7 @@ function UpcomingSessionItem({
   const dateLabel = formatMonthDayCompact(session.classDate);
 
   return (
-    <li className="flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+    <li className="flex w-full items-center justify-between gap-3 py-3">
       <div className="flex min-w-0 flex-col gap-1">
         <span className="text-sm font-semibold text-neutral-900">授業({dateLabel})</span>
       </div>
@@ -808,7 +804,7 @@ function UpcomingAssignmentItem({ activity }: { activity: ActivityDoc }) {
   const createdLabel = formatDateLabel(activity.createdAt ?? activity.updatedAt);
 
   return (
-    <li className="flex w-full items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+    <li className="flex w-full items-stretch gap-3 py-1">
       <div className="flex w-[50px] flex-shrink-0 items-center justify-center">
         <div className={`flex h-11 w-11 items-center justify-center rounded-full ${background}`}>
           <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
@@ -1129,7 +1125,7 @@ export function ClassActivityContent({
               これまでの活動
             </button>
           </div>
-          <div className="flex min-h-[200px] w-full flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-4">
+          <div className="flex min-h-[200px] w-full flex-col gap-4">
             {attendanceError ? (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">{attendanceError}</div>
             ) : null}
@@ -1137,14 +1133,10 @@ export function ClassActivityContent({
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>
             ) : null}
             {loading ? (
-              <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
-                読み込み中です...
-              </div>
+              <div className="flex h-32 w-full items-center justify-center text-sm text-neutral-600">読み込み中です...</div>
             ) : activeTab === "history" ? (
               combinedRecords.length === 0 ? (
-                <div className="flex h-32 w-full items-center justify-center rounded-xl border border-dashed border-neutral-200 bg-white/60 text-sm text-neutral-600">
-                  表示できる活動記録がまだありません。
-                </div>
+                <p className="text-sm text-neutral-600">表示できる活動記録がまだありません。</p>
               ) : (
                 <ul className="flex flex-col gap-3">
                   {combinedRecords.map((record) =>
