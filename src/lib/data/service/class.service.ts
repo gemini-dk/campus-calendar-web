@@ -72,6 +72,30 @@ export type CreateTimetableClassParams = {
   generatedClassDates: GeneratedClassDate[];
 };
 
+export type UpdateTimetableClassParams = {
+  userId: string;
+  classId: string;
+  originalFiscalYear: string;
+  newFiscalYear: string;
+  calendarId: string;
+  className: string;
+  classType: CreateTimetableClassParams["classType"];
+  isFullyOnDemand: boolean;
+  location: string;
+  teacher: string;
+  credits: number | null;
+  creditsStatus: CreateTimetableClassParams["creditsStatus"];
+  maxAbsenceDays: number;
+  termIds: string[];
+  termNames: string[];
+  specialOption: SpecialScheduleOption;
+  weeklySlots: WeeklySlotSelection[];
+  generatedClassDates: GeneratedClassDate[];
+  existingWeeklySlotIds: string[];
+  existingClassDateIds: string[];
+  shouldUpdateSchedule: boolean;
+};
+
 function buildTermNameMap(terms: CalendarTerm[]): Map<string, string> {
   return terms.reduce<Map<string, string>>((map, term) => {
     if (term.id) {
@@ -468,6 +492,201 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
       periodsOrderKey,
       updatedAt: timestamp,
     });
+  }
+
+  await batch.commit();
+}
+
+export async function updateTimetableClass({
+  userId,
+  classId,
+  originalFiscalYear,
+  newFiscalYear,
+  calendarId,
+  className,
+  classType,
+  isFullyOnDemand,
+  location,
+  teacher,
+  credits,
+  creditsStatus,
+  maxAbsenceDays,
+  termIds,
+  termNames,
+  specialOption,
+  weeklySlots,
+  generatedClassDates,
+  existingWeeklySlotIds,
+  existingClassDateIds,
+  shouldUpdateSchedule,
+}: UpdateTimetableClassParams): Promise<void> {
+  const trimmedUserId = userId.trim();
+  if (!trimmedUserId) {
+    throw new Error('ユーザIDが無効です。');
+  }
+
+  const trimmedClassId = classId.trim();
+  if (!trimmedClassId) {
+    throw new Error('授業IDが無効です。');
+  }
+
+  const trimmedClassName = className.trim();
+  if (!trimmedClassName) {
+    throw new Error('授業名を入力してください。');
+  }
+
+  const trimmedOriginalYear = originalFiscalYear.trim();
+  const trimmedNewYear = newFiscalYear.trim();
+  if (!trimmedOriginalYear || !trimmedNewYear) {
+    throw new Error('年度を指定してください。');
+  }
+
+  const fiscalYearNumber = Number.parseInt(trimmedNewYear, 10);
+  if (!Number.isFinite(fiscalYearNumber)) {
+    throw new Error('年度は数値で入力してください。');
+  }
+
+  const trimmedCalendarId = calendarId.trim();
+  if (!trimmedCalendarId) {
+    throw new Error('学事カレンダーIDを指定してください。');
+  }
+
+  const isMovingFiscalYear = trimmedOriginalYear !== trimmedNewYear;
+  if (isMovingFiscalYear && !shouldUpdateSchedule) {
+    throw new Error('出席記録があるため年度を変更できません。');
+  }
+
+  const classCollection = (fiscalYear: string) =>
+    collection(db, 'users', trimmedUserId, 'academic_years', fiscalYear, 'timetable_classes');
+
+  const sourceClassRef = doc(classCollection(trimmedOriginalYear), trimmedClassId);
+  const targetClassRef = doc(classCollection(trimmedNewYear), trimmedClassId);
+
+  const batch = writeBatch(db);
+  const timestamp = serverTimestamp();
+
+  const uniqueTermIds = Array.from(
+    new Set(termIds.map((termId) => termId.trim()).filter((termId) => termId.length > 0)),
+  );
+
+  const uniqueTermNames = Array.from(
+    new Set(termNames.map((name) => name.trim()).filter((name) => name.length > 0)),
+  );
+
+  const termDisplayName = uniqueTermNames.length > 0 ? uniqueTermNames.join(', ') : null;
+
+  const specialScheduleOption: SpecialScheduleOption =
+    SPECIAL_SCHEDULE_OPTION_LABELS[specialOption] ? specialOption : 'all';
+
+  const normalizedLocation = location.trim();
+  const normalizedTeacher = teacher.trim();
+  const normalizedCredits =
+    typeof credits === 'number' && Number.isFinite(credits) ? credits : null;
+
+  const classData: Record<string, unknown> = {
+    className: trimmedClassName,
+    fiscalYear: fiscalYearNumber,
+    calendarId: trimmedCalendarId,
+    termIds: uniqueTermIds,
+    termNames: uniqueTermNames,
+    termDisplayName,
+    classType,
+    isFullyOnDemand,
+    specialScheduleOption,
+    credits: normalizedCredits,
+    creditsStatus,
+    teacher: normalizedTeacher.length > 0 ? normalizedTeacher : null,
+    location: normalizedLocation.length > 0 ? normalizedLocation : null,
+    maxAbsenceDays,
+    updatedAt: timestamp,
+  };
+
+  if (isMovingFiscalYear) {
+    classData.createdAt = timestamp;
+  }
+
+  batch.set(targetClassRef, classData, { merge: true });
+
+  if (shouldUpdateSchedule) {
+    for (const slotId of existingWeeklySlotIds) {
+      const trimmedSlotId = slotId.trim();
+      if (!trimmedSlotId) {
+        continue;
+      }
+      const slotRef = doc(collection(sourceClassRef, 'weekly_slots'), trimmedSlotId);
+      batch.delete(slotRef);
+    }
+
+    for (const dateId of existingClassDateIds) {
+      const trimmedDateId = dateId.trim();
+      if (!trimmedDateId) {
+        continue;
+      }
+      const dateRef = doc(collection(sourceClassRef, 'class_dates'), trimmedDateId);
+      batch.delete(dateRef);
+    }
+
+    if (isMovingFiscalYear) {
+      batch.delete(sourceClassRef);
+    }
+
+    const shouldPersistWeeklySlots = !isFullyOnDemand && weeklySlots.length > 0;
+    if (shouldPersistWeeklySlots) {
+      const uniqueSlots = new Map<string, WeeklySlotSelection>();
+      weeklySlots.forEach((slot) => {
+        const key = `${slot.dayOfWeek}-${slot.period}`;
+        if (!uniqueSlots.has(key)) {
+          uniqueSlots.set(key, slot);
+        }
+      });
+
+      let displayOrder = 1;
+      for (const slot of uniqueSlots.values()) {
+        const slotRef = doc(collection(targetClassRef, 'weekly_slots'));
+        batch.set(slotRef, {
+          dayOfWeek: slot.dayOfWeek,
+          period: slot.period,
+          displayOrder,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+        displayOrder += 1;
+      }
+    }
+
+    if (!isFullyOnDemand) {
+      for (const item of generatedClassDates) {
+        if (!item.date || item.periods.length === 0) {
+          continue;
+        }
+        const classDateId = buildClassDateId(item.date, item.periods);
+        const classDateRef: DocumentReference = doc(
+          collection(targetClassRef, 'class_dates'),
+          classDateId,
+        );
+
+        const periodsOrderKey = item.periods.reduce<number>((min, period) => {
+          if (period === 'OD') {
+            return Math.min(min, 999);
+          }
+          return Math.min(min, period);
+        }, 999);
+
+        batch.set(classDateRef, {
+          classDate: item.date,
+          periods: item.periods,
+          attendanceStatus: null,
+          isTest: false,
+          isExcludedFromSummary: false,
+          isAutoGenerated: true,
+          isCancelled: false,
+          deliveryType: buildDeliveryType(classType),
+          hasUserModifications: false,
+          periodsOrderKey,
+          updatedAt: timestamp,
+        });
+      }
+    }
   }
 
   await batch.commit();

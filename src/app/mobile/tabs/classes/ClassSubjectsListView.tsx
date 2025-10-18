@@ -16,8 +16,9 @@ import {
 
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/useAuth";
-import { useRouter } from "next/navigation";
-import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
+import ClassActivityOverlay, {
+  type ClassActivityOverlaySession,
+} from "../../components/ClassActivityOverlay";
 
 type CreditsStatus = "in_progress" | "completed" | "failed";
 
@@ -77,11 +78,10 @@ type ClassSubjectsListViewProps = {
 
 export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListViewProps) {
   const { profile } = useAuth();
-  const { settings } = useUserSettings();
-  const router = useRouter();
   const fiscalYearLabel = fiscalYear ? `${fiscalYear}年度` : "年度未設定";
 
   const [subjects, setSubjects] = useState<ClassSubject[]>([]);
+  const [selectedActivity, setSelectedActivity] = useState<ClassActivityOverlaySession | null>(null);
 
   useEffect(() => {
     if (!profile?.uid || !fiscalYear) {
@@ -118,6 +118,20 @@ export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListV
     };
   }, [profile?.uid, fiscalYear]);
 
+  const handleSelectSubject = (subject: ClassSubject) => {
+    const detailLabel = subject.termNames.length > 0 ? subject.termNames.join("・") : null;
+    setSelectedActivity({
+      classId: subject.id,
+      className: subject.name,
+      periods: [],
+      detailLabel,
+    });
+  };
+
+  const handleCloseOverlay = () => {
+    setSelectedActivity(null);
+  };
+
   return (
     <div className="flex h-full w-full flex-col gap-4 py-6">
       <ul className="flex w-full flex-col gap-3">
@@ -132,7 +146,7 @@ export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListV
             >
               <button
                 type="button"
-                onClick={() => router.push(`/mobile/classes/${subject.id}/activity`)}
+                onClick={() => handleSelectSubject(subject)}
                 className="flex h-full w-full items-center gap-4 rounded-2xl p-4 text-left transition hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-neutral-100">
@@ -148,6 +162,12 @@ export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListV
           );
         })}
       </ul>
+      <ClassActivityOverlay
+        open={Boolean(selectedActivity)}
+        session={selectedActivity}
+        fiscalYear={fiscalYear}
+        onClose={handleCloseOverlay}
+      />
     </div>
   );
 }
