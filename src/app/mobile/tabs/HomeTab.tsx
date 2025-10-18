@@ -11,8 +11,11 @@ import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
 import ScrollDemoScreen from '../components/ScrollDemoScreen';
-import ClassActivityOverlay from '../components/ClassActivityOverlay';
+import ClassActivityOverlay, {
+  type ClassActivityOverlaySession,
+} from '../components/ClassActivityOverlay';
 import DailyClassesSection, { type DailyClassSession } from './HomeTab/DailyClassesSection';
+import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -67,7 +70,7 @@ function HomeTabContent() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isScrollDemoOpen, setIsScrollDemoOpen] = useState(false);
-  const [selectedClassSession, setSelectedClassSession] = useState<DailyClassSession | null>(null);
+  const [selectedActivity, setSelectedActivity] = useState<ClassActivityOverlaySession | null>(null);
 
   const dateId = useMemo(
     () => normalizeDateId(searchParams?.get('date') ?? null),
@@ -147,11 +150,16 @@ function HomeTabContent() {
   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
   const handleSelectClassSession = useCallback((session: DailyClassSession) => {
-    setSelectedClassSession(session);
+    setSelectedActivity({
+      classId: session.classId,
+      className: session.className,
+      periods: session.periods,
+      detailLabel: formatPeriodLabel(session.periods),
+    });
   }, []);
 
   const handleCloseClassActivity = useCallback(() => {
-    setSelectedClassSession(null);
+    setSelectedActivity(null);
   }, []);
 
   return (
@@ -217,8 +225,8 @@ function HomeTabContent() {
         </div>
       </div>
       <ClassActivityOverlay
-        open={Boolean(selectedClassSession)}
-        session={selectedClassSession}
+        open={Boolean(selectedActivity)}
+        session={selectedActivity}
         fiscalYear={settings.calendar.fiscalYear ?? null}
         onClose={handleCloseClassActivity}
       />

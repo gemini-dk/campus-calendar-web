@@ -5,13 +5,19 @@ import { useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 
-import type { DailyClassSession } from '@/app/mobile/tabs/HomeTab/DailyClassesSection';
 import { ClassActivityContent } from '@/app/mobile/classes/[classId]/activity/page';
 import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
 
+export type ClassActivityOverlaySession = {
+  classId: string;
+  className: string;
+  periods: (number | 'OD')[];
+  detailLabel?: string | null;
+};
+
 export type ClassActivityOverlayProps = {
   open: boolean;
-  session: DailyClassSession | null;
+  session: ClassActivityOverlaySession | null;
   fiscalYear: string | null;
   onClose: () => void;
 };
@@ -44,16 +50,18 @@ export default function ClassActivityOverlay({
     return null;
   }
 
-  const periodLabel = formatPeriodLabel(session.periods);
+  const detailLabel = session.detailLabel ?? formatPeriodLabel(session.periods);
 
   return (
     <div className="fixed inset-0 z-50 flex h-[100svh] w-full flex-1 min-h-0 flex-col bg-white">
       <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-neutral-200 px-5">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-neutral-500">授業活動記録</p>
+          <h1 className="text-lg font-semibold text-neutral-900">授業活動記録</h1>
           <div className="mt-1 flex flex-col">
-            <h1 className="truncate text-lg font-semibold text-neutral-900">{session.className}</h1>
-            <span className="mt-0.5 text-xs text-neutral-500">{periodLabel}</span>
+            <p className="truncate text-sm font-medium text-neutral-700">{session.className}</p>
+            {detailLabel ? (
+              <span className="mt-0.5 text-xs text-neutral-500">{detailLabel}</span>
+            ) : null}
           </div>
         </div>
         <button

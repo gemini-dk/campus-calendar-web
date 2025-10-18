@@ -14,10 +14,14 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 
+import ClassActivityOverlay, {
+  type ClassActivityOverlaySession,
+} from "@/app/mobile/components/ClassActivityOverlay";
 import type { CalendarTerm } from "@/lib/data/schema/calendar";
 import { getCalendarTerms } from "@/lib/data/service/calendar.service";
 import type { SpecialScheduleOption } from "@/lib/data/service/class.service";
 import { SPECIAL_SCHEDULE_OPTION_LABELS } from "@/lib/data/service/class.service";
+import { formatPeriodLabel } from "@/app/mobile/utils/classSchedule";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/useAuth";
 
@@ -168,6 +172,18 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
   const [viewportWidth, setViewportWidth] = useState(0);
   const [translateX, setTranslateX] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+
+  const [selectedActivity, setSelectedActivity] = useState<ClassActivityOverlaySession | null>(
+    null,
+  );
+
+  const handleOpenClassActivity = useCallback((session: ClassActivityOverlaySession) => {
+    setSelectedActivity(session);
+  }, []);
+
+  const handleCloseClassActivity = useCallback(() => {
+    setSelectedActivity(null);
+  }, []);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -758,10 +774,11 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     : false;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-white">
-      <div className="flex w-full flex-shrink-0 flex-col border-b border-neutral-200 bg-neutral-100/80">
-        <nav className="flex items-center gap-1 overflow-x-auto px-1 py-1" role="tablist">
-          {pagerItems.map((item, index) => {
+    <>
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-white">
+        <div className="flex w-full flex-shrink-0 flex-col border-b border-neutral-200 bg-neutral-100/80">
+          <nav className="flex items-center gap-1 overflow-x-auto px-1 py-1" role="tablist">
+            {pagerItems.map((item, index) => {
             const isActive = index === clampedTermIndex;
             const isDisabled = Boolean(item.isPlaceholder);
             return (
@@ -875,9 +892,18 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                           maxWidthPercent,
                                         );
                                         return (
-                                          <div
+                                          <button
                                             key={`${entry.classId}-full-${entryIndex}`}
-                                            className="flex min-h-0 flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
+                                            type="button"
+                                            onClick={() =>
+                                              handleOpenClassActivity({
+                                                classId: entry.classId,
+                                                className: entry.className,
+                                                periods: ["OD"],
+                                                detailLabel: "オンデマンド",
+                                              })
+                                            }
+                                            className="flex min-h-0 flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1 text-left"
                                             style={{
                                               flexBasis: `${basisPercent}%`,
                                               maxWidth: `${maxWidthPercent}%`,
@@ -903,7 +929,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                                 </span>
                                               </p>
                                             ) : null}
-                                          </div>
+                                          </button>
                                         );
                                       })}
                                     </div>
@@ -929,40 +955,58 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                   >
                                     {entries.length > 0 ? (
                                       <div className="flex h-full min-h-0 w-full flex-col gap-1 p-1">
-                                        {entries.map((entry) => {
-                                          const specialLabel =
-                                            entry.specialScheduleOption !== "all"
-                                              ? SPECIAL_SCHEDULE_OPTION_LABELS[
-                                                  entry.specialScheduleOption
-                                                ]
-                                              : null;
-                                          return (
-                                            <div
-                                              key={`${entry.classId}-${weekday.key}-${periodKey}`}
-                                              className="flex flex-1 min-h-0 w-full flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
-                                            >
-                                              <div className="flex flex-1 min-h-0 items-center justify-center px-1">
-                                                <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
-                                                  {entry.className}
-                                                </p>
-                                              </div>
-                                              {specialLabel ? (
-                                                <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
-                                                  <span className="block w-full truncate whitespace-nowrap">
-                                                    {specialLabel}
-                                                  </span>
-                                                </p>
-                                              ) : null}
-                                              {entry.location ? (
-                                                <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
-                                                  <span className="block w-full truncate whitespace-nowrap">
-                                                    {entry.location}
-                                                  </span>
-                                                </p>
-                                              ) : null}
+                                      {entries.map((entry) => {
+                                        const specialLabel =
+                                          entry.specialScheduleOption !== "all"
+                                            ? SPECIAL_SCHEDULE_OPTION_LABELS[
+                                                entry.specialScheduleOption
+                                              ]
+                                            : null;
+                                        const numericPeriod = Number.parseInt(periodKey, 10);
+                                        const normalizedPeriods: (number | "OD")[] =
+                                          periodKey === "OD"
+                                            ? ["OD"]
+                                            : Number.isFinite(numericPeriod)
+                                            ? [numericPeriod]
+                                            : [];
+                                        const periodLabel = formatPeriodLabel(normalizedPeriods);
+                                        const detailLabel = `${weekday.label}曜 ${periodLabel}`;
+                                        return (
+                                          <button
+                                            key={`${entry.classId}-${weekday.key}-${periodKey}`}
+                                            type="button"
+                                            onClick={() =>
+                                              handleOpenClassActivity({
+                                                classId: entry.classId,
+                                                className: entry.className,
+                                                periods: normalizedPeriods,
+                                                detailLabel,
+                                              })
+                                            }
+                                            className="flex flex-1 min-h-0 w-full flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1 text-left"
+                                          >
+                                            <div className="flex flex-1 min-h-0 items-center justify-center px-1">
+                                              <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
+                                                {entry.className}
+                                              </p>
                                             </div>
-                                          );
-                                        })}
+                                            {specialLabel ? (
+                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
+                                                <span className="block w-full truncate whitespace-nowrap">
+                                                  {specialLabel}
+                                                </span>
+                                              </p>
+                                            ) : null}
+                                            {entry.location ? (
+                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
+                                                <span className="block w-full truncate whitespace-nowrap">
+                                                  {entry.location}
+                                                </span>
+                                              </p>
+                                            ) : null}
+                                          </button>
+                                        );
+                                      })}
                                       </div>
                                     ) : null}
                                   </div>
@@ -1018,6 +1062,14 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         <div className="px-1 pt-1 text-sm text-neutral-500">選択した学期に表示できる授業がありません。</div>
       ) : null}
 
-    </div>
+      </div>
+
+      <ClassActivityOverlay
+        open={Boolean(selectedActivity)}
+        session={selectedActivity}
+        fiscalYear={calendar?.fiscalYear ?? null}
+        onClose={handleCloseClassActivity}
+      />
+    </>
   );
 }
