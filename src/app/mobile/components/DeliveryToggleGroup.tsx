@@ -25,14 +25,14 @@ const DELIVERY_OPTIONS: {
     icon: faChalkboardTeacher,
     label: '対面',
     activeClass: 'bg-blue-100 text-blue-600',
-    iconClass: 'text-[26px]',
+    iconClass: 'text-[20px]',
   },
   {
     value: 'remote',
     icon: faVideo,
     label: 'オンライン',
     activeClass: 'bg-purple-100 text-purple-600',
-    iconClass: 'text-[26px]',
+    iconClass: 'text-[22px]',
   },
 ];
 
@@ -48,7 +48,7 @@ export default function DeliveryToggleGroup({
   }));
 
   return (
-    <div className="flex h-12 w-fit items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 shadow-sm">
+    <div className="flex h-12 w-fit items-center gap-1 rounded-full border border-neutral-200 bg-white px-1.5 shadow-sm">
       {options.map((option) => {
         const isActive = value === option.value;
         return (

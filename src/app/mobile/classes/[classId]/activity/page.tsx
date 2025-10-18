@@ -44,7 +44,6 @@ import {
   buildAbsenceMessage,
   ClassType,
   computeAttendanceSummary,
-  formatPeriodLabel,
   mapTimetableClassDate,
   type TimetableClassDateDoc,
 } from "@/app/mobile/utils/classSchedule";
@@ -414,7 +413,7 @@ function formatMonthDayLabel(value: string): string {
   }
   const month = value.slice(5, 7);
   const day = value.slice(8, 10);
-  return `${Number.parseInt(month, 10)}/${Number.parseInt(day, 10)}`;
+  return `${month}/${day}`;
 }
 
 function formatMonthDayCompact(value: string): string {
@@ -749,25 +748,18 @@ function SessionRecordItem({
   updating: boolean;
 }) {
   const dateLabel = formatMonthDayLabel(record.classDate);
-  const periodLabel = formatPeriodLabel(record.periods);
 
   return (
-    <li className="flex items-start justify-between gap-3 py-3">
-      <div className="flex flex-1 items-start gap-3">
-        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
-          授
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
-            {record.isTest ? (
-              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
-            ) : null}
-            {record.isCancelled ? (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
-            ) : null}
-          </div>
-          <span className="text-xs text-neutral-500">{periodLabel}</span>
+    <li className="flex items-center justify-between gap-3 py-3">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
+          {record.isTest ? (
+            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
+          ) : null}
+          {record.isCancelled ? (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
+          ) : null}
         </div>
       </div>
       <AttendanceToggleGroup
@@ -1228,30 +1220,37 @@ export function ClassActivityContent({
     }
 
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-6">
-        <section className="rounded-3xl bg-blue-50 px-5 py-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-5">
+        <section className="flex h-fit w-full flex-col gap-4 rounded-3xl bg-blue-50 px-5 py-4">
+          <div className="flex w-full flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 flex-1 flex-col gap-3">
               <h1 className="truncate text-xl font-semibold text-neutral-900">{classDetail?.className ?? "授業名未設定"}</h1>
-              <div className="flex flex-wrap gap-2 text-xs font-medium text-neutral-600">
-                <span className="rounded-full bg-white px-2.5 py-1 text-blue-600">開講時期</span>
-                <span>{termLabel}</span>
-                <span className="text-neutral-400">/</span>
-                <span>{weeklyLabel}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-700">
-                <span className="flex items-center gap-2 font-medium">
-                  <span className={`flex h-8 w-8 items-center justify-center rounded-full bg-white ${classTypeIconClass}`}>
-                    <FontAwesomeIcon icon={classTypeIcon} className="text-base" aria-hidden="true" />
+              <div className="grid w-full gap-3 sm:grid-cols-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-neutral-500">開講時期</span>
+                  <span className="text-sm font-normal text-neutral-900">
+                    {termLabel}
+                    <span className="px-1 text-neutral-300">/</span>
+                    {weeklyLabel}
                   </span>
-                  {classTypeLabel}
-                </span>
-                <span className="text-neutral-400">/</span>
-                <span>{locationLabel}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-neutral-700">
-                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-blue-600">担当教員</span>
-                <span>{teacherLabel}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-neutral-500">授業形式・場所</span>
+                  <span className="flex items-center gap-2 text-sm font-normal text-neutral-900">
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-white ${classTypeIconClass}`}>
+                      <FontAwesomeIcon icon={classTypeIcon} className="text-sm" aria-hidden="true" />
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span>{classTypeLabel}</span>
+                      <span className="text-neutral-300">/</span>
+                      <span>{locationLabel}</span>
+                    </span>
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-semibold text-neutral-500">担当教員</span>
+                  <span className="text-sm font-normal text-neutral-900">{teacherLabel}</span>
+                </div>
               </div>
             </div>
             <button
@@ -1263,9 +1262,9 @@ export function ClassActivityContent({
                 setIsEditDialogOpen(true);
               }}
               disabled={!canEditClass}
-              className="flex h-10 items-center gap-2 rounded-full border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+              className="flex h-9 min-w-[80px] items-center gap-1.5 self-start rounded-full border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
             >
-              <FontAwesomeIcon icon={faPen} className="text-sm" aria-hidden="true" />
+              <FontAwesomeIcon icon={faPen} className="text-xs" aria-hidden="true" />
               編集
             </button>
           </div>
@@ -1297,29 +1296,37 @@ export function ClassActivityContent({
         </section>
 
         <section className="flex flex-col gap-4 pb-8">
-          <div className="flex w-full items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveTab("upcoming")}
-              className={`flex h-10 w-full max-w-[160px] items-center justify-center rounded-full border text-sm font-semibold transition ${
-                activeTab === "upcoming"
-                  ? "border-blue-500 bg-blue-500 text-white"
-                  : "border-neutral-200 bg-white text-neutral-600 hover:border-blue-200 hover:text-blue-600"
-              }`}
-            >
-              今後の活動
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("history")}
-              className={`flex h-10 w-full max-w-[160px] items-center justify-center rounded-full border text-sm font-semibold transition ${
-                activeTab === "history"
-                  ? "border-blue-500 bg-blue-500 text-white"
-                  : "border-neutral-200 bg-white text-neutral-600 hover:border-blue-200 hover:text-blue-600"
-              }`}
-            >
-              これまでの活動
-            </button>
+          <div className="flex h-11 w-full items-center">
+            <div className="grid h-full w-full grid-cols-2 overflow-hidden border border-blue-100 bg-white">
+              <button
+                type="button"
+                onClick={() => setActiveTab("upcoming")}
+                className={`relative flex h-full w-full items-center justify-center text-sm font-semibold transition ${
+                  activeTab === "upcoming"
+                    ? "text-blue-600"
+                    : "text-neutral-600 hover:text-blue-600"
+                }`}
+              >
+                今後の活動
+                {activeTab === "upcoming" ? (
+                  <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-500" />
+                ) : null}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("history")}
+                className={`relative flex h-full w-full items-center justify-center text-sm font-semibold transition ${
+                  activeTab === "history"
+                    ? "text-blue-600"
+                    : "text-neutral-600 hover:text-blue-600"
+                }`}
+              >
+                これまでの活動
+                {activeTab === "history" ? (
+                  <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-blue-500" />
+                ) : null}
+              </button>
+            </div>
           </div>
           <div className="flex min-h-[200px] w-full flex-col gap-4">
             {attendanceError ? (

@@ -50,7 +50,7 @@ export default function AttendanceToggleGroup({
   disabled,
 }: AttendanceToggleGroupProps) {
   return (
-    <div className="flex h-11 w-fit items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2 shadow-sm">
+    <div className="flex h-11 w-fit items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-1 shadow-sm">
       {ATTENDANCE_OPTIONS.map((option) => {
         const isActive = value === option.value;
         return (
