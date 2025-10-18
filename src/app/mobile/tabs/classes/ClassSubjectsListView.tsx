@@ -15,7 +15,6 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase/client";
-import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
 
 type CreditsStatus = "in_progress" | "completed" | "failed";
@@ -70,10 +69,12 @@ function mapClassSubject(doc: QueryDocumentSnapshot<DocumentData>): ClassSubject
   } satisfies ClassSubject;
 }
 
-export default function ClassSubjectsListView() {
+type ClassSubjectsListViewProps = {
+  fiscalYear: string | null;
+};
+
+export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListViewProps) {
   const { profile } = useAuth();
-  const { settings } = useUserSettings();
-  const fiscalYear = settings.calendar.fiscalYear;
   const fiscalYearLabel = fiscalYear ? `${fiscalYear}年度` : "年度未設定";
 
   const [subjects, setSubjects] = useState<ClassSubject[]>([]);
