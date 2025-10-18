@@ -26,6 +26,11 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase/client';
+import {
+  listTimetableClassesByYear,
+  type TimetableClassSummary,
+} from '@/lib/data/service/class.service';
+import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
 
@@ -186,18 +191,21 @@ function ActivityListItem({
   activity,
   onSelect,
   onToggleStatus,
+  classNameMap,
 }: {
   activity: Activity;
   onSelect: (activity: Activity) => void;
   onToggleStatus?: (activity: Activity) => void;
+  classNameMap?: Map<string, string>;
 }) {
   const { icon, className } = resolveIcon(activity.type, activity.status);
   const dueLabel =
     activity.type === 'assignment' ? formatDueDateLabel(activity.dueDate) : null;
-  const classLabel =
+  const classId =
     typeof activity.classId === 'string' && activity.classId.trim().length > 0
       ? activity.classId.trim()
       : null;
+  const classLabel = classId ? classNameMap?.get(classId) ?? classId : null;
   const createdLabel = formatDateLabel(activity.createdAt);
 
   return (
@@ -254,12 +262,14 @@ function TodoList({
   error,
   onSelect,
   onToggleStatus,
+  classNameMap,
 }: {
   items: Activity[];
   loading: boolean;
   error: string | null;
   onSelect: (activity: Activity) => void;
   onToggleStatus: (activity: Activity) => void;
+  classNameMap?: Map<string, string>;
 }) {
   if (loading) {
     return (
@@ -293,6 +303,7 @@ function TodoList({
           activity={item}
           onSelect={onSelect}
           onToggleStatus={onToggleStatus}
+          classNameMap={classNameMap}
         />
       ))}
     </div>
@@ -304,11 +315,13 @@ function MemoList({
   loading,
   error,
   onSelect,
+  classNameMap,
 }: {
   items: Activity[];
   loading: boolean;
   error: string | null;
   onSelect: (activity: Activity) => void;
+  classNameMap?: Map<string, string>;
 }) {
   if (loading) {
     return (
@@ -337,7 +350,12 @@ function MemoList({
   return (
     <div className="flex w-full flex-col gap-3">
       {items.map((memo) => (
-        <ActivityListItem key={memo.id} activity={memo} onSelect={onSelect} />
+        <ActivityListItem
+          key={memo.id}
+          activity={memo}
+          onSelect={onSelect}
+          classNameMap={classNameMap}
+        />
       ))}
     </div>
   );
@@ -353,6 +371,8 @@ type CreateActivityDialogProps = {
   onSubmit: () => void;
   isSaving: boolean;
   error: string | null;
+  classOptions: TimetableClassSummary[];
+  activeFiscalYear: string | null;
 };
 
 function CreateActivityDialog({
@@ -365,6 +385,8 @@ function CreateActivityDialog({
   onSubmit,
   isSaving,
   error,
+  classOptions,
+  activeFiscalYear,
 }: CreateActivityDialogProps) {
   if (!open) {
     return null;
@@ -372,6 +394,20 @@ function CreateActivityDialog({
 
   const isAssignment = type === 'assignment';
   const isEditing = mode === 'edit';
+  const normalizedFiscalYear =
+    typeof activeFiscalYear === 'string' && activeFiscalYear.trim().length > 0
+      ? activeFiscalYear.trim()
+      : null;
+  const trimmedSelection = formState.classId.trim();
+  const hasUnknownSelection =
+    trimmedSelection.length > 0 &&
+    !classOptions.some((option) => option.id === trimmedSelection);
+  const placeholderLabel = normalizedFiscalYear
+    ? classOptions.length > 0
+      ? '関連授業を選択'
+      : `${normalizedFiscalYear}年度の授業が見つかりません`
+    : '設定で利用中の年度を設定してください';
+  const selectionDisabled = normalizedFiscalYear === null;
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 px-4 py-6">
@@ -428,13 +464,27 @@ function CreateActivityDialog({
 
           <label className="flex flex-col gap-2">
             <span className="text-sm font-medium text-neutral-700">関連授業</span>
-            <input
-              type="text"
+            <select
               value={formState.classId}
               onChange={(event) => onChange('classId', event.target.value)}
-              placeholder="授業名やIDをメモ"
-              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
+              disabled={selectionDisabled}
+              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-neutral-100"
+            >
+              <option value="">{placeholderLabel}</option>
+              {classOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.className}
+                </option>
+              ))}
+              {hasUnknownSelection ? (
+                <option value={trimmedSelection}>{`現在の選択 (${trimmedSelection})`}</option>
+              ) : null}
+            </select>
+            <span className="text-xs text-neutral-500">
+              {normalizedFiscalYear
+                ? `${normalizedFiscalYear}年度の授業から選択できます。`
+                : '設定で利用中の年度を設定すると授業一覧が表示されます。'}
+            </span>
           </label>
 
           {isAssignment ? (
@@ -499,7 +549,15 @@ export default function TodoTab() {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
+  const [classOptions, setClassOptions] = useState<TimetableClassSummary[]>([]);
+
   const { profile, isAuthenticated, initializing: authInitializing } = useAuth();
+  const { settings } = useUserSettings();
+  const activeFiscalYearSetting = settings.calendar.fiscalYear;
+  const trimmedActiveFiscalYear =
+    typeof activeFiscalYearSetting === 'string'
+      ? activeFiscalYearSetting.trim()
+      : '';
 
   useEffect(() => {
     if (!profile?.uid) {
@@ -535,6 +593,40 @@ export default function TodoTab() {
     };
   }, [profile?.uid]);
 
+  useEffect(() => {
+    if (!profile?.uid) {
+      setClassOptions([]);
+      return;
+    }
+
+    if (!trimmedActiveFiscalYear) {
+      setClassOptions([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    listTimetableClassesByYear({
+      userId: profile.uid,
+      fiscalYear: trimmedActiveFiscalYear,
+    })
+      .then((items) => {
+        if (!cancelled) {
+          setClassOptions(items);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to list timetable classes for activities', err);
+        if (!cancelled) {
+          setClassOptions([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.uid, trimmedActiveFiscalYear]);
+
   const assignments = useMemo(
     () => activities.filter((activity) => activity.type === 'assignment'),
     [activities],
@@ -544,6 +636,17 @@ export default function TodoTab() {
     () => activities.filter((activity) => activity.type === 'memo'),
     [activities],
   );
+
+  const classNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const option of classOptions) {
+      map.set(option.id, option.className);
+    }
+    return map;
+  }, [classOptions]);
+
+  const activeFiscalYearForDialog =
+    trimmedActiveFiscalYear.length > 0 ? trimmedActiveFiscalYear : null;
 
   const handleOpenDialog = useCallback(() => {
     const nextType: ActivityType = viewMode === 'todo' ? 'assignment' : 'memo';
@@ -668,6 +771,7 @@ export default function TodoTab() {
             error={error}
             onSelect={handleSelectActivity}
             onToggleStatus={handleToggleAssignmentStatus}
+            classNameMap={classNameMap}
           />
         ) : (
           <MemoList
@@ -675,6 +779,7 @@ export default function TodoTab() {
             loading={loading}
             error={error}
             onSelect={handleSelectActivity}
+            classNameMap={classNameMap}
           />
         )}
       </div>
@@ -714,6 +819,8 @@ export default function TodoTab() {
         onSubmit={handleSubmit}
         isSaving={isSaving}
         error={dialogError}
+        classOptions={classOptions}
+        activeFiscalYear={activeFiscalYearForDialog}
       />
     </div>
   );
