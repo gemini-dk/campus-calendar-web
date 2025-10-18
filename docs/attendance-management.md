@@ -15,7 +15,7 @@
   画面ではステータス名に応じて色分け（出席=緑、欠席=赤、遅刻=黄）を行います。
 
 - **授業 (`TimetableClass`)**  
-  `maxAbsenceDays`、`omitWeeklySlots`、`calendarId`、`termNames` 等を保持し、出欠集計の単位となります。Firestore 上では `timetable_classes` ドキュメントとして管理します。
+`maxAbsenceDays`、`isFullyOnDemand`、`calendarId`、`termNames` 等を保持し、出欠集計の単位となります。Firestore 上では `timetable_classes` ドキュメントとして管理します。
 
 - **授業日 (`TimetableClassDate`)**  
   `attendanceStatus`・`isTest`・`isExcludedFromSummary`・`isCancelled`・`deliveryType`・`hasUserModifications` などを保持します。集計対象判定は `isExcludedFromSummary` で行います。
@@ -27,7 +27,7 @@
 
 ## 授業登録・編集時の設定
 - 授業日を自動生成または手動編集すると、`isExcludedFromSummary == false` かつ `isCancelled == false` の件数を再計算し、`maxAbsenceDays` を更新します。
-  - `omitWeeklySlots == true`（完全オンデマンド）の場合は `maxAbsenceDays = 0` に固定。
+- `isFullyOnDemand == true`（完全オンデマンド）の場合は `maxAbsenceDays = 0` に固定。
   - それ以外では `floor(対象件数 × 0.33)` を算出し、対象件数でクリップします。
 - `maxAbsenceDays` は UI で 0〜対象件数の範囲に制限し、対象件数が変わった場合に自動的に上下限を更新します。
 - `hasUserModifications` が `true` の授業日は自動生成ロジックで上書きしません。

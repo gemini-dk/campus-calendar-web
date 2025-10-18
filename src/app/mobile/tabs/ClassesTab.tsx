@@ -129,7 +129,7 @@ export default function ClassesTab() {
   const userId = profile?.uid ?? null;
 
   return (
-    <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
+    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-neutral-50">
       <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-white px-4">
         <div className="flex w-full items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -161,8 +161,8 @@ export default function ClassesTab() {
       </header>
 
       <div
-        className={`flex flex-1 flex-col overflow-y-auto ${
-          viewMode === "schedule" ? "" : "px-3"
+        className={`flex flex-1 min-h-0 flex-col overflow-y-auto ${
+          viewMode === "schedule" ? "" : "px-6"
         }`}
       >
         {viewMode === "schedule" ? (
