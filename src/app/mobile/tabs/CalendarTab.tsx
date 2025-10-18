@@ -570,7 +570,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
 
   return (
     <div className="flex h-full w-full flex-col bg-neutral-50">
-      <header className="flex h-[50px] w-full items-center border-b border-neutral-200 bg-white px-4">
+      <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-white px-4">
         <div className="flex w-full items-center justify-between gap-3">
           <div className="text-lg font-semibold text-neutral-900">{monthLabel}</div>
           <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
@@ -580,7 +580,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
       <div className="flex-1 overflow-hidden">
         {calendarAvailable ? (
           <div className="flex h-full w-full flex-col">
-            <div className="grid w-full grid-cols-7 text-center text-[11px] font-semibold text-neutral-600">
+            <div className="grid w-full grid-cols-7 bg-white text-center text-[11px] font-bold text-neutral-600">
               {WEEKDAY_HEADERS.map((weekday) => (
                 <div
                   key={weekday.label}
