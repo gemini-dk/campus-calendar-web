@@ -26,6 +26,8 @@ type FormState = {
   className: string;
   classType: "in_person" | "online" | "hybrid" | "on_demand";
   location: string;
+  locationInPerson: string;
+  locationOnline: string;
   teacher: string;
   creditsText: string;
   creditsStatus: "in_progress" | "completed" | "failed";
@@ -41,6 +43,8 @@ const INITIAL_FORM_STATE: FormState = {
   className: "",
   classType: "in_person",
   location: "",
+  locationInPerson: "",
+  locationOnline: "",
   teacher: "",
   creditsText: "2",
   creditsStatus: "in_progress",
@@ -67,6 +71,8 @@ export type EditClassInitialData = {
   className: string;
   classType: FormState["classType"];
   location: string | null;
+  locationInPerson: string | null;
+  locationOnline: string | null;
   teacher: string | null;
   credits: number | null;
   creditsStatus: FormState["creditsStatus"];
@@ -240,6 +246,12 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         className: editInitialData.className,
         classType: editInitialData.classType,
         location: editInitialData.location ?? "",
+        locationInPerson:
+          editInitialData.locationInPerson ??
+          (editInitialData.classType === "hybrid" ? editInitialData.location ?? "" : ""),
+        locationOnline:
+          editInitialData.locationOnline ??
+          (editInitialData.classType === "hybrid" ? editInitialData.location ?? "" : ""),
         teacher: editInitialData.teacher ?? "",
         creditsText:
           typeof editInitialData.credits === "number" && Number.isFinite(editInitialData.credits)
@@ -600,6 +612,11 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
 
       const weeklySlotsForSave = formState.isFullyOnDemand ? [] : formState.weeklySlots;
       const generatedDatesForSave = formState.isFullyOnDemand ? [] : generatedClassDates;
+      const locationForSave = formState.classType === "hybrid" ? "" : formState.location;
+      const locationInPersonForSave =
+        formState.classType === "hybrid" ? formState.locationInPerson : "";
+      const locationOnlineForSave =
+        formState.classType === "hybrid" ? formState.locationOnline : "";
 
       if (isEditMode && editInitialData) {
         const shouldUpdateSchedule = !scheduleLocked &&
@@ -624,7 +641,9 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           className: formState.className,
           classType: formState.classType,
           isFullyOnDemand: formState.isFullyOnDemand,
-          location: formState.location,
+          location: locationForSave,
+          locationInPerson: locationInPersonForSave,
+          locationOnline: locationOnlineForSave,
           teacher: formState.teacher,
           credits: creditsValue,
           creditsStatus: formState.creditsStatus,
@@ -654,7 +673,9 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         className: formState.className,
         classType: formState.classType,
         isFullyOnDemand: formState.isFullyOnDemand,
-        location: formState.location,
+        location: locationForSave,
+        locationInPerson: locationInPersonForSave,
+        locationOnline: locationOnlineForSave,
         teacher: formState.teacher,
         credits: creditsValue,
         creditsStatus: formState.creditsStatus,
@@ -729,10 +750,42 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                   <select
                     value={formState.classType}
                     onChange={(event) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        classType: event.target.value as FormState["classType"],
-                      }))
+                      setFormState((prev) => {
+                        const nextType = event.target.value as FormState["classType"];
+                        if (nextType === prev.classType) {
+                          return prev;
+                        }
+                        if (nextType === "hybrid") {
+                          const nextLocationInPerson =
+                            prev.locationInPerson.length > 0
+                              ? prev.locationInPerson
+                              : prev.location;
+                          return {
+                            ...prev,
+                            classType: nextType,
+                            locationInPerson: nextLocationInPerson,
+                          };
+                        }
+                        if (prev.classType === "hybrid") {
+                          const fallbackLocation =
+                            prev.location.length > 0
+                              ? prev.location
+                              : prev.locationInPerson.length > 0
+                                ? prev.locationInPerson
+                                : "";
+                          return {
+                            ...prev,
+                            classType: nextType,
+                            location: fallbackLocation,
+                            locationInPerson: "",
+                            locationOnline: "",
+                          };
+                        }
+                        return {
+                          ...prev,
+                          classType: nextType,
+                        };
+                      })
                     }
                     className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   >
@@ -742,21 +795,56 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                     <option value="on_demand">オンデマンド</option>
                   </select>
                 </label>
-                <label className="flex w-full flex-col gap-2">
-                  <span className="text-sm font-medium text-neutral-700">場所</span>
-                  <input
-                    type="text"
-                    value={formState.location}
-                    onChange={(event) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        location: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    placeholder="例: 3号館201教室"
-                  />
-                </label>
+                {formState.classType === "hybrid" ? (
+                  <>
+                    <label className="flex w-full flex-col gap-2">
+                      <span className="text-sm font-medium text-neutral-700">場所（対面）</span>
+                      <input
+                        type="text"
+                        value={formState.locationInPerson}
+                        onChange={(event) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            locationInPerson: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                        placeholder="例: 3号館201教室"
+                      />
+                    </label>
+                    <label className="flex w-full flex-col gap-2">
+                      <span className="text-sm font-medium text-neutral-700">場所（オンライン）</span>
+                      <input
+                        type="text"
+                        value={formState.locationOnline}
+                        onChange={(event) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            locationOnline: event.target.value,
+                          }))
+                        }
+                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                        placeholder="例: Zoom ミーティング URL"
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <label className="flex w-full flex-col gap-2">
+                    <span className="text-sm font-medium text-neutral-700">場所</span>
+                    <input
+                      type="text"
+                      value={formState.location}
+                      onChange={(event) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          location: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      placeholder="例: 3号館201教室"
+                    />
+                  </label>
+                )}
                 <label className="flex w-full flex-col gap-2">
                   <span className="text-sm font-medium text-neutral-700">教師</span>
                   <input

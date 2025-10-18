@@ -61,6 +61,8 @@ export type CreateTimetableClassParams = {
   classType: 'in_person' | 'online' | 'hybrid' | 'on_demand';
   isFullyOnDemand: boolean;
   location: string;
+  locationInPerson: string;
+  locationOnline: string;
   teacher: string;
   credits: number | null;
   creditsStatus: 'in_progress' | 'completed' | 'failed';
@@ -82,6 +84,8 @@ export type UpdateTimetableClassParams = {
   classType: CreateTimetableClassParams["classType"];
   isFullyOnDemand: boolean;
   location: string;
+  locationInPerson: string;
+  locationOnline: string;
   teacher: string;
   credits: number | null;
   creditsStatus: CreateTimetableClassParams["creditsStatus"];
@@ -364,6 +368,8 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     classType,
     isFullyOnDemand,
     location,
+    locationInPerson,
+    locationOnline,
     teacher,
     credits,
     creditsStatus,
@@ -416,6 +422,8 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     SPECIAL_SCHEDULE_OPTION_LABELS[specialOption] ? specialOption : 'all';
 
   const normalizedLocation = location.trim();
+  const normalizedLocationInPerson = locationInPerson.trim();
+  const normalizedLocationOnline = locationOnline.trim();
   const normalizedTeacher = teacher.trim();
 
   batch.set(classRef, {
@@ -432,6 +440,14 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     creditsStatus,
     teacher: normalizedTeacher.length > 0 ? normalizedTeacher : null,
     location: normalizedLocation.length > 0 ? normalizedLocation : null,
+    locationInPerson:
+      classType === 'hybrid' && normalizedLocationInPerson.length > 0
+        ? normalizedLocationInPerson
+        : null,
+    locationOnline:
+      classType === 'hybrid' && normalizedLocationOnline.length > 0
+        ? normalizedLocationOnline
+        : null,
     memo: null,
     maxAbsenceDays,
     createdAt: timestamp,
@@ -507,6 +523,8 @@ export async function updateTimetableClass({
   classType,
   isFullyOnDemand,
   location,
+  locationInPerson,
+  locationOnline,
   teacher,
   credits,
   creditsStatus,
@@ -579,6 +597,8 @@ export async function updateTimetableClass({
     SPECIAL_SCHEDULE_OPTION_LABELS[specialOption] ? specialOption : 'all';
 
   const normalizedLocation = location.trim();
+  const normalizedLocationInPerson = locationInPerson.trim();
+  const normalizedLocationOnline = locationOnline.trim();
   const normalizedTeacher = teacher.trim();
   const normalizedCredits =
     typeof credits === 'number' && Number.isFinite(credits) ? credits : null;
@@ -597,6 +617,14 @@ export async function updateTimetableClass({
     creditsStatus,
     teacher: normalizedTeacher.length > 0 ? normalizedTeacher : null,
     location: normalizedLocation.length > 0 ? normalizedLocation : null,
+    locationInPerson:
+      classType === 'hybrid' && normalizedLocationInPerson.length > 0
+        ? normalizedLocationInPerson
+        : null,
+    locationOnline:
+      classType === 'hybrid' && normalizedLocationOnline.length > 0
+        ? normalizedLocationOnline
+        : null,
     maxAbsenceDays,
     updatedAt: timestamp,
   };

@@ -48,6 +48,8 @@ type TimetableClassDoc = {
   className: string;
   classType: ClassType;
   location: string | null;
+  locationInPerson: string | null;
+  locationOnline: string | null;
   maxAbsenceDays: number | null;
 };
 
@@ -58,6 +60,8 @@ export type DailyClassSession = {
   className: string;
   classType: ClassType;
   location: string | null;
+  locationInPerson: string | null;
+  locationOnline: string | null;
   periods: (number | 'OD')[];
   attendanceStatus: AttendanceStatus;
   deliveryType: DeliveryType;
@@ -143,6 +147,20 @@ function mapTimetableClass(
       ? data.location.trim()
       : null;
 
+  const locationInPerson =
+    typeof data.locationInPerson === 'string' && data.locationInPerson.trim().length > 0
+      ? data.locationInPerson.trim()
+      : classType === 'hybrid'
+        ? location
+        : null;
+
+  const locationOnline =
+    typeof data.locationOnline === 'string' && data.locationOnline.trim().length > 0
+      ? data.locationOnline.trim()
+      : classType === 'hybrid'
+        ? location
+        : null;
+
   const maxAbsenceDays =
     typeof data.maxAbsenceDays === 'number' && Number.isFinite(data.maxAbsenceDays)
       ? Math.max(0, Math.trunc(data.maxAbsenceDays))
@@ -153,6 +171,8 @@ function mapTimetableClass(
     className,
     classType,
     location,
+    locationInPerson,
+    locationOnline,
     maxAbsenceDays,
   } satisfies TimetableClassDoc;
 }
@@ -173,6 +193,8 @@ function areClassListsEqual(a: TimetableClassDoc[], b: TimetableClassDoc[]): boo
       left.className !== right.className ||
       left.classType !== right.classType ||
       left.location !== right.location ||
+      left.locationInPerson !== right.locationInPerson ||
+      left.locationOnline !== right.locationOnline ||
       left.maxAbsenceDays !== right.maxAbsenceDays
     ) {
       return false;
@@ -207,6 +229,55 @@ function isProbablyUrl(value: string | null | undefined): value is string {
   } catch (err) {
     return false;
   }
+}
+
+type SessionLocationDisplay = {
+  icon: IconDefinition;
+  iconClass: string;
+  label: string;
+  link: string | null;
+};
+
+function buildSessionLocationDisplay(session: DailyClassSession): SessionLocationDisplay {
+  if (session.classType !== 'hybrid') {
+    const rawLocation = session.location ?? '';
+    const trimmed = rawLocation.trim();
+    return {
+      icon: CLASS_TYPE_ICON[session.classType],
+      iconClass: CLASS_TYPE_ICON_CLASS[session.classType],
+      label: trimmed.length > 0 ? trimmed : '場所未設定',
+      link: isProbablyUrl(rawLocation) ? rawLocation : null,
+    } satisfies SessionLocationDisplay;
+  }
+
+  if (session.deliveryType === 'in_person') {
+    const rawLocation = session.locationInPerson ?? '';
+    const trimmed = rawLocation.trim();
+    return {
+      icon: faChalkboardTeacher,
+      iconClass: CLASS_TYPE_ICON_CLASS.in_person,
+      label: trimmed.length > 0 ? trimmed : '場所未設定',
+      link: isProbablyUrl(rawLocation) ? rawLocation : null,
+    } satisfies SessionLocationDisplay;
+  }
+
+  if (session.deliveryType === 'remote') {
+    const rawLocation = session.locationOnline ?? '';
+    const trimmed = rawLocation.trim();
+    return {
+      icon: faVideo,
+      iconClass: CLASS_TYPE_ICON_CLASS.online,
+      label: trimmed.length > 0 ? trimmed : '場所未設定',
+      link: isProbablyUrl(rawLocation) ? rawLocation : null,
+    } satisfies SessionLocationDisplay;
+  }
+
+  return {
+    icon: faCircleQuestion,
+    iconClass: CLASS_TYPE_ICON_CLASS.hybrid,
+    label: '未確定',
+    link: null,
+  } satisfies SessionLocationDisplay;
 }
 
 function useDailyClassSessions({
@@ -376,6 +447,8 @@ function useDailyClassSessions({
           className: classItem.className,
           classType: classItem.classType,
           location: classItem.location,
+          locationInPerson: classItem.locationInPerson,
+          locationOnline: classItem.locationOnline,
           periods: dateItem.periods,
           attendanceStatus: dateItem.attendanceStatus,
           deliveryType: dateItem.deliveryType,
@@ -556,8 +629,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
   const [deliveryUpdating, setDeliveryUpdating] = useState(false);
 
   const periodLabel = formatPeriodLabel(session.periods);
-  const classIcon = CLASS_TYPE_ICON[session.classType];
-  const iconClass = CLASS_TYPE_ICON_CLASS[session.classType];
+  const locationInfo = buildSessionLocationDisplay(session);
 
   const absenceMessage = buildAbsenceMessage(session.summary);
   const absenceRatioLabel =
@@ -623,23 +695,23 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
         <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-600">
           {periodLabel}
         </span>
-        <span className={`flex items-center gap-2 text-sm font-medium text-neutral-600 ${iconClass}`}>
-          <FontAwesomeIcon icon={classIcon} className="text-base" aria-hidden="true" />
+        <span
+          className={`flex items-center gap-2 text-sm font-medium text-neutral-600 ${locationInfo.iconClass}`}
+        >
+          <FontAwesomeIcon icon={locationInfo.icon} className="text-base" aria-hidden="true" />
           <span className="text-neutral-600">
-            {isProbablyUrl(session.location) ? (
+            {locationInfo.link ? (
               <a
-                href={session.location}
+                href={locationInfo.link}
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium text-blue-600 underline-offset-2 hover:underline"
                 onClick={handleInteractiveClick}
               >
-                {session.location}
+                {locationInfo.label}
               </a>
-            ) : session.location ? (
-              session.location
             ) : (
-              '場所未設定'
+              locationInfo.label
             )}
           </span>
         </span>

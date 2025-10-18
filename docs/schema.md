@@ -100,7 +100,10 @@
 | `classType` | string enum (`in_person`/`online`/`hybrid`/`on_demand`) | 実施形態。 | `timetable_classes.class_format` |
 | `credits` | number|null | 単位数。 | `timetable_classes.credits` |
 | `creditsStatus` | string enum (`in_progress`/`completed`/`failed`) | 履修状況。 | `timetable_classes.credits_status` |
-| `teacher` / `location` | string|null | 講師・教室。 | `timetable_classes.teacher`, `timetable_classes.location` |
+| `teacher` | string|null | 講師名。 | `timetable_classes.teacher` |
+| `location` | string|null | 教室。ハイブリッド授業の場合は未使用。 | `timetable_classes.location` |
+| `locationInPerson` | string|null | ハイブリッド授業の対面場所。 | - |
+| `locationOnline` | string|null | ハイブリッド授業のオンライン場所。 | - |
 | `memo` | string|null | 補足メモ。 | `timetable_classes.memo` |
 | `isFullyOnDemand` | boolean | オンデマンド判定。 | `timetable_classes.is_fully_on_demand` |
 | `maxAbsenceDays` | number | 欠席許容上限。 | `timetable_classes.max_absence_days` |

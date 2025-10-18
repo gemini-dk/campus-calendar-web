@@ -96,6 +96,8 @@ type ClassDetail = {
   className: string;
   classType: ClassType;
   location: string | null;
+  locationInPerson: string | null;
+  locationOnline: string | null;
   teacher: string | null;
   fiscalYear: string | null;
   calendarId: string | null;
@@ -259,6 +261,20 @@ function mapClassDetailData(id: string, data: DocumentData | undefined): ClassDe
       ? data.location.trim()
       : null;
 
+  const locationInPerson =
+    typeof data.locationInPerson === "string" && data.locationInPerson.trim().length > 0
+      ? data.locationInPerson.trim()
+      : classType === "hybrid"
+        ? location
+        : null;
+
+  const locationOnline =
+    typeof data.locationOnline === "string" && data.locationOnline.trim().length > 0
+      ? data.locationOnline.trim()
+      : classType === "hybrid"
+        ? location
+        : null;
+
   const teacher =
     typeof data.teacher === "string" && data.teacher.trim().length > 0
       ? data.teacher.trim()
@@ -316,6 +332,8 @@ function mapClassDetailData(id: string, data: DocumentData | undefined): ClassDe
     className,
     classType,
     location,
+    locationInPerson,
+    locationOnline,
     teacher,
     fiscalYear,
     calendarId,
@@ -363,6 +381,27 @@ function formatTermLabel(detail: ClassDetail | null): string {
     return detail.termNames.join("、");
   }
   return "未設定";
+}
+
+function buildClassLocationLabel(detail: ClassDetail | null): string {
+  if (!detail) {
+    return "場所未設定";
+  }
+  if (detail.classType === "hybrid") {
+    const inPerson = detail.locationInPerson?.trim() ?? "";
+    const online = detail.locationOnline?.trim() ?? "";
+    if (inPerson && online) {
+      return `対面: ${inPerson} / オンライン: ${online}`;
+    }
+    if (inPerson) {
+      return `対面: ${inPerson}`;
+    }
+    if (online) {
+      return `オンライン: ${online}`;
+    }
+    return "場所未設定";
+  }
+  return detail.location ?? "場所未設定";
 }
 
 function formatMonthDayLabel(value: string): string {
@@ -932,6 +971,8 @@ export function ClassActivityContent({
       className: classDetail.className,
       classType: classDetail.classType,
       location: classDetail.location,
+      locationInPerson: classDetail.locationInPerson,
+      locationOnline: classDetail.locationOnline,
       teacher: classDetail.teacher,
       credits: classDetail.credits,
       creditsStatus: classDetail.creditsStatus,
@@ -962,7 +1003,7 @@ export function ClassActivityContent({
   const classTypeLabel = classDetail ? CLASS_TYPE_LABELS[classDetail.classType] : "-";
   const classTypeIcon = classDetail ? CLASS_TYPE_ICONS[classDetail.classType] : faChalkboardTeacher;
   const classTypeIconClass = classDetail ? CLASS_TYPE_ICON_CLASS[classDetail.classType] : "text-neutral-500";
-  const locationLabel = classDetail?.location ?? "場所未設定";
+  const locationLabel = buildClassLocationLabel(classDetail);
   const teacherLabel = classDetail?.teacher ?? "-";
 
   const renderContent = () => {
