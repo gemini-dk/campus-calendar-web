@@ -455,6 +455,7 @@ export function CreateClassDialog({
         calendarId: selectedCalendar.calendarId,
         className: formState.className,
         classType: formState.classType,
+        isFullyOnDemand: formState.isFullyOnDemand,
         location: formState.location,
         teacher: formState.teacher,
         credits: creditsValue,
@@ -462,8 +463,8 @@ export function CreateClassDialog({
         maxAbsenceDays: maxAbsenceValue,
         termIds: formState.selectedTermIds,
         termNames,
+        specialOption: formState.specialOption,
         weeklySlots: formState.isFullyOnDemand ? [] : formState.weeklySlots,
-        omitWeeklySlots: formState.isFullyOnDemand || formState.weeklySlots.length === 0,
         generatedClassDates: formState.isFullyOnDemand ? [] : generatedClassDates,
       });
 

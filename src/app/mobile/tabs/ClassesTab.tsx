@@ -82,29 +82,18 @@ export default function ClassesTab() {
     return years.sort((a, b) => b.localeCompare(a));
   }, [settings.calendar.entries]);
 
-  const handleChangeFiscalYear = (event: ChangeEvent<HTMLSelectElement>) => {
-    const nextFiscalYear = event.target.value;
-    if (!nextFiscalYear || nextFiscalYear === settings.calendar.fiscalYear) {
+  const handleChangeCalendar = (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextKey = event.target.value;
+    setSelectedCalendarKey(nextKey);
+
+    const matchedEntry = calendarEntries.find((entry) => buildCalendarKey(entry) === nextKey);
+    if (!matchedEntry) {
       return;
     }
-
-    const currentCalendarId = settings.calendar.calendarId;
-    const matchedEntry = settings.calendar.entries.find(
-      (entry) => entry.fiscalYear === nextFiscalYear && entry.calendarId === currentCalendarId,
-    );
-    const fallbackEntry = settings.calendar.entries.find(
-      (entry) => entry.fiscalYear === nextFiscalYear,
-    );
-
-    if (!matchedEntry && !fallbackEntry) {
-      return;
-    }
-
-    const targetEntry = matchedEntry ?? fallbackEntry!;
 
     saveCalendarSettings({
-      fiscalYear: targetEntry.fiscalYear,
-      calendarId: targetEntry.calendarId,
+      fiscalYear: matchedEntry.fiscalYear,
+      calendarId: matchedEntry.calendarId,
       entries: settings.calendar.entries,
     });
   };
@@ -129,46 +118,44 @@ export default function ClassesTab() {
   const userId = profile?.uid ?? null;
 
   return (
-    <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
+    <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-neutral-50">
       <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-white px-4">
         <div className="flex w-full items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="text-lg font-semibold text-neutral-900">{viewTitle}</div>
-            {viewMode === "schedule" ? (
-              <div className="flex items-center gap-2">
-                <label htmlFor="classes-calendar-select" className="text-xs font-medium text-neutral-500">
-                  年度
-                </label>
-                <select
-                  id="classes-calendar-select"
-                  value={selectedCalendarKey}
-                  onChange={(event) => setSelectedCalendarKey(event.target.value)}
-                  className="h-9 w-[140px] rounded-full border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-700 transition focus:border-blue-500 focus:outline-none"
-                  aria-label="時間割に表示する年度を選択"
-                  disabled={calendarSelectionOptions.length === 0}
-                >
-                  {calendarSelectionOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <label htmlFor="classes-calendar-select" className="text-xs font-medium text-neutral-500">
+                年度
+              </label>
+              <select
+                id="classes-calendar-select"
+                value={selectedCalendarKey}
+                onChange={handleChangeCalendar}
+                className="h-9 w-[140px] rounded-full border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-700 transition focus:border-blue-500 focus:outline-none"
+                aria-label="表示する年度を選択"
+                disabled={calendarSelectionOptions.length === 0}
+              >
+                {calendarSelectionOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
         </div>
       </header>
 
       <div
-        className={`flex flex-1 flex-col overflow-y-auto ${
-          viewMode === "schedule" ? "" : "px-3"
+        className={`flex flex-1 min-h-0 flex-col overflow-y-auto ${
+          viewMode === "schedule" ? "" : "px-6"
         }`}
       >
         {viewMode === "schedule" ? (
           <ClassScheduleView calendar={selectedCalendarEntry} />
         ) : (
-          <ClassSubjectsListView />
+          <ClassSubjectsListView fiscalYear={selectedCalendarEntry?.fiscalYear ?? null} />
         )}
       </div>
 

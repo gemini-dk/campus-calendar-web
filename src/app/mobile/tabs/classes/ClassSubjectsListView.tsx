@@ -15,7 +15,6 @@ import {
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase/client";
-import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
 import { useRouter } from "next/navigation";
 
@@ -71,7 +70,11 @@ function mapClassSubject(doc: QueryDocumentSnapshot<DocumentData>): ClassSubject
   } satisfies ClassSubject;
 }
 
-export default function ClassSubjectsListView() {
+type ClassSubjectsListViewProps = {
+  fiscalYear: string | null;
+};
+
+export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListViewProps) {
   const { profile } = useAuth();
   const { settings } = useUserSettings();
   const router = useRouter();

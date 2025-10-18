@@ -102,7 +102,7 @@
 | `creditsStatus` | string enum (`in_progress`/`completed`/`failed`) | 履修状況。 | `timetable_classes.credits_status` |
 | `teacher` / `location` | string|null | 講師・教室。 | `timetable_classes.teacher`, `timetable_classes.location` |
 | `memo` | string|null | 補足メモ。 | `timetable_classes.memo` |
-| `omitWeeklySlots` | boolean | オンデマンド判定。 | `timetable_classes.omit_weekly_slots` |
+| `isFullyOnDemand` | boolean | オンデマンド判定。 | `timetable_classes.is_fully_on_demand` |
 | `maxAbsenceDays` | number | 欠席許容上限。 | `timetable_classes.max_absence_days` |
 | `calendarId` | string | 参照カレンダー ID。 | `timetable_classes.calendar_id` |
 | `createdAt` / `updatedAt` | timestamp | Firestore サーバタイムスタンプ。 | - |
