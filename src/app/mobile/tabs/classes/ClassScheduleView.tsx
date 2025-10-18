@@ -837,37 +837,43 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     <>
       <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-white">
         <div className="flex w-full flex-shrink-0 flex-col border-b border-neutral-200 bg-neutral-100/80">
-          <nav className="flex items-center gap-1 overflow-x-auto px-1 py-1" role="tablist">
+          <nav className="flex w-full items-stretch" role="tablist">
             {pagerItems.map((item, index) => {
-            const isActive = index === clampedTermIndex;
-            const isDisabled = Boolean(item.isPlaceholder);
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  if (isDisabled) {
-                    return;
-                  }
-                  setIsAnimating(true);
-                  setActiveTermIndex(index);
-                }}
-                disabled={isDisabled}
-                className={`whitespace-nowrap border-b-2 pb-1 text-sm font-semibold transition ${
-                  isActive
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-neutral-600 hover:text-neutral-800"
-                } ${isDisabled ? "cursor-default text-neutral-400" : ""}`}
-                aria-selected={isActive}
-                aria-disabled={isDisabled}
-                role="tab"
-              >
-                {item.name}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+              const isActive = index === clampedTermIndex;
+              const isDisabled = Boolean(item.isPlaceholder);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    if (isDisabled) {
+                      return;
+                    }
+                    setIsAnimating(true);
+                    setActiveTermIndex(index);
+                  }}
+                  disabled={isDisabled}
+                  className={`relative flex-1 min-w-0 px-2 py-2 text-center text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${
+                    isActive
+                      ? "text-neutral-900"
+                      : "text-neutral-500 hover:text-neutral-700"
+                  } ${isDisabled ? "cursor-default text-neutral-400 hover:text-neutral-400" : ""}`}
+                  aria-selected={isActive}
+                  aria-disabled={isDisabled}
+                  role="tab"
+                >
+                  <span className="block truncate">{item.name}</span>
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-x-0 bottom-0 h-1 bg-blue-700 transition-opacity ${
+                      isActive ? "opacity-100" : "opacity-0"
+                    } ${isDisabled ? "opacity-0" : ""}`}
+                  />
+                </button>
+              );
+            })}
+          </nav>
+        </div>
 
       <div className="relative flex w-full flex-1 min-h-0">
         <div
