@@ -14,12 +14,10 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 
-import { getCalendarDay } from "@/lib/data/repository/calendar.repository";
-import ClassActivityOverlay, {
-  type ClassActivityOverlaySession,
-} from "@/app/mobile/components/ClassActivityOverlay";
 import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
+import { getCalendarDay } from "@/lib/data/repository/calendar.repository";
 import { getCalendarTerms } from "@/lib/data/service/calendar.service";
+import { findTermIndexFromDay } from "@/lib/data/service/calendarTerm.service";
 import type { SpecialScheduleOption } from "@/lib/data/service/class.service";
 import { SPECIAL_SCHEDULE_OPTION_LABELS } from "@/lib/data/service/class.service";
 import { formatPeriodLabel } from "@/app/mobile/utils/classSchedule";
@@ -89,34 +87,6 @@ function formatDateId(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function findTermIndexFromDay(
-  day: CalendarDay | null,
-  termIndexById: Map<string, number>,
-  termIndexByName: Map<string, number>,
-): number | null {
-  if (!day) {
-    return null;
-  }
-
-  const termId = typeof day.termId === "string" ? day.termId.trim() : "";
-  if (termId && termIndexById.has(termId)) {
-    return termIndexById.get(termId) ?? null;
-  }
-
-  const nameCandidates: (string | undefined)[] = [day.termName, day.termShortName];
-  for (const candidate of nameCandidates) {
-    const normalized = typeof candidate === "string" ? candidate.trim() : "";
-    if (!normalized) {
-      continue;
-    }
-    if (termIndexByName.has(normalized)) {
-      return termIndexByName.get(normalized) ?? null;
-    }
-  }
-
-  return null;
-}
-
 async function resolveInitialTermIndex(
   terms: CalendarTerm[],
   fiscalYear: string,
@@ -137,16 +107,6 @@ async function resolveInitialTermIndex(
     return 0;
   }
 
-  const termIndexById = new Map<string, number>();
-  const termIndexByName = new Map<string, number>();
-  terms.forEach((term, index) => {
-    termIndexById.set(term.id, index);
-    termIndexByName.set(term.name, index);
-    if (term.shortName) {
-      termIndexByName.set(term.shortName, index);
-    }
-  });
-
   const today = new Date();
   const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const deadline = new Date(fiscalYearNumber + 1, 2, 31);
@@ -158,7 +118,7 @@ async function resolveInitialTermIndex(
   ) {
     const dateId = formatDateId(current);
     const day = await getCalendarDay(trimmedFiscalYear, trimmedCalendarId, dateId);
-    const termIndex = findTermIndexFromDay(day, termIndexById, termIndexByName);
+    const termIndex = findTermIndexFromDay(day, terms);
     if (termIndex !== null) {
       return termIndex;
     }
