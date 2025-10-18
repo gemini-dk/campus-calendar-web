@@ -10,7 +10,6 @@ import {
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
-import ScrollDemoScreen from '../components/ScrollDemoScreen';
 import ClassActivityOverlay, {
   type ClassActivityOverlaySession,
 } from '../components/ClassActivityOverlay';
@@ -69,7 +68,6 @@ function HomeTabContent() {
   const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isScrollDemoOpen, setIsScrollDemoOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ClassActivityOverlaySession | null>(null);
 
   const dateId = useMemo(
@@ -170,13 +168,6 @@ function HomeTabContent() {
           style={{ backgroundColor }}
         >
           <div className="absolute right-4 top-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsScrollDemoOpen(true)}
-              className="flex h-11 items-center justify-center rounded-full border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-800 shadow-sm transition hover:bg-neutral-100"
-            >
-              検証画面
-            </button>
             <UserHamburgerMenu />
           </div>
         {loading ? (
@@ -229,10 +220,6 @@ function HomeTabContent() {
         session={selectedActivity}
         fiscalYear={settings.calendar.fiscalYear ?? null}
         onClose={handleCloseClassActivity}
-      />
-      <ScrollDemoScreen
-        open={isScrollDemoOpen}
-        onClose={() => setIsScrollDemoOpen(false)}
       />
     </>
   );
