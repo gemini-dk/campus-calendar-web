@@ -1,6 +1,9 @@
 import {
   collection,
   doc,
+  getDocs,
+  orderBy,
+  query,
   serverTimestamp,
   writeBatch,
   type DocumentReference,
@@ -51,6 +54,12 @@ export const SPECIAL_SCHEDULE_OPTION_LABELS: Record<SpecialScheduleOption, strin
 export type GeneratedClassDate = {
   date: string;
   periods: (number | 'OD')[];
+};
+
+export type TimetableClassSummary = {
+  fiscalYear: string;
+  id: string;
+  className: string;
 };
 
 export type CreateTimetableClassParams = {
@@ -197,6 +206,53 @@ export async function generateClassSchedule({
   }
 
   return items.sort(sortScheduleItems);
+}
+
+export async function listTimetableClassesByYear({
+  userId,
+  fiscalYear,
+}: {
+  userId: string;
+  fiscalYear: string;
+}): Promise<TimetableClassSummary[]> {
+  const trimmedUserId = userId.trim();
+  const trimmedFiscalYear = fiscalYear.trim();
+
+  if (!trimmedUserId || !trimmedFiscalYear) {
+    return [];
+  }
+
+  const classesCollection = collection(
+    db,
+    'users',
+    trimmedUserId,
+    'academic_years',
+    trimmedFiscalYear,
+    'timetable_classes',
+  );
+
+  const classesQuery = query(classesCollection, orderBy('className', 'asc'));
+  const snapshot = await getDocs(classesQuery);
+
+  const items: TimetableClassSummary[] = [];
+
+  snapshot.forEach((docSnapshot) => {
+    const data = docSnapshot.data();
+    const className =
+      typeof data.className === 'string' ? data.className.trim() : '';
+
+    if (!className) {
+      return;
+    }
+
+    items.push({
+      fiscalYear: trimmedFiscalYear,
+      id: docSnapshot.id,
+      className,
+    });
+  });
+
+  return items;
 }
 
 function applySpecialScheduleOption<T>(
