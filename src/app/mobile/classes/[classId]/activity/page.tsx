@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
+  faCalendarDays,
   faChalkboardTeacher,
   faCircleQuestion,
   faListCheck,
@@ -700,46 +701,50 @@ type UpcomingSession = {
   classDate: string;
 };
 
+type UpcomingAssignmentTimelineItem = {
+  kind: "assignment";
+  id: string;
+  activity: ActivityDoc;
+  dueTimestamp: number | null;
+  createdTimestamp: number;
+};
+
+type UpcomingSessionTimelineItem = {
+  kind: "session";
+  id: string;
+  session: UpcomingSession;
+  dueTimestamp: number;
+};
+
+type UpcomingTimelineItem =
+  | UpcomingAssignmentTimelineItem
+  | UpcomingSessionTimelineItem;
+
 function UpcomingActivityPanel({
-  sessions,
-  assignments,
+  items,
   isHybridClass,
 }: {
-  sessions: UpcomingSession[];
-  assignments: ActivityDoc[];
+  items: UpcomingTimelineItem[];
   isHybridClass: boolean;
 }) {
+  if (items.length === 0) {
+    return <p className="text-sm text-neutral-600">今後の活動はありません。</p>;
+  }
+
   return (
-    <div className="flex w-full flex-col gap-6">
-      <div className="flex w-full flex-col gap-2">
-        <h3 className="text-sm font-semibold text-neutral-900">授業予定</h3>
-        {sessions.length === 0 ? (
-          <p className="text-sm text-neutral-600">今後の授業予定はありません。</p>
+    <ul className="flex w-full flex-col divide-y divide-neutral-200 border-y border-neutral-200">
+      {items.map((item) =>
+        item.kind === "session" ? (
+          <UpcomingSessionItem
+            key={`session-${item.id}`}
+            session={item.session}
+            showHybridSelector={isHybridClass}
+          />
         ) : (
-          <ul className="flex w-full flex-col divide-y divide-neutral-200 border-y border-neutral-200">
-            {sessions.map((session) => (
-              <UpcomingSessionItem
-                key={session.id}
-                session={session}
-                showHybridSelector={isHybridClass}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="flex w-full flex-col gap-2">
-        <h3 className="text-sm font-semibold text-neutral-900">未完了の課題</h3>
-        {assignments.length === 0 ? (
-          <p className="text-sm text-neutral-600">未完了の課題はありません。</p>
-        ) : (
-          <ul className="flex w-full flex-col gap-3">
-            {assignments.map((assignment) => (
-              <UpcomingAssignmentItem key={assignment.id} activity={assignment} />
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+          <UpcomingAssignmentItem key={`assignment-${item.id}`} activity={item.activity} />
+        ),
+      )}
+    </ul>
   );
 }
 
@@ -768,9 +773,10 @@ function UpcomingSessionItem({
         ) : null}
         <button
           type="button"
-          className="flex h-9 w-[96px] items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+          aria-label="日程変更"
         >
-          日程変更
+          <FontAwesomeIcon icon={faCalendarDays} className="text-base" aria-hidden="true" />
         </button>
       </div>
     </li>
@@ -784,13 +790,11 @@ function UpcomingAssignmentItem({ activity }: { activity: ActivityDoc }) {
   const createdLabel = formatDateLabel(activity.createdAt ?? activity.updatedAt);
 
   return (
-    <li className="flex w-full items-stretch gap-3 py-1">
-      <div className="flex w-[50px] flex-shrink-0 items-center justify-center">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-full ${background}`}>
-          <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
-        </div>
+    <li className="flex w-full items-center gap-3 py-3">
+      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
+        <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <h3 className="truncate text-base font-semibold text-neutral-900">{activity.title || "無題の項目"}</h3>
         <div className="flex items-center justify-between text-xs text-neutral-500">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -920,55 +924,60 @@ export function ClassActivityContent({
     return [...sessionRecords, ...activityRecords].sort((a, b) => b.timestamp - a.timestamp);
   }, [activities, classDates, todayId]);
 
-  const upcomingSessions = useMemo(() => {
-    return classDates
+  const upcomingTimelineItems = useMemo<UpcomingTimelineItem[]>(() => {
+    const sessionItems: UpcomingSessionTimelineItem[] = classDates
       .filter((date) => date.classDate > todayId)
       .map((date) => ({
+        kind: "session" as const,
         id: date.id,
-        classDate: date.classDate,
+        session: { id: date.id, classDate: date.classDate },
         dueTimestamp: parseDueTimestamp(date.classDate) ?? Number.POSITIVE_INFINITY,
-      }))
-      .sort((a, b) => a.dueTimestamp - b.dueTimestamp)
-      .map((item) => ({ id: item.id, classDate: item.classDate }));
-  }, [classDates, todayId]);
+      }));
 
-  const upcomingAssignments = useMemo(() => {
     if (!normalizedClassId) {
-      return [];
+      return sessionItems.sort((a, b) => a.dueTimestamp - b.dueTimestamp);
     }
-    return activities
+
+    const assignmentItems: UpcomingAssignmentTimelineItem[] = activities
       .filter(
         (activity) =>
           activity.type === "assignment" &&
           activity.status !== "done" &&
           activity.classId === normalizedClassId,
       )
-      .map((activity) => {
-        const dueTimestamp = parseDueTimestamp(activity.dueDate);
-        const createdTimestamp = activity.createdAt?.getTime() ?? activity.updatedAt?.getTime() ?? 0;
-        return {
-          activity,
-          dueTimestamp,
-          createdTimestamp,
-        };
-      })
-      .sort((a, b) => {
-        if (a.dueTimestamp === null && b.dueTimestamp === null) {
-          return a.createdTimestamp - b.createdTimestamp;
-        }
-        if (a.dueTimestamp === null) {
-          return -1;
-        }
-        if (b.dueTimestamp === null) {
-          return 1;
-        }
-        if (a.dueTimestamp !== b.dueTimestamp) {
-          return a.dueTimestamp - b.dueTimestamp;
-        }
+      .map((activity) => ({
+        kind: "assignment" as const,
+        id: activity.id,
+        activity,
+        dueTimestamp: parseDueTimestamp(activity.dueDate),
+        createdTimestamp: activity.createdAt?.getTime() ?? activity.updatedAt?.getTime() ?? 0,
+      }));
+
+    const undatedAssignments = assignmentItems
+      .filter((item) => item.dueTimestamp === null)
+      .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    const datedAssignments = assignmentItems.filter(
+      (item): item is UpcomingAssignmentTimelineItem & { dueTimestamp: number } =>
+        item.dueTimestamp !== null,
+    );
+
+    const datedItems: UpcomingTimelineItem[] = [...sessionItems, ...datedAssignments];
+
+    datedItems.sort((a, b) => {
+      const aDue = a.dueTimestamp ?? Number.POSITIVE_INFINITY;
+      const bDue = b.dueTimestamp ?? Number.POSITIVE_INFINITY;
+      if (aDue !== bDue) {
+        return aDue - bDue;
+      }
+      if (a.kind === "assignment" && b.kind === "assignment") {
         return a.createdTimestamp - b.createdTimestamp;
-      })
-      .map((item) => item.activity);
-  }, [activities, normalizedClassId]);
+      }
+      return a.id.localeCompare(b.id);
+    });
+
+    return [...undatedAssignments, ...datedItems];
+  }, [activities, classDates, normalizedClassId, todayId]);
 
   const absenceMessage = attendanceSummary ? buildAbsenceMessage(attendanceSummary) : null;
   const absenceRatioLabel = attendanceSummary
@@ -1135,8 +1144,7 @@ export function ClassActivityContent({
               )
             ) : (
               <UpcomingActivityPanel
-                sessions={upcomingSessions}
-                assignments={upcomingAssignments}
+                items={upcomingTimelineItems}
                 isHybridClass={classDetail?.classType === "hybrid"}
               />
             )}
