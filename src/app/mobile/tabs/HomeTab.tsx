@@ -127,10 +127,10 @@ function HomeTabContent() {
   return (
     <div className="flex min-h-full flex-col">
       <section
-        className="relative flex w-full min-h-[160px] flex-col justify-end px-8 pt-0 pb-4 shadow-sm"
+        className="relative flex w-full min-h-[140px] flex-col justify-end px-8 pt-0 pb-3 shadow-sm"
         style={{ backgroundColor }}
       >
-        <div className="absolute right-8 top-6">
+        <div className="absolute right-4 top-3">
           <UserHamburgerMenu />
         </div>
         {loading ? (
@@ -138,16 +138,16 @@ function HomeTabContent() {
         ) : errorMessage ? (
           <div className="mt-8 text-center text-sm text-red-600">{errorMessage}</div>
         ) : (
-          <div className="flex w-full items-end justify-between gap-8 pt-8">
+          <div className="flex w-full items-end justify-between gap-8 pt-6">
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline gap-3">
                 <p
-                  className={`text-[72px] font-semibold leading-none tracking-tight ${dateColorClass}`}
+                  className={`text-[64px] font-semibold leading-none tracking-tight ${dateColorClass}`}
                 >
                   {dayNumber}
                 </p>
                 <span
-                  className={`text-2xl font-semibold tracking-wide ${weekdayColorClass}`}
+                  className={`text-xl font-semibold tracking-wide ${weekdayColorClass}`}
                 >
                   {weekdayLabel}
                 </span>
