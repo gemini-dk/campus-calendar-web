@@ -20,7 +20,7 @@ import { getCalendarTerms } from "@/lib/data/service/calendar.service";
 import { findTermIndexFromDay } from "@/lib/data/service/calendarTerm.service";
 import type { SpecialScheduleOption } from "@/lib/data/service/class.service";
 import { SPECIAL_SCHEDULE_OPTION_LABELS } from "@/lib/data/service/class.service";
-import { formatPeriodLabel } from "@/app/mobile/utils/classSchedule";
+import { ClassType, formatPeriodLabel } from "@/app/mobile/utils/classSchedule";
 import ClassActivityOverlay, {
   type ClassActivityOverlaySession,
 } from "../../components/ClassActivityOverlay";
@@ -49,9 +49,12 @@ type PagerItem = {
 type TimetableClassDoc = {
   id: string;
   className: string;
+  classType: ClassType;
   termIds: string[];
   termNames: string[];
   location: string | null;
+  locationInPerson: string | null;
+  locationOnline: string | null;
   specialScheduleOption: SpecialScheduleOption;
   isFullyOnDemand: boolean;
 };
@@ -82,6 +85,23 @@ const PERIOD_COLUMN_WIDTH = "2ch";
 
 const DRAG_DETECTION_THRESHOLD = 6;
 const SWIPE_TRIGGER_RATIO = 0.25;
+
+function buildScheduleLocationLabel(classItem: TimetableClassDoc): string | null {
+  if (classItem.classType === "hybrid") {
+    const inPerson = classItem.locationInPerson?.trim() ?? "";
+    const online = classItem.locationOnline?.trim() ?? "";
+    if (inPerson && online) {
+      return `対面: ${inPerson} / オンライン: ${online}`;
+    }
+    if (inPerson) {
+      return `対面: ${inPerson}`;
+    }
+    if (online) {
+      return `オンライン: ${online}`;
+    }
+  }
+  return classItem.location;
+}
 
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
@@ -139,10 +159,30 @@ function mapTimetableClassDoc(
     return null;
   }
 
+  const typeValue = typeof data.classType === "string" ? data.classType : "in_person";
+  const classType: ClassType =
+    typeValue === "online" || typeValue === "hybrid" || typeValue === "on_demand"
+      ? (typeValue as ClassType)
+      : "in_person";
+
   const location =
     typeof data.location === "string" && data.location.trim().length > 0
       ? data.location.trim()
       : null;
+
+  const locationInPerson =
+    typeof data.locationInPerson === "string" && data.locationInPerson.trim().length > 0
+      ? data.locationInPerson.trim()
+      : classType === "hybrid"
+        ? location
+        : null;
+
+  const locationOnline =
+    typeof data.locationOnline === "string" && data.locationOnline.trim().length > 0
+      ? data.locationOnline.trim()
+      : classType === "hybrid"
+        ? location
+        : null;
 
   const termIds = Array.isArray(data.termIds)
     ? data.termIds
@@ -168,9 +208,12 @@ function mapTimetableClassDoc(
   return {
     id: doc.id,
     className,
+    classType,
     termIds,
     termNames,
     location,
+    locationInPerson,
+    locationOnline,
     specialScheduleOption,
     isFullyOnDemand,
   } satisfies TimetableClassDoc;
@@ -539,7 +582,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         current.push({
           classId: classItem.id,
           className: classItem.className,
-          location: classItem.location,
+          location: buildScheduleLocationLabel(classItem),
           specialScheduleOption: classItem.specialScheduleOption,
         });
         result.set(termId, current);
@@ -634,7 +677,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
           current.push({
             classId: classItem.id,
             className: classItem.className,
-            location: classItem.location,
+            location: buildScheduleLocationLabel(classItem),
             specialScheduleOption: classItem.specialScheduleOption,
           });
           termMap.set(cellKey, current);

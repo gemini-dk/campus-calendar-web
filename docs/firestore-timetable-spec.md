@@ -34,7 +34,9 @@
 | `credits` | number|null | 単位数。 |
 | `creditsStatus` | enum string (`in_progress`/`completed`/`failed`) | 取得状況。 |
 | `teacher` | string|null | 教員名。 |
-| `location` | string|null | 教室。 |
+| `location` | string|null | 教室。ハイブリッド授業の場合は未使用。 |
+| `locationInPerson` | string|null | ハイブリッド授業の対面場所。 |
+| `locationOnline` | string|null | ハイブリッド授業のオンライン場所（URL 等）。 |
 | `memo` | string|null | 任意メモ。 |
 | `isFullyOnDemand` | boolean | 完全オンデマンド授業。 |
 | `maxAbsenceDays` | number | 欠席許容上限。 |
