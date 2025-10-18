@@ -638,12 +638,12 @@ export default function TodoTab() {
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
-      <header className="flex h-[60px] w-full items-center justify-between border-b border-neutral-200 bg-white px-6">
+      <header className="flex h-[60px] w-full items-center justify-between border-b border-neutral-200 bg-white px-3">
         <h1 className="text-lg font-semibold text-neutral-900">課題一覧、メモ一覧</h1>
         <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-[160px] pt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-[160px] pt-4">
         {authInitializing ? (
           <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
             認証情報を確認しています...

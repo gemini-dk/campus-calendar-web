@@ -48,6 +48,8 @@ function MobilePageContent() {
   }, [searchParams]);
 
   const [activeTab, setActiveTab] = useState<TabId>(tabFromParams);
+  const [calendarResetKey, setCalendarResetKey] = useState(0);
+  const [weeklyResetKey, setWeeklyResetKey] = useState(0);
 
   useEffect(() => {
     setActiveTab((prev) => (prev === tabFromParams ? prev : tabFromParams));
@@ -63,14 +65,36 @@ function MobilePageContent() {
     [pathname, router, searchParams],
   );
 
+  const formatDateId = useCallback((date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, []);
+
   const handleTabChange = useCallback(
     (nextTab: TabId) => {
+      if (nextTab === activeTab) {
+        if (nextTab === "home") {
+          const todayId = formatDateId(new Date());
+          updateSearchParams((params) => {
+            params.set("tab", "home");
+            params.set("date", todayId);
+          });
+        } else if (nextTab === "calendar") {
+          setCalendarResetKey((prev) => prev + 1);
+        } else if (nextTab === "weekly") {
+          setWeeklyResetKey((prev) => prev + 1);
+        }
+        return;
+      }
+
       setActiveTab(nextTab);
       updateSearchParams((params) => {
         params.set("tab", nextTab);
       });
     },
-    [updateSearchParams],
+    [activeTab, formatDateId, updateSearchParams],
   );
 
   const handleCalendarDateSelect = useCallback(
@@ -94,7 +118,12 @@ function MobilePageContent() {
         <main className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50">
             {currentTab.id === "calendar" ? (
-              <CalendarTab onDateSelect={handleCalendarDateSelect} />
+              <CalendarTab
+                key={calendarResetKey}
+                onDateSelect={handleCalendarDateSelect}
+              />
+            ) : currentTab.id === "weekly" ? (
+              <WeeklyCalendarTab key={weeklyResetKey} />
             ) : (
               <ActiveComponent />
             )}
