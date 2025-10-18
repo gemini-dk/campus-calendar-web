@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChangeEvent, useMemo, useState } from "react";
+import { useEffect, ChangeEvent, useMemo, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faListUl, faPlus, faTable } from "@fortawesome/free-solid-svg-icons";
