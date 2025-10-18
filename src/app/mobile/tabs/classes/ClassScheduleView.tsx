@@ -21,6 +21,9 @@ import { findTermIndexFromDay } from "@/lib/data/service/calendarTerm.service";
 import type { SpecialScheduleOption } from "@/lib/data/service/class.service";
 import { SPECIAL_SCHEDULE_OPTION_LABELS } from "@/lib/data/service/class.service";
 import { formatPeriodLabel } from "@/app/mobile/utils/classSchedule";
+import ClassActivityOverlay, {
+  type ClassActivityOverlaySession,
+} from "../../components/ClassActivityOverlay";
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/useAuth";
 
