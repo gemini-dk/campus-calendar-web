@@ -12,6 +12,7 @@ import {
   faPen,
   faPlay,
   faVideo,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { faSquare, faSquareCheck } from "@fortawesome/free-regular-svg-icons";
 import {
@@ -27,7 +28,7 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from "firebase/firestore";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
@@ -701,6 +702,7 @@ function QuickActionButton({
 export default function ClassActivityPage() {
   const params = useParams<{ classId?: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const { settings } = useUserSettings();
 
@@ -930,8 +932,21 @@ export default function ClassActivityPage() {
 
   return (
     <div className="flex min-h-[100svh] w-full justify-center bg-neutral-100">
-      <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white px-4 py-6">
-        {renderContent()}
+      <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
+        <header className="relative flex h-[60px] flex-shrink-0 items-center justify-center border-b border-neutral-200">
+          <h1 className="text-base font-semibold text-neutral-900">授業活動画面</h1>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="absolute right-4 flex h-10 w-10 items-center justify-center rounded-full text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            aria-label="閉じる"
+          >
+            <FontAwesomeIcon icon={faXmark} className="text-lg" aria-hidden="true" />
+          </button>
+        </header>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6">{renderContent()}</div>
+        </div>
       </div>
     </div>
   );
