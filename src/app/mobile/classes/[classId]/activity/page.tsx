@@ -12,6 +12,7 @@ import {
   faPen,
   faPlay,
   faVideo,
+  faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { faSquare, faSquareCheck } from "@fortawesome/free-regular-svg-icons";
 import {
@@ -796,6 +797,8 @@ export default function ClassActivityPage() {
   const classTypeIconClass = classDetail ? CLASS_TYPE_ICON_CLASS[classDetail.classType] : "text-neutral-500";
   const locationLabel = classDetail?.location ?? "場所未設定";
   const teacherLabel = classDetail?.teacher ?? "-";
+  const headerTitle = classDetail?.className ?? "授業活動";
+  const headerSubtitle = classDetail ? `${termLabel} / ${weeklyLabel}` : "授業活動記録";
 
   const handleOpenEdit = useCallback(() => {
     if (!classId) {
@@ -810,6 +813,14 @@ export default function ClassActivityPage() {
       `/mobile/classes/${classId}/activity/edit${search.length > 0 ? `?${search}` : ""}`,
     );
   }, [classId, fiscalYear, router]);
+
+  const handleClose = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length <= 1) {
+      router.push("/mobile?tab=classes");
+      return;
+    }
+    router.back();
+  }, [router]);
 
   const renderContent = () => {
     if (authInitializing) {
@@ -845,7 +856,7 @@ export default function ClassActivityPage() {
     }
 
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6 pb-10">
         <section className="rounded-3xl bg-blue-50 px-5 py-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -946,8 +957,23 @@ export default function ClassActivityPage() {
 
   return (
     <div className="flex min-h-[100svh] w-full justify-center bg-neutral-100">
-      <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white px-4 py-6">
-        {renderContent()}
+      <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-1 flex-col bg-white">
+        <header className="flex h-[60px] flex-shrink-0 items-center justify-between border-b border-neutral-200 px-4">
+          <div className="flex min-w-0 flex-col">
+            <p className="truncate text-base font-semibold text-neutral-900">{headerTitle}</p>
+            <p className="truncate text-xs text-neutral-500">{headerSubtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-neutral-200 text-neutral-600 transition hover:bg-neutral-100"
+            aria-label="授業活動画面を閉じる"
+          >
+            <FontAwesomeIcon icon={faXmark} className="text-lg" aria-hidden="true" />
+            <span className="sr-only">閉じる</span>
+          </button>
+        </header>
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-6">{renderContent()}</div>
       </div>
     </div>
   );

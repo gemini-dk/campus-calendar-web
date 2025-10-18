@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faChalkboardTeacher, faCircleCheck, faCircleXmark } from "@fortawesome/free-solid-svg-icons";
@@ -83,6 +83,21 @@ export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListV
 
   const [subjects, setSubjects] = useState<ClassSubject[]>([]);
 
+  const handleOpenActivity = useCallback(
+    (classId: string) => {
+      const trimmedFiscalYear = fiscalYear?.trim();
+      const query = new URLSearchParams();
+      if (trimmedFiscalYear) {
+        query.set("fiscalYear", trimmedFiscalYear);
+      }
+      const search = query.toString();
+      router.push(
+        `/mobile/classes/${classId}/activity${search.length > 0 ? `?${search}` : ""}`,
+      );
+    },
+    [fiscalYear, router],
+  );
+
   useEffect(() => {
     if (!profile?.uid || !fiscalYear) {
       setSubjects([]);
@@ -132,7 +147,7 @@ export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListV
             >
               <button
                 type="button"
-                onClick={() => router.push(`/mobile/classes/${subject.id}/activity`)}
+                onClick={() => handleOpenActivity(subject.id)}
                 className="flex h-full w-full items-center gap-4 rounded-2xl p-4 text-left transition hover:bg-neutral-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-neutral-100">
