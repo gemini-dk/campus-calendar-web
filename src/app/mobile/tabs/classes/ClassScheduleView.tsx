@@ -683,7 +683,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
   return (
     <div className="flex min-h-full w-full flex-1 flex-col bg-white">
       <div className="flex flex-col border-b border-neutral-200">
-        <div className="flex items-baseline justify-between px-4 pt-3">
+        <div className="flex items-baseline justify-between px-1 pt-1">
           <div className="text-sm font-medium text-neutral-500">
             {calendar ? `${calendar.fiscalYear}年度` : "年度未設定"}
           </div>
@@ -693,7 +693,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
             </div>
           ) : null}
         </div>
-        <nav className="mt-2 flex items-center gap-4 overflow-x-auto px-4 pb-2" role="tablist">
+        <nav className="mt-1 flex items-center gap-1 overflow-x-auto px-1 pb-1" role="tablist">
           {pagerItems.map((item, index) => {
             const isActive = index === clampedTermIndex;
             const isDisabled = Boolean(item.isPlaceholder);
@@ -709,7 +709,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                   setActiveTermIndex(index);
                 }}
                 disabled={isDisabled}
-                className={`whitespace-nowrap border-b-2 pb-2 text-sm font-semibold transition ${
+                className={`whitespace-nowrap border-b-2 pb-1 text-sm font-semibold transition ${
                   isActive
                     ? "border-blue-600 text-blue-600"
                     : "border-transparent text-neutral-500 hover:text-neutral-700"
@@ -790,7 +790,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                   className="border-b border-r border-neutral-200 bg-white"
                                 >
                                   {entries.length > 0 ? (
-                                    <div className="flex h-full w-full flex-col gap-2 p-1">
+                                    <div className="flex h-full w-full flex-col gap-1 p-1">
                                       {entries.map((entry) => {
                                         const specialLabel =
                                           entry.specialScheduleOption !== "all"
@@ -801,7 +801,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                         return (
                                           <div
                                             key={`${entry.classId}-${weekday.key}-${periodKey}`}
-                                            className="flex min-h-[72px] w-full flex-col rounded-xl border border-blue-200 bg-blue-50 px-2 py-2"
+                                            className="flex min-h-[72px] w-full flex-col rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
                                           >
                                             <div className="flex flex-1 items-center justify-center px-1">
                                               <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
@@ -809,14 +809,14 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                               </p>
                                             </div>
                                             {specialLabel ? (
-                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-blue-200/70 px-2 py-0.5 text-center text-[10px] font-semibold text-blue-700">
+                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-blue-200/70 px-1 py-0 text-center text-[10px] font-semibold text-blue-700">
                                                 <span className="block truncate whitespace-nowrap">
                                                   {specialLabel}
                                                 </span>
                                               </p>
                                             ) : null}
                                             {entry.location ? (
-                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-neutral-900/10 px-2 py-0.5 text-center text-[10px] font-medium text-neutral-700">
+                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-neutral-900/10 px-1 py-0 text-center text-[10px] font-medium text-neutral-700">
                                                 <span className="block truncate whitespace-nowrap">
                                                   {entry.location}
                                                 </span>
@@ -854,17 +854,17 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
       </div>
 
       {activePagerItem?.isPlaceholder && termLoadState === "success" ? (
-        <div className="px-4 pt-3 text-sm text-neutral-500">学期情報が設定されていません。</div>
+        <div className="px-1 pt-1 text-sm text-neutral-500">学期情報が設定されていません。</div>
       ) : null}
 
       {termLoadState === "error" && termError ? (
-        <div className="mt-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mt-1 border border-red-200 bg-red-50 px-1 py-1 text-sm text-red-700">
           {termError}
         </div>
       ) : null}
 
       {classLoadState === "error" && classError ? (
-        <div className="mt-4 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mt-1 border border-red-200 bg-red-50 px-1 py-1 text-sm text-red-700">
           {classError}
         </div>
       ) : null}
@@ -876,11 +876,11 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
       userId &&
       calendar &&
       !activeTermHasEntries ? (
-        <div className="px-4 pt-3 text-sm text-neutral-500">選択した学期に表示できる授業がありません。</div>
+        <div className="px-1 pt-1 text-sm text-neutral-500">選択した学期に表示できる授業がありません。</div>
       ) : null}
 
       {enableSwipe ? (
-        <div className="mt-4 flex h-5 w-full items-center justify-center gap-2">
+        <div className="mt-1 flex h-5 w-full items-center justify-center gap-1">
           {pagerItems.map((item, index) => (
             <button
               key={item.id}
