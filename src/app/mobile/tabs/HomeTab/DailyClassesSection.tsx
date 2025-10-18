@@ -6,13 +6,10 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCalendarDays,
   faChalkboardTeacher,
-  faCircleCheck,
   faCircleQuestion,
-  faCircleXmark,
   faListCheck,
   faNoteSticky,
   faPlay,
-  faTriangleExclamation,
   faVideo,
 } from '@fortawesome/free-solid-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -29,8 +26,15 @@ import {
 
 import { db } from '@/lib/firebase/client';
 
-type AttendanceStatus = 'present' | 'late' | 'absent' | null;
-type DeliveryType = 'unknown' | 'in_person' | 'remote';
+import AttendanceToggleGroup from '@/app/mobile/components/AttendanceToggleGroup';
+import AttendanceSummary from '@/app/mobile/components/AttendanceSummary';
+import DeliveryToggleGroup from '@/app/mobile/components/DeliveryToggleGroup';
+import type {
+  AttendanceStatus,
+  AttendanceSummary as AttendanceSummaryType,
+  DeliveryType,
+} from '@/app/mobile/types';
+
 type ClassType = 'in_person' | 'online' | 'hybrid' | 'on_demand';
 
 type TimetableClassDoc = {
@@ -53,15 +57,6 @@ type TimetableClassDateDoc = {
   hasUserModifications: boolean;
 };
 
-type AttendanceSummary = {
-  presentCount: number;
-  absentCount: number;
-  lateCount: number;
-  unrecordedCount: number;
-  totalCount: number;
-  maxAbsenceDays: number | null;
-};
-
 type DailyClassSession = {
   id: string;
   classId: string;
@@ -72,7 +67,7 @@ type DailyClassSession = {
   periods: (number | 'OD')[];
   attendanceStatus: AttendanceStatus;
   deliveryType: DeliveryType;
-  summary: AttendanceSummary;
+  summary: AttendanceSummaryType;
   isTest: boolean;
   isCancelled: boolean;
   daysFromToday: number;
@@ -219,7 +214,7 @@ function computeAttendanceSummary(
   items: TimetableClassDateDoc[],
   todayId: string,
   maxAbsenceDays: number | null,
-): AttendanceSummary {
+): AttendanceSummaryType {
   let presentCount = 0;
   let lateCount = 0;
   let absentCount = 0;
@@ -258,7 +253,7 @@ function computeAttendanceSummary(
     unrecordedCount,
     totalCount,
     maxAbsenceDays,
-  } satisfies AttendanceSummary;
+  } satisfies AttendanceSummaryType;
 }
 
 function areClassListsEqual(a: TimetableClassDoc[], b: TimetableClassDoc[]): boolean {
@@ -331,7 +326,7 @@ function isProbablyUrl(value: string | null | undefined): value is string {
   }
 }
 
-function buildAbsenceMessage(summary: AttendanceSummary): string | null {
+function buildAbsenceMessage(summary: AttendanceSummaryType): string | null {
   if (summary.maxAbsenceDays === null) {
     return null;
   }
@@ -708,17 +703,6 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
   const showDeliveryToggle = isTomorrowOrLater && session.classType === 'hybrid';
   const showRightSideActions = isPastOrToday || showDeliveryToggle || isTomorrowOrLater;
 
-  const progressSegments = useMemo(() => {
-    const total = Math.max(session.summary.totalCount, 1);
-    const toPercent = (value: number) => Math.max(0, Math.min(100, (value / total) * 100));
-    return {
-      present: toPercent(session.summary.presentCount),
-      late: toPercent(session.summary.lateCount),
-      unrecorded: toPercent(session.summary.unrecordedCount),
-      absent: toPercent(session.summary.absentCount),
-    };
-  }, [session.summary]);
-
   const handleAttendanceChange = useCallback(
     async (nextStatus: AttendanceStatus) => {
       setActionError(null);
@@ -792,34 +776,11 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
         <h3 className="text-lg font-semibold text-neutral-900">{session.className}</h3>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-2.5">
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-semibold text-emerald-600">{session.summary.presentCount}</span>
-            <span className="text-sm text-neutral-600">
-              /{session.summary.totalCount}{' '}
-              <span className="text-neutral-500">(遅刻: {session.summary.lateCount}, 未入力: {session.summary.unrecordedCount})</span>
-            </span>
-          </div>
-          <div className="flex flex-col items-end text-red-500">
-            <span className="text-sm font-semibold">{absenceRatioLabel}</span>
-            {absenceMessage ? (
-              <span className="text-xs font-medium">{absenceMessage}</span>
-            ) : null}
-          </div>
-        </div>
-        <div className="relative flex h-3 w-full overflow-hidden rounded-full bg-neutral-200">
-          <div className="flex h-full w-full">
-            <span style={{ width: `${progressSegments.present}%` }} className="h-full bg-emerald-500" />
-            <span style={{ width: `${progressSegments.late}%` }} className="h-full bg-orange-400" />
-            <span style={{ width: `${progressSegments.unrecorded}%` }} className="h-full bg-neutral-400" />
-          </div>
-          <span
-            style={{ width: `${progressSegments.absent}%` }}
-            className="absolute right-0 top-0 h-full bg-red-500"
-          />
-        </div>
-      </div>
+      <AttendanceSummary
+        summary={session.summary}
+        absenceMessage={absenceMessage}
+        absenceRatioLabel={absenceRatioLabel}
+      />
 
       <div className="flex w-full flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
@@ -884,123 +845,5 @@ function ActionButton({ icon, label, variant = 'blue' }: ActionButtonProps) {
     >
       <FontAwesomeIcon icon={icon} className="text-lg" aria-hidden="true" />
     </button>
-  );
-}
-
-type AttendanceToggleGroupProps = {
-  value: AttendanceStatus;
-  onChange: (value: AttendanceStatus) => void;
-  disabled?: boolean;
-};
-
-const ATTENDANCE_OPTIONS: {
-  value: Exclude<AttendanceStatus, null>;
-  icon: IconDefinition;
-  label: string;
-  activeClass: string;
-  iconClass?: string;
-}[] = [
-  {
-    value: 'present',
-    icon: faCircleCheck,
-    label: '出席',
-    activeClass: 'bg-emerald-100 text-emerald-600',
-  },
-  {
-    value: 'late',
-    icon: faTriangleExclamation,
-    label: '遅刻',
-    activeClass: 'bg-orange-100 text-orange-600',
-    iconClass: 'text-[26px]',
-  },
-  {
-    value: 'absent',
-    icon: faCircleXmark,
-    label: '欠席',
-    activeClass: 'bg-red-100 text-red-600',
-  },
-];
-
-function AttendanceToggleGroup({ value, onChange, disabled }: AttendanceToggleGroupProps) {
-  return (
-    <div className="flex h-11 w-fit items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2 shadow-sm">
-      {ATTENDANCE_OPTIONS.map((option) => {
-        const isActive = value === option.value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(isActive ? null : option.value)}
-            disabled={disabled}
-            aria-pressed={isActive}
-            className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
-              isActive
-                ? option.activeClass
-                : 'bg-transparent text-neutral-400 hover:bg-neutral-100'
-            } disabled:cursor-not-allowed disabled:opacity-60`}
-            aria-label={option.label}
-          >
-            <FontAwesomeIcon
-              icon={option.icon}
-              className={option.iconClass ?? 'text-[30px]'}
-              aria-hidden="true"
-            />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-type DeliveryToggleGroupProps = {
-  value: DeliveryType;
-  onChange: (value: DeliveryType) => void;
-  disabled?: boolean;
-};
-
-const DELIVERY_OPTIONS: {
-  value: DeliveryType;
-  icon: IconDefinition;
-  label: string;
-  activeClass: string;
-}[] = [
-  {
-    value: 'in_person',
-    icon: faChalkboardTeacher,
-    label: '対面',
-    activeClass: 'bg-blue-100 text-blue-600',
-  },
-  {
-    value: 'remote',
-    icon: faVideo,
-    label: 'オンライン',
-    activeClass: 'bg-purple-100 text-purple-600',
-  },
-];
-
-function DeliveryToggleGroup({ value, onChange, disabled }: DeliveryToggleGroupProps) {
-  return (
-    <div className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 shadow-sm">
-      {DELIVERY_OPTIONS.map((option) => {
-        const isActive = value === option.value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(isActive ? 'unknown' : option.value)}
-            disabled={disabled}
-            aria-pressed={isActive}
-            className={`flex h-14 w-14 flex-col items-center justify-center rounded-full text-[10px] font-semibold transition ${
-              isActive
-                ? option.activeClass
-                : 'bg-transparent text-neutral-400 hover:bg-neutral-100'
-            } disabled:cursor-not-allowed disabled:opacity-60`}
-          >
-            <FontAwesomeIcon icon={option.icon} className="text-base" aria-hidden="true" />
-            <span className="mt-1">{option.label}</span>
-          </button>
-        );
-      })}
-    </div>
   );
 }
