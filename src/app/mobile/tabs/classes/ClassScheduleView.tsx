@@ -430,16 +430,36 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     return WEEKDAY_HEADERS.slice(0, 5);
   }, [calendar?.hasSaturdayClasses]);
 
+  const additionalPeriodKeys = useMemo(() => {
+    const keys = new Set<string>();
+    Object.values(weeklySlotRecords).forEach((slots) => {
+      slots.forEach((slot) => {
+        if (ADDITIONAL_PERIOD_LABELS.includes(slot.periodKey)) {
+          keys.add(slot.periodKey);
+        }
+      });
+    });
+    return Array.from(keys);
+  }, [weeklySlotRecords]);
+
   const periodLabels = useMemo(() => {
     const lessons = Math.max(0, calendar?.lessonsPerDay ?? 0);
     const numbers = Array.from({ length: lessons }, (_, index) => String(index + 1));
-    return [...numbers, ...ADDITIONAL_PERIOD_LABELS];
-  }, [calendar?.lessonsPerDay]);
+    const extras = ADDITIONAL_PERIOD_LABELS.filter((label) => additionalPeriodKeys.includes(label));
+    return [...numbers, ...extras];
+  }, [additionalPeriodKeys, calendar?.lessonsPerDay]);
 
   const columnTemplate = useMemo(() => {
     const weekdayCount = Math.max(weekdayHeaders.length, 1);
     return `${PERIOD_COLUMN_WIDTH} repeat(${weekdayCount}, minmax(0, 1fr))`;
   }, [weekdayHeaders.length]);
+
+  const rowTemplate = useMemo(() => {
+    if (periodLabels.length === 0) {
+      return undefined;
+    }
+    return `repeat(${periodLabels.length}, minmax(0, 1fr))`;
+  }, [periodLabels.length]);
 
   const enableSwipe = pagerItems.length > 1;
 
@@ -681,8 +701,8 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     : false;
 
   return (
-    <div className="flex min-h-full w-full flex-1 flex-col bg-white">
-      <div className="flex flex-col border-b border-neutral-200">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-white">
+      <div className="flex w-full flex-shrink-0 flex-col border-b border-neutral-200">
         <div className="flex items-baseline justify-between px-1 pt-1">
           <div className="text-sm font-medium text-neutral-500">
             {calendar ? `${calendar.fiscalYear}年度` : "年度未設定"}
@@ -725,10 +745,10 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         </nav>
       </div>
 
-      <div className="relative flex flex-1">
+      <div className="relative flex w-full flex-1 min-h-0">
         <div
           ref={viewportRef}
-          className="h-full w-full overflow-hidden"
+          className="h-full min-h-0 w-full overflow-hidden"
           style={{ touchAction: enableSwipe ? "pan-y" : "auto" }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -736,7 +756,9 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
           onPointerCancel={handlePointerCancel}
         >
           <div
-            className={`flex h-full w-full ${isAnimating ? "transition-transform duration-300 ease-out" : ""}`}
+            className={`flex h-full min-h-0 w-full ${
+              isAnimating ? "transition-transform duration-300 ease-out" : ""
+            }`}
             style={{
               width: `${Math.max(pagerItems.length, 1) * 100}%`,
               transform: `translate3d(${translateX}px, 0, 0)`,
@@ -747,13 +769,13 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
               return (
                 <div
                   key={item.id}
-                  className="flex h-full w-full flex-shrink-0 flex-grow-0 flex-col"
+                  className="flex h-full min-h-0 w-full flex-shrink-0 flex-grow-0 flex-col"
                   style={{ width: `${100 / Math.max(pagerItems.length, 1)}%` }}
                   aria-hidden={index !== clampedTermIndex}
                 >
-                  <div className="flex h-full w-full flex-col">
+                  <div className="flex h-full min-h-0 w-full flex-col">
                     <div
-                      className="grid w-full border-b border-l border-t border-neutral-200"
+                      className="grid h-12 w-full flex-shrink-0 border-b border-l border-t border-neutral-200"
                       style={{ gridTemplateColumns: columnTemplate }}
                     >
                       <div className="h-12 border-r border-neutral-200" />
@@ -767,18 +789,18 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                       ))}
                     </div>
 
-                    <div className="flex-1">
+                    <div className="flex-1 min-h-0 w-full">
                       <div
                         className="grid h-full w-full border-b border-l border-neutral-200"
                         style={{
                           gridTemplateColumns: columnTemplate,
-                          gridAutoRows: "minmax(64px, 1fr)",
+                          ...(rowTemplate ? { gridTemplateRows: rowTemplate } : {}),
                         }}
                       >
                         {periodLabels.map((label) => (
                           <Fragment key={label}>
-                            <div className="flex items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-                              <span className="block truncate">{label}</span>
+                            <div className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                              <span className="block w-full truncate">{label}</span>
                             </div>
                             {weekdayHeaders.map((weekday) => {
                               const periodKey = label;
@@ -787,10 +809,10 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                               return (
                                 <div
                                   key={`${label}-${weekday.key}`}
-                                  className="border-b border-r border-neutral-200 bg-white"
+                                  className="flex h-full min-h-0 w-full flex-col border-b border-r border-neutral-200 bg-white"
                                 >
                                   {entries.length > 0 ? (
-                                    <div className="flex h-full w-full flex-col gap-1 p-1">
+                                    <div className="flex h-full min-h-0 w-full flex-col gap-1 p-1">
                                       {entries.map((entry) => {
                                         const specialLabel =
                                           entry.specialScheduleOption !== "all"
@@ -801,23 +823,23 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                         return (
                                           <div
                                             key={`${entry.classId}-${weekday.key}-${periodKey}`}
-                                            className="flex min-h-[72px] w-full flex-col rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
+                                            className="flex flex-1 min-h-0 w-full flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
                                           >
-                                            <div className="flex flex-1 items-center justify-center px-1">
+                                            <div className="flex flex-1 min-h-0 items-center justify-center px-1">
                                               <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
                                                 {entry.className}
                                               </p>
                                             </div>
                                             {specialLabel ? (
-                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-blue-200/70 px-1 py-0 text-center text-[10px] font-semibold text-blue-700">
-                                                <span className="block truncate whitespace-nowrap">
+                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
+                                                <span className="block w-full truncate whitespace-nowrap">
                                                   {specialLabel}
                                                 </span>
                                               </p>
                                             ) : null}
                                             {entry.location ? (
-                                              <p className="mt-1 w-full overflow-hidden rounded-full bg-neutral-900/10 px-1 py-0 text-center text-[10px] font-medium text-neutral-700">
-                                                <span className="block truncate whitespace-nowrap">
+                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
+                                                <span className="block w-full truncate whitespace-nowrap">
                                                   {entry.location}
                                                 </span>
                                               </p>
