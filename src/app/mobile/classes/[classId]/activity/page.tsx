@@ -199,17 +199,39 @@ function mapActivityDocument(docSnapshot: QueryDocumentSnapshot<DocumentData>): 
 function mapWeeklySlotDocument(docSnapshot: QueryDocumentSnapshot<DocumentData>): WeeklySlot | null {
   const data = docSnapshot.data();
   const dayOfWeek = Number.parseInt(String(data.dayOfWeek ?? ""), 10);
-  const period = Number.parseInt(String(data.period ?? ""), 10);
   if (!Number.isFinite(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7) {
     return null;
   }
-  if (!Number.isFinite(period) || period <= 0) {
+
+  const periodValue = data.period;
+  let period: number;
+
+  if (typeof periodValue === "number" && Number.isFinite(periodValue)) {
+    period = Math.max(0, Math.trunc(periodValue));
+  } else if (typeof periodValue === "string") {
+    const trimmed = periodValue.trim();
+    if (trimmed.length === 0) {
+      period = 0;
+    } else if (/^(od|on_demand)$/i.test(trimmed)) {
+      period = 0;
+    } else {
+      const parsed = Number.parseInt(trimmed, 10);
+      if (!Number.isFinite(parsed)) {
+        return null;
+      }
+      period = parsed <= 0 ? 0 : parsed;
+    }
+  } else if (periodValue == null) {
+    period = 0;
+  } else {
     return null;
   }
+
   const displayOrder =
     typeof data.displayOrder === "number" && Number.isFinite(data.displayOrder)
       ? Math.max(0, Math.trunc(data.displayOrder))
       : 0;
+
   return {
     id: docSnapshot.id,
     dayOfWeek,
@@ -320,10 +342,12 @@ function groupWeeklySlots(slots: WeeklySlot[]): string {
     grouped.set(slot.dayOfWeek, items);
   }
   const parts: string[] = [];
+  const weight = (value: number) => (value <= 0 ? 999 : value);
   for (const [day, periods] of grouped) {
     const weekday = WEEKDAY_LABELS.get(day) ?? `${day}`;
-    const sorted = periods.slice().sort((a, b) => a - b);
-    parts.push(`${weekday}曜${sorted.join("・")}限`);
+    const sorted = periods.slice().sort((a, b) => weight(a) - weight(b));
+    const labels = sorted.map((period) => (period <= 0 ? "オンデマンド" : `${period}限`));
+    parts.push(`${weekday}曜${labels.join("・")}`);
   }
   return parts.join("、");
 }
