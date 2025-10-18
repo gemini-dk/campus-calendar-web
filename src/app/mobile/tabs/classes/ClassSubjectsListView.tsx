@@ -17,6 +17,7 @@ import {
 import { db } from "@/lib/firebase/client";
 import { useAuth } from "@/lib/useAuth";
 import { useRouter } from "next/navigation";
+import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
 
 type CreditsStatus = "in_progress" | "completed" | "failed";
 
@@ -78,7 +79,6 @@ export default function ClassSubjectsListView({ fiscalYear }: ClassSubjectsListV
   const { profile } = useAuth();
   const { settings } = useUserSettings();
   const router = useRouter();
-  const fiscalYear = settings.calendar.fiscalYear;
   const fiscalYearLabel = fiscalYear ? `${fiscalYear}年度` : "年度未設定";
 
   const [subjects, setSubjects] = useState<ClassSubject[]>([]);
