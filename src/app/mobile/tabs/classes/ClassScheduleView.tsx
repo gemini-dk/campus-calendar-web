@@ -759,18 +759,8 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-white">
-      <div className="flex w-full flex-shrink-0 flex-col border-b border-neutral-200">
-        <div className="flex items-baseline justify-between px-1 pt-1">
-          <div className="text-sm font-medium text-neutral-500">
-            {calendar ? `${calendar.fiscalYear}年度` : "年度未設定"}
-          </div>
-          {pagerItems.length > 1 ? (
-            <div className="text-xs text-neutral-400">
-              {clampedTermIndex + 1} / {pagerItems.length}
-            </div>
-          ) : null}
-        </div>
-        <nav className="mt-1 flex items-center gap-1 overflow-x-auto px-1 pb-1" role="tablist">
+      <div className="flex w-full flex-shrink-0 flex-col border-b border-neutral-200 bg-neutral-100/80">
+        <nav className="flex items-center gap-1 overflow-x-auto px-1 py-1" role="tablist">
           {pagerItems.map((item, index) => {
             const isActive = index === clampedTermIndex;
             const isDisabled = Boolean(item.isPlaceholder);
@@ -789,7 +779,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                 className={`whitespace-nowrap border-b-2 pb-1 text-sm font-semibold transition ${
                   isActive
                     ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-neutral-500 hover:text-neutral-700"
+                    : "border-transparent text-neutral-600 hover:text-neutral-800"
                 } ${isDisabled ? "cursor-default text-neutral-400" : ""}`}
                 aria-selected={isActive}
                 aria-disabled={isDisabled}
@@ -835,14 +825,14 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                 >
                   <div className="flex h-full min-h-0 w-full flex-col">
                     <div
-                      className="grid h-12 w-full flex-shrink-0 border-b border-l border-t border-neutral-200"
+                      className="grid h-10 w-full flex-shrink-0 border-b border-l border-t border-neutral-200 bg-neutral-100"
                       style={{ gridTemplateColumns: columnTemplate }}
                     >
-                      <div className="h-12 border-r border-neutral-200" />
+                      <div className="flex h-10 w-full items-center justify-center border-r border-neutral-200 text-xs font-semibold uppercase tracking-wide text-neutral-600" />
                       {weekdayHeaders.map((weekday) => (
                         <div
                           key={weekday.key}
-                          className="flex h-12 items-center justify-center border-r border-neutral-200 bg-white text-sm font-semibold text-neutral-700"
+                          className="flex h-10 items-center justify-center border-r border-neutral-200 bg-neutral-100 text-base font-semibold text-neutral-800"
                         >
                           {weekday.label}
                         </div>
@@ -1028,24 +1018,6 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
         <div className="px-1 pt-1 text-sm text-neutral-500">選択した学期に表示できる授業がありません。</div>
       ) : null}
 
-      {enableSwipe ? (
-        <div className="mt-1 flex h-5 w-full items-center justify-center gap-1">
-          {pagerItems.map((item, index) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setIsAnimating(true);
-                setActiveTermIndex(index);
-              }}
-              className={`h-2 w-2 rounded-full transition ${
-                index === clampedTermIndex ? "bg-blue-600" : "bg-neutral-300 hover:bg-neutral-400"
-              }`}
-              aria-label={`${index + 1}番目の学期を表示`}
-            />
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -59,6 +59,7 @@ export type CreateTimetableClassParams = {
   calendarId: string;
   className: string;
   classType: 'in_person' | 'online' | 'hybrid' | 'on_demand';
+  isFullyOnDemand: boolean;
   location: string;
   teacher: string;
   credits: number | null;
@@ -68,7 +69,6 @@ export type CreateTimetableClassParams = {
   termNames: string[];
   specialOption: SpecialScheduleOption;
   weeklySlots: WeeklySlotSelection[];
-  omitWeeklySlots: boolean;
   generatedClassDates: GeneratedClassDate[];
 };
 
@@ -338,6 +338,7 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     calendarId,
     className,
     classType,
+    isFullyOnDemand,
     location,
     teacher,
     credits,
@@ -347,7 +348,6 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     termNames,
     specialOption,
     weeklySlots,
-    omitWeeklySlots,
     generatedClassDates,
   } = params;
 
@@ -402,19 +402,20 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     termNames: uniqueTermNames,
     termDisplayName,
     classType,
+    isFullyOnDemand,
     specialScheduleOption,
     credits: typeof credits === 'number' && Number.isFinite(credits) ? credits : null,
     creditsStatus,
     teacher: normalizedTeacher.length > 0 ? normalizedTeacher : null,
     location: normalizedLocation.length > 0 ? normalizedLocation : null,
     memo: null,
-    omitWeeklySlots,
     maxAbsenceDays,
     createdAt: timestamp,
     updatedAt: timestamp,
   });
 
-  if (!omitWeeklySlots) {
+  const shouldPersistWeeklySlots = !isFullyOnDemand && weeklySlots.length > 0;
+  if (shouldPersistWeeklySlots) {
     const uniqueSlots = new Map<string, WeeklySlotSelection>();
     weeklySlots.forEach((slot) => {
       const key = `${slot.dayOfWeek}-${slot.period}`;
