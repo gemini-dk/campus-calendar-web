@@ -698,24 +698,32 @@ function QuickActionButton({
   );
 }
 
-export default function ClassActivityPage() {
-  const params = useParams<{ classId?: string }>();
-  const searchParams = useSearchParams();
+export function ClassActivityContent({
+  classId,
+  fiscalYearOverride,
+}: {
+  classId: string | null;
+  fiscalYearOverride?: string | null;
+}) {
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const { settings } = useUserSettings();
 
-  const classIdParam = typeof params?.classId === "string" ? params.classId : null;
-  const classId = classIdParam && classIdParam.trim().length > 0 ? classIdParam.trim() : null;
+  const normalizedClassId = useMemo(() => {
+    if (classId == null) {
+      return null;
+    }
+    const trimmed = classId.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [classId]);
 
-  const fiscalYearParam = searchParams.get("fiscalYear");
   const fiscalYear = useMemo(() => {
-    const fromQuery = fiscalYearParam?.trim();
-    if (fromQuery) {
-      return fromQuery;
+    const override = fiscalYearOverride?.trim();
+    if (override) {
+      return override;
     }
     const fromSettings = settings.calendar.fiscalYear?.trim();
     return fromSettings && fromSettings.length > 0 ? fromSettings : null;
-  }, [fiscalYearParam, settings.calendar.fiscalYear]);
+  }, [fiscalYearOverride, settings.calendar.fiscalYear]);
 
   const userId = profile?.uid ?? null;
 
@@ -729,7 +737,7 @@ export default function ClassActivityPage() {
     error,
     todayId,
     updateAttendanceStatus,
-  } = useClassActivityData({ userId, fiscalYear, classId });
+  } = useClassActivityData({ userId, fiscalYear, classId: normalizedClassId });
 
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [updatingAttendanceId, setUpdatingAttendanceId] = useState<string | null>(null);
@@ -934,6 +942,18 @@ export default function ClassActivityPage() {
         {renderContent()}
       </div>
     </div>
+  );
+}
+
+export default function ClassActivityPage() {
+  const params = useParams<{ classId?: string }>();
+  const searchParams = useSearchParams();
+
+  const classIdParam = typeof params?.classId === "string" ? params.classId : null;
+  const fiscalYearParam = searchParams.get("fiscalYear");
+
+  return (
+    <ClassActivityContent classId={classIdParam} fiscalYearOverride={fiscalYearParam} />
   );
 }
 

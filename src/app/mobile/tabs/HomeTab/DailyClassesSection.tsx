@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -51,7 +51,7 @@ type TimetableClassDoc = {
   maxAbsenceDays: number | null;
 };
 
-type DailyClassSession = {
+export type DailyClassSession = {
   id: string;
   classId: string;
   classDateId: string;
@@ -96,6 +96,7 @@ type DailyClassesSectionProps = {
   dateId: string;
   authInitializing: boolean;
   isAuthenticated: boolean;
+  onSelectClass?: (session: DailyClassSession) => void;
 };
 
 const CLASS_TYPE_ICON: Record<ClassType, IconDefinition> = {
@@ -472,6 +473,7 @@ export default function DailyClassesSection({
   dateId,
   authInitializing,
   isAuthenticated,
+  onSelectClass,
 }: DailyClassesSectionProps) {
   const { loading, error, sessions, requiresSetup, updateAttendanceStatus, updateDeliveryType } =
     useDailyClassSessions({ userId, fiscalYear, dateId });
@@ -524,6 +526,7 @@ export default function DailyClassesSection({
               session={session}
               onChangeAttendance={updateAttendanceStatus}
               onChangeDeliveryType={updateDeliveryType}
+              onSelectClass={onSelectClass}
             />
           ))}
         </ul>
@@ -544,9 +547,10 @@ type DailyClassCardProps = {
     classDateId: string,
     deliveryType: DeliveryType,
   ) => Promise<void>;
+  onSelectClass?: (session: DailyClassSession) => void;
 };
 
-function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: DailyClassCardProps) {
+function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onSelectClass }: DailyClassCardProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [attendanceUpdating, setAttendanceUpdating] = useState(false);
   const [deliveryUpdating, setDeliveryUpdating] = useState(false);
@@ -598,8 +602,23 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
     [onChangeDeliveryType, session.classId, session.classDateId],
   );
 
+  const handleCardClick = () => {
+    if (onSelectClass) {
+      onSelectClass(session);
+    }
+  };
+
+  const handleInteractiveClick = (event: MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+  };
+
   return (
-    <li className="flex w-full flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+    <li
+      className={`flex w-full flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm ${
+        onSelectClass ? 'cursor-pointer transition hover:border-blue-200 hover:shadow-md' : ''
+      }`.trim()}
+      onClick={onSelectClass ? handleCardClick : undefined}
+    >
       <div className="flex flex-wrap items-center gap-3">
         <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-600">
           {periodLabel}
@@ -613,6 +632,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium text-blue-600 underline-offset-2 hover:underline"
+                onClick={handleInteractiveClick}
               >
                 {session.location}
               </a>
@@ -647,11 +667,11 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
 
       <div className="flex w-full flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
-          <ActionButton icon={faListCheck} label="課題作成" />
-          <ActionButton icon={faNoteSticky} label="メモ作成" variant="purple" />
+          <ActionButton icon={faListCheck} label="課題作成" onClick={handleInteractiveClick} />
+          <ActionButton icon={faNoteSticky} label="メモ作成" variant="purple" onClick={handleInteractiveClick} />
         </div>
         {showRightSideActions ? (
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2" onClick={handleInteractiveClick}>
             {isPastOrToday ? (
               <AttendanceToggleGroup
                 value={session.attendanceStatus}
@@ -667,7 +687,12 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType }: D
               />
             ) : null}
             {isTomorrowOrLater ? (
-              <ActionButton icon={faCalendarDays} label="日程変更" variant="neutral" />
+              <ActionButton
+                icon={faCalendarDays}
+                label="日程変更"
+                variant="neutral"
+                onClick={handleInteractiveClick}
+              />
             ) : null}
           </div>
         ) : null}
@@ -684,9 +709,10 @@ type ActionButtonProps = {
   icon: IconDefinition;
   label: string;
   variant?: 'blue' | 'purple' | 'neutral';
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
 };
 
-function ActionButton({ icon, label, variant = 'blue' }: ActionButtonProps) {
+function ActionButton({ icon, label, variant = 'blue', onClick }: ActionButtonProps) {
   const variantClass = (() => {
     switch (variant) {
       case 'purple':
@@ -705,6 +731,7 @@ function ActionButton({ icon, label, variant = 'blue' }: ActionButtonProps) {
       aria-label={label}
       title={label}
       className={`flex h-11 w-11 items-center justify-center rounded-full text-lg transition ${variantClass}`}
+      onClick={onClick}
     >
       <FontAwesomeIcon icon={icon} className="text-lg" aria-hidden="true" />
     </button>
