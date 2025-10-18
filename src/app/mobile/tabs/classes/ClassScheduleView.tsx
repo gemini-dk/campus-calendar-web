@@ -47,6 +47,7 @@ type TimetableClassDoc = {
   termNames: string[];
   location: string | null;
   specialScheduleOption: SpecialScheduleOption;
+  isFullyOnDemand: boolean;
 };
 
 type WeeklySlotDoc = {
@@ -110,6 +111,8 @@ function mapTimetableClassDoc(
       ? (specialValue as SpecialScheduleOption)
       : "all";
 
+  const isFullyOnDemand = Boolean(data.isFullyOnDemand);
+
   return {
     id: doc.id,
     className,
@@ -117,6 +120,7 @@ function mapTimetableClassDoc(
     termNames,
     location,
     specialScheduleOption,
+    isFullyOnDemand,
   } satisfies TimetableClassDoc;
 }
 
@@ -442,12 +446,72 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     return Array.from(keys);
   }, [weeklySlotRecords]);
 
+  const fullOnDemandByTerm = useMemo(() => {
+    const result = new Map<string, ScheduleCellItem[]>();
+    if (terms.length === 0 || classes.length === 0) {
+      return result;
+    }
+
+    const termNameToId = new Map<string, string>();
+    const orderedTermIds = terms.map((term) => {
+      termNameToId.set(term.name, term.id);
+      return term.id;
+    });
+    const termIdSet = new Set(orderedTermIds);
+
+    for (const classItem of classes) {
+      if (!classItem.isFullyOnDemand) {
+        continue;
+      }
+
+      const normalizedTermIds = classItem.termIds.filter((termId) => termIdSet.has(termId));
+      const fallbackTermIds = classItem.termNames
+        .map((name) => termNameToId.get(name))
+        .filter((termId): termId is string => typeof termId === "string" && termIdSet.has(termId));
+      const uniqueTermIds = Array.from(new Set([...normalizedTermIds, ...fallbackTermIds]));
+      const targetTermIds = uniqueTermIds.length > 0 ? uniqueTermIds : orderedTermIds;
+
+      for (const termId of targetTermIds) {
+        const current = result.get(termId) ?? [];
+        current.push({
+          classId: classItem.id,
+          className: classItem.className,
+          location: classItem.location,
+          specialScheduleOption: classItem.specialScheduleOption,
+        });
+        result.set(termId, current);
+      }
+    }
+
+    for (const [termId, list] of result) {
+      result.set(
+        termId,
+        list
+          .slice()
+          .sort((a, b) => a.className.localeCompare(b.className, "ja")),
+      );
+    }
+
+    return result;
+  }, [classes, terms]);
+
+  const hasFullOnDemandRow = useMemo(
+    () => Array.from(fullOnDemandByTerm.values()).some((entries) => entries.length > 0),
+    [fullOnDemandByTerm],
+  );
+
   const periodLabels = useMemo(() => {
     const lessons = Math.max(0, calendar?.lessonsPerDay ?? 0);
     const numbers = Array.from({ length: lessons }, (_, index) => String(index + 1));
-    const extras = ADDITIONAL_PERIOD_LABELS.filter((label) => additionalPeriodKeys.includes(label));
+    const extras: string[] = [];
+    if (additionalPeriodKeys.includes("OD")) {
+      extras.push("OD");
+    }
+    if (hasFullOnDemandRow) {
+      extras.push("FOD");
+    }
     return [...numbers, ...extras];
-  }, [additionalPeriodKeys, calendar?.lessonsPerDay]);
+  }, [additionalPeriodKeys, calendar?.lessonsPerDay, hasFullOnDemandRow]);
 
   const columnTemplate = useMemo(() => {
     const weekdayCount = Math.max(weekdayHeaders.length, 1);
@@ -470,7 +534,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     }
 
     const allowedWeekdays = new Set(weekdayHeaders.map((weekday) => weekday.key));
-    const availablePeriodKeys = new Set(periodLabels);
+    const availablePeriodKeys = new Set(periodLabels.filter((label) => label !== "FOD"));
     const termNameToId = new Map<string, string>();
     const orderedTermIds = terms.map((term) => {
       termNameToId.set(term.name, term.id);
@@ -479,6 +543,9 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     const termIdSet = new Set(orderedTermIds);
 
     for (const classItem of classes) {
+      if (classItem.isFullyOnDemand) {
+        continue;
+      }
       const slots = weeklySlotRecords[classItem.id] ?? [];
       const filteredSlots = slots.filter(
         (slot) => allowedWeekdays.has(slot.dayOfWeek) && availablePeriodKeys.has(slot.periodKey),
@@ -697,7 +764,8 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
   const activePagerItem = pagerItems[clampedTermIndex] ?? null;
   const activeTermId = activePagerItem && !activePagerItem.isPlaceholder ? activePagerItem.id : null;
   const activeTermHasEntries = activeTermId
-    ? (scheduleByTerm.get(activeTermId)?.size ?? 0) > 0
+    ? (scheduleByTerm.get(activeTermId)?.size ?? 0) > 0 ||
+      (fullOnDemandByTerm.get(activeTermId)?.length ?? 0) > 0
     : false;
 
   return (
@@ -766,6 +834,9 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
           >
             {pagerItems.map((item, index) => {
               const scheduleForTerm = !item.isPlaceholder ? scheduleByTerm.get(item.id) : null;
+              const fullOnDemandEntries = !item.isPlaceholder
+                ? fullOnDemandByTerm.get(item.id) ?? []
+                : [];
               return (
                 <div
                   key={item.id}
@@ -797,33 +868,42 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                           ...(rowTemplate ? { gridTemplateRows: rowTemplate } : {}),
                         }}
                       >
-                        {periodLabels.map((label) => (
-                          <Fragment key={label}>
-                            <div className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-                              <span className="block w-full truncate">{label}</span>
-                            </div>
-                            {weekdayHeaders.map((weekday) => {
-                              const periodKey = label;
-                              const cellKey = `${weekday.key}-${periodKey}`;
-                              const entries = scheduleForTerm?.get(cellKey) ?? [];
-                              return (
+                        {periodLabels.map((label) => {
+                          const isFullOnDemandRow = label === "FOD";
+                          if (isFullOnDemandRow) {
+                            const weekdayCount = Math.max(weekdayHeaders.length, 1);
+                            return (
+                              <Fragment key={label}>
+                                <div className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                                  <span className="block w-full truncate">{label}</span>
+                                </div>
                                 <div
-                                  key={`${label}-${weekday.key}`}
                                   className="flex h-full min-h-0 w-full flex-col border-b border-r border-neutral-200 bg-white"
+                                  style={{ gridColumn: `span ${weekdayCount}` }}
                                 >
-                                  {entries.length > 0 ? (
-                                    <div className="flex h-full min-h-0 w-full flex-col gap-1 p-1">
-                                      {entries.map((entry) => {
+                                  {fullOnDemandEntries.length > 0 ? (
+                                    <div className="flex h-full min-h-0 w-full flex-wrap items-stretch gap-1 p-1">
+                                      {fullOnDemandEntries.map((entry, entryIndex) => {
                                         const specialLabel =
                                           entry.specialScheduleOption !== "all"
                                             ? SPECIAL_SCHEDULE_OPTION_LABELS[
                                                 entry.specialScheduleOption
                                               ]
                                             : null;
+                                        const maxWidthPercent = 100 / weekdayCount;
+                                        const basisPercent = Math.min(
+                                          100 / fullOnDemandEntries.length,
+                                          maxWidthPercent,
+                                        );
                                         return (
                                           <div
-                                            key={`${entry.classId}-${weekday.key}-${periodKey}`}
-                                            className="flex flex-1 min-h-0 w-full flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
+                                            key={`${entry.classId}-full-${entryIndex}`}
+                                            className="flex min-h-0 flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
+                                            style={{
+                                              flexBasis: `${basisPercent}%`,
+                                              maxWidth: `${maxWidthPercent}%`,
+                                              flexGrow: 1,
+                                            }}
                                           >
                                             <div className="flex flex-1 min-h-0 items-center justify-center px-1">
                                               <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
@@ -850,10 +930,68 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                     </div>
                                   ) : null}
                                 </div>
-                              );
-                            })}
-                          </Fragment>
-                        ))}
+                              </Fragment>
+                            );
+                          }
+
+                          return (
+                            <Fragment key={label}>
+                              <div className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
+                                <span className="block w-full truncate">{label}</span>
+                              </div>
+                              {weekdayHeaders.map((weekday) => {
+                                const periodKey = label;
+                                const cellKey = `${weekday.key}-${periodKey}`;
+                                const entries = scheduleForTerm?.get(cellKey) ?? [];
+                                return (
+                                  <div
+                                    key={`${label}-${weekday.key}`}
+                                    className="flex h-full min-h-0 w-full flex-col border-b border-r border-neutral-200 bg-white"
+                                  >
+                                    {entries.length > 0 ? (
+                                      <div className="flex h-full min-h-0 w-full flex-col gap-1 p-1">
+                                        {entries.map((entry) => {
+                                          const specialLabel =
+                                            entry.specialScheduleOption !== "all"
+                                              ? SPECIAL_SCHEDULE_OPTION_LABELS[
+                                                  entry.specialScheduleOption
+                                                ]
+                                              : null;
+                                          return (
+                                            <div
+                                              key={`${entry.classId}-${weekday.key}-${periodKey}`}
+                                              className="flex flex-1 min-h-0 w-full flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1"
+                                            >
+                                              <div className="flex flex-1 min-h-0 items-center justify-center px-1">
+                                                <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
+                                                  {entry.className}
+                                                </p>
+                                              </div>
+                                              {specialLabel ? (
+                                                <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
+                                                  <span className="block w-full truncate whitespace-nowrap">
+                                                    {specialLabel}
+                                                  </span>
+                                                </p>
+                                              ) : null}
+                                              {entry.location ? (
+                                                <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
+                                                  <span className="block w-full truncate whitespace-nowrap">
+                                                    {entry.location}
+                                                  </span>
+                                                </p>
+                                              ) : null}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                );
+                              })}
+                            </Fragment>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
