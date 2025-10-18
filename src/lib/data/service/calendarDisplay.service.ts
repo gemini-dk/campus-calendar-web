@@ -52,10 +52,15 @@ const DEFAULT_ACADEMIC_DISPLAY: CalendarAcademicDisplay = {
   subLabel: null,
 };
 
+type CalendarDisplayOptions = {
+  hasSaturdayClasses?: boolean;
+};
+
 export async function getCalendarDisplayInfo(
   fiscalYear: string,
   calendarId: string,
   dateId: string,
+  options: CalendarDisplayOptions = {},
 ): Promise<CalendarDisplayInfo> {
   const [day, terms] = await Promise.all([
     getCalendarDay(fiscalYear, calendarId, dateId),
@@ -67,7 +72,7 @@ export async function getCalendarDisplayInfo(
 
   const generalDisplay = computeGeneralDisplay(day, dateId, weekdayNumber);
   const term = resolveTermForDay(day, terms);
-  const academicDisplay = computeAcademicDisplay(day, term, weekdayNumber, parsedDate);
+  const academicDisplay = computeAcademicDisplay(day, term, weekdayNumber, parsedDate, options);
 
   return {
     calendar: generalDisplay,
@@ -181,6 +186,7 @@ function computeAcademicDisplay(
   term: CalendarTerm | null,
   actualWeekday: number,
   parsedDate: Date,
+  options: CalendarDisplayOptions,
 ): CalendarAcademicDisplay {
   if (!day) {
     return DEFAULT_ACADEMIC_DISPLAY;
@@ -188,15 +194,28 @@ function computeAcademicDisplay(
 
   const normalizedType = normalizeDayType(day.type);
   const backgroundColor = determineBackgroundColor(normalizedType, actualWeekday);
-  const weekdayNumber = resolveClassWeekday(day, actualWeekday);
-  const weekdayLabel = typeof weekdayNumber === 'number' ? WEEKDAY_LABEL_JA[weekdayNumber] : null;
-  const classOrder = typeof day.classOrder === 'number' ? day.classOrder : null;
+  const hasSaturdayClasses = options.hasSaturdayClasses ?? true;
+  const resolvedWeekdayNumber = resolveClassWeekday(day, actualWeekday);
+  const suppressClassDetails = shouldSuppressClassDetails(
+    normalizedType,
+    actualWeekday,
+    hasSaturdayClasses,
+  );
+  const weekdayNumber = suppressClassDetails ? null : resolvedWeekdayNumber;
+  const weekdayLabel =
+    suppressClassDetails || typeof resolvedWeekdayNumber !== 'number'
+      ? null
+      : WEEKDAY_LABEL_JA[resolvedWeekdayNumber];
+  const classOrder =
+    suppressClassDetails || typeof day.classOrder !== 'number' ? null : day.classOrder;
 
   const label = computeAcademicLabel({
     normalizedType,
     day,
     term,
     weekdayLabel,
+    classOrder,
+    suppressClassDetails,
   });
 
   const subLabel = computeAcademicSubLabel({
@@ -303,11 +322,15 @@ function computeAcademicLabel({
   day,
   term,
   weekdayLabel,
+  classOrder,
+  suppressClassDetails,
 }: {
   normalizedType: NormalizedDayType;
   day: CalendarDay;
   term: CalendarTerm | null;
   weekdayLabel: string | null;
+  classOrder: number | null;
+  suppressClassDetails: boolean;
 }): string {
   const termName = term?.name ?? day.termName ?? '-';
   const shortName = term?.shortName ?? day.termShortName ?? termName;
@@ -328,18 +351,38 @@ function computeAcademicLabel({
   }
 
   if (normalizedType === 'class') {
+    if (suppressClassDetails) {
+      return termName;
+    }
     const parts = [shortName];
     if (weekdayLabel) {
       parts.push(`${weekdayLabel}曜`);
     }
-    if (typeof day.classOrder === 'number') {
-      parts.push(`${day.classOrder}回目`);
+    if (typeof classOrder === 'number') {
+      parts.push(`${classOrder}回目`);
     }
 
     return parts.filter(Boolean).join(' ');
   }
 
   return termName;
+}
+
+function shouldSuppressClassDetails(
+  normalizedType: NormalizedDayType,
+  actualWeekday: number,
+  hasSaturdayClasses: boolean,
+): boolean {
+  if (normalizedType !== 'class') {
+    return false;
+  }
+  if (actualWeekday === 0) {
+    return true;
+  }
+  if (actualWeekday === 6 && !hasSaturdayClasses) {
+    return true;
+  }
+  return false;
 }
 
 function computeAcademicSubLabel({

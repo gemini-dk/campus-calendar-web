@@ -124,6 +124,19 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
   const configKeyRef = useRef(configKey);
 
+  const activeCalendarEntry = useMemo(() => {
+    if (!fiscalYear || !calendarId) {
+      return null;
+    }
+    return (
+      settings.calendar.entries.find(
+        (entry) => entry.fiscalYear === fiscalYear && entry.calendarId === calendarId,
+      ) ?? null
+    );
+  }, [calendarId, fiscalYear, settings.calendar.entries]);
+
+  const hasSaturdayClasses = activeCalendarEntry?.hasSaturdayClasses ?? true;
+
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const now = new Date();
     return startOfMonth(now);
@@ -243,7 +256,9 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
 
       Promise.all(
         dateIds.map(async (dateId) => {
-          const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId);
+          const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId, {
+            hasSaturdayClasses,
+          });
           return { dateId, info } as const;
         }),
       )
@@ -303,7 +318,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
         cancelled = true;
       };
     },
-    [calendarId, configKey, fiscalYear, initialized],
+    [calendarId, configKey, fiscalYear, hasSaturdayClasses, initialized],
   );
 
   useEffect(() => {
