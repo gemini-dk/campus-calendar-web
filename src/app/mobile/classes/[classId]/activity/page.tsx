@@ -27,7 +27,7 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from "firebase/firestore";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
@@ -701,6 +701,7 @@ function QuickActionButton({
 export default function ClassActivityPage() {
   const params = useParams<{ classId?: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const { settings } = useUserSettings();
 
@@ -796,6 +797,20 @@ export default function ClassActivityPage() {
   const locationLabel = classDetail?.location ?? "場所未設定";
   const teacherLabel = classDetail?.teacher ?? "-";
 
+  const handleOpenEdit = useCallback(() => {
+    if (!classId) {
+      return;
+    }
+    const query = new URLSearchParams();
+    if (fiscalYear) {
+      query.set("fiscalYear", fiscalYear);
+    }
+    const search = query.toString();
+    router.push(
+      `/mobile/classes/${classId}/activity/edit${search.length > 0 ? `?${search}` : ""}`,
+    );
+  }, [classId, fiscalYear, router]);
+
   const renderContent = () => {
     if (authInitializing) {
       return (
@@ -858,6 +873,7 @@ export default function ClassActivityPage() {
             </div>
             <button
               type="button"
+              onClick={handleOpenEdit}
               className="flex h-10 items-center gap-2 rounded-full border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
             >
               <FontAwesomeIcon icon={faPen} className="text-sm" aria-hidden="true" />

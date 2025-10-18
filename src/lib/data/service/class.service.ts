@@ -1,7 +1,10 @@
 import {
   collection,
   doc,
+  getDoc,
+  getDocs,
   serverTimestamp,
+  Timestamp,
   writeBatch,
   type DocumentReference,
 } from 'firebase/firestore';
@@ -469,6 +472,333 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
       updatedAt: timestamp,
     });
   }
+
+  await batch.commit();
+}
+
+export type UpdateTimetableClassParams = {
+  userId: string;
+  classId: string;
+  currentFiscalYear: string;
+  targetFiscalYear: string;
+  calendarId: string;
+  className: string;
+  classType: CreateTimetableClassParams["classType"];
+  isFullyOnDemand: boolean;
+  location: string;
+  teacher: string;
+  credits: number | null;
+  creditsStatus: CreateTimetableClassParams["creditsStatus"];
+  maxAbsenceDays: number;
+  termIds: string[];
+  termNames: string[];
+  specialOption: SpecialScheduleOption;
+  weeklySlots: WeeklySlotSelection[];
+  generatedClassDates: GeneratedClassDate[];
+  updateSchedule: boolean;
+  existingCreatedAt?: Timestamp | Date | string | number | null;
+};
+
+function resolveCreatedAtValue(
+  existing: Timestamp | Date | string | number | null | undefined,
+  fallback: ReturnType<typeof serverTimestamp>,
+): Timestamp | ReturnType<typeof serverTimestamp> {
+  if (existing instanceof Timestamp) {
+    return existing;
+  }
+  if (existing instanceof Date) {
+    return Timestamp.fromDate(existing);
+  }
+  if (typeof existing === "number" && Number.isFinite(existing)) {
+    return Timestamp.fromMillis(existing);
+  }
+  if (typeof existing === "string") {
+    const parsed = new Date(existing);
+    if (!Number.isNaN(parsed.getTime())) {
+      return Timestamp.fromDate(parsed);
+    }
+  }
+  return fallback;
+}
+
+export async function updateTimetableClass(params: UpdateTimetableClassParams) {
+  const {
+    userId,
+    classId,
+    currentFiscalYear,
+    targetFiscalYear,
+    calendarId,
+    className,
+    classType,
+    isFullyOnDemand,
+    location,
+    teacher,
+    credits,
+    creditsStatus,
+    maxAbsenceDays,
+    termIds,
+    termNames,
+    specialOption,
+    weeklySlots,
+    generatedClassDates,
+    updateSchedule,
+    existingCreatedAt,
+  } = params;
+
+  if (!userId) {
+    throw new Error("ユーザーIDが必要です。");
+  }
+  if (!classId) {
+    throw new Error("授業IDが必要です。");
+  }
+
+  const normalizedCurrentFiscalYear = currentFiscalYear.trim();
+  const normalizedTargetFiscalYear = targetFiscalYear.trim();
+  if (!normalizedCurrentFiscalYear) {
+    throw new Error("現在の年度情報が不足しています。");
+  }
+
+  validateCalendarQueryParams(normalizedTargetFiscalYear, calendarId);
+
+  const trimmedClassName = className.trim();
+  if (!trimmedClassName) {
+    throw new Error("授業名を入力してください。");
+  }
+
+  const targetFiscalYearNumber = Number.parseInt(normalizedTargetFiscalYear, 10);
+  if (!Number.isFinite(targetFiscalYearNumber)) {
+    throw new Error("年度は数値で入力してください。");
+  }
+
+  const timestamp = serverTimestamp();
+
+  const uniqueTermIds = Array.from(
+    new Set(termIds.map((termId) => termId.trim()).filter((termId) => termId.length > 0)),
+  );
+  const uniqueTermNames = Array.from(
+    new Set(termNames.map((name) => name.trim()).filter((name) => name.length > 0)),
+  );
+  const termDisplayName = uniqueTermNames.length > 0 ? uniqueTermNames.join(", ") : null;
+
+  const specialScheduleOption: SpecialScheduleOption =
+    SPECIAL_SCHEDULE_OPTION_LABELS[specialOption] ? specialOption : "all";
+
+  const normalizedLocation = location.trim();
+  const normalizedTeacher = teacher.trim();
+
+  const maxAbsenceValue = Number.isFinite(maxAbsenceDays)
+    ? Math.max(0, Math.trunc(maxAbsenceDays))
+    : 0;
+
+  const creditsValue =
+    typeof credits === "number" && Number.isFinite(credits) ? credits : null;
+
+  const currentClassRef = doc(
+    db,
+    "users",
+    userId,
+    "academic_years",
+    normalizedCurrentFiscalYear,
+    "timetable_classes",
+    classId,
+  );
+
+  const targetClassRef = doc(
+    db,
+    "users",
+    userId,
+    "academic_years",
+    normalizedTargetFiscalYear,
+    "timetable_classes",
+    classId,
+  );
+
+  const classDocData = {
+    className: trimmedClassName,
+    fiscalYear: targetFiscalYearNumber,
+    calendarId: calendarId.trim(),
+    termIds: uniqueTermIds,
+    termNames: uniqueTermNames,
+    termDisplayName,
+    classType,
+    isFullyOnDemand,
+    specialScheduleOption,
+    credits: creditsValue,
+    creditsStatus,
+    teacher: normalizedTeacher.length > 0 ? normalizedTeacher : null,
+    location: normalizedLocation.length > 0 ? normalizedLocation : null,
+    maxAbsenceDays: maxAbsenceValue,
+    updatedAt: timestamp,
+  };
+
+  const shouldPersistWeeklySlots = updateSchedule && !isFullyOnDemand && weeklySlots.length > 0;
+  const shouldPersistClassDates = updateSchedule && !isFullyOnDemand && generatedClassDates.length > 0;
+
+  const uniqueSlots = new Map<string, WeeklySlotSelection>();
+  if (shouldPersistWeeklySlots) {
+    weeklySlots.forEach((slot) => {
+      const key = `${slot.dayOfWeek}-${slot.period}`;
+      if (!uniqueSlots.has(key)) {
+        uniqueSlots.set(key, slot);
+      }
+    });
+  }
+
+  if (normalizedCurrentFiscalYear === normalizedTargetFiscalYear) {
+    const batch = writeBatch(db);
+
+    batch.set(currentClassRef, classDocData, { merge: true });
+
+    if (updateSchedule) {
+      const [slotSnapshot, dateSnapshot] = await Promise.all([
+        getDocs(collection(currentClassRef, "weekly_slots")),
+        getDocs(collection(currentClassRef, "class_dates")),
+      ]);
+
+      slotSnapshot.forEach((docSnapshot) => {
+        batch.delete(docSnapshot.ref);
+      });
+      dateSnapshot.forEach((docSnapshot) => {
+        batch.delete(docSnapshot.ref);
+      });
+
+      if (shouldPersistWeeklySlots) {
+        let displayOrder = 1;
+        for (const slot of uniqueSlots.values()) {
+          const slotRef = doc(collection(currentClassRef, "weekly_slots"));
+          batch.set(slotRef, {
+            dayOfWeek: slot.dayOfWeek,
+            period: slot.period,
+            displayOrder,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          displayOrder += 1;
+        }
+      }
+
+      if (shouldPersistClassDates) {
+        for (const item of generatedClassDates) {
+          if (!item.date || item.periods.length === 0) {
+            continue;
+          }
+          const classDateId = buildClassDateId(item.date, item.periods);
+          const classDateRef: DocumentReference = doc(
+            collection(currentClassRef, "class_dates"),
+            classDateId,
+          );
+
+          const periodsOrderKey = item.periods.reduce<number>((min, period) => {
+            if (period === "OD") {
+              return Math.min(min, 999);
+            }
+            return Math.min(min, period);
+          }, 999);
+
+          batch.set(classDateRef, {
+            classDate: item.date,
+            periods: item.periods,
+            attendanceStatus: null,
+            isTest: false,
+            isExcludedFromSummary: false,
+            isAutoGenerated: true,
+            isCancelled: false,
+            deliveryType: buildDeliveryType(classType),
+            hasUserModifications: false,
+            periodsOrderKey,
+            updatedAt: timestamp,
+          });
+        }
+      }
+    }
+
+    await batch.commit();
+    return;
+  }
+
+  if (!updateSchedule) {
+    throw new Error("出席記録がある授業は年度を変更できません。");
+  }
+
+  const [slotSnapshot, dateSnapshot, currentSnapshot] = await Promise.all([
+    getDocs(collection(currentClassRef, "weekly_slots")),
+    getDocs(collection(currentClassRef, "class_dates")),
+    getDoc(currentClassRef),
+  ]);
+
+  if (!currentSnapshot.exists()) {
+    throw new Error("授業情報が見つかりません。");
+  }
+
+  const createdAtValue = resolveCreatedAtValue(existingCreatedAt ?? currentSnapshot.data()?.createdAt, timestamp);
+
+  const batch = writeBatch(db);
+
+  batch.set(
+    targetClassRef,
+    {
+      ...classDocData,
+      createdAt: createdAtValue,
+    },
+    { merge: false },
+  );
+
+  if (shouldPersistWeeklySlots) {
+    let displayOrder = 1;
+    for (const slot of uniqueSlots.values()) {
+      const slotRef = doc(collection(targetClassRef, "weekly_slots"));
+      batch.set(slotRef, {
+        dayOfWeek: slot.dayOfWeek,
+        period: slot.period,
+        displayOrder,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      displayOrder += 1;
+    }
+  }
+
+  if (shouldPersistClassDates) {
+    for (const item of generatedClassDates) {
+      if (!item.date || item.periods.length === 0) {
+        continue;
+      }
+      const classDateId = buildClassDateId(item.date, item.periods);
+      const classDateRef: DocumentReference = doc(
+        collection(targetClassRef, "class_dates"),
+        classDateId,
+      );
+
+      const periodsOrderKey = item.periods.reduce<number>((min, period) => {
+        if (period === "OD") {
+          return Math.min(min, 999);
+        }
+        return Math.min(min, period);
+      }, 999);
+
+      batch.set(classDateRef, {
+        classDate: item.date,
+        periods: item.periods,
+        attendanceStatus: null,
+        isTest: false,
+        isExcludedFromSummary: false,
+        isAutoGenerated: true,
+        isCancelled: false,
+        deliveryType: buildDeliveryType(classType),
+        hasUserModifications: false,
+        periodsOrderKey,
+        updatedAt: timestamp,
+      });
+    }
+  }
+
+  slotSnapshot.forEach((docSnapshot) => {
+    batch.delete(docSnapshot.ref);
+  });
+  dateSnapshot.forEach((docSnapshot) => {
+    batch.delete(docSnapshot.ref);
+  });
+  batch.delete(currentClassRef);
 
   await batch.commit();
 }
