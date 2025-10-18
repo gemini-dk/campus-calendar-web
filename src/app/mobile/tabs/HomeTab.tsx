@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 import {
@@ -11,7 +11,8 @@ import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
 import ScrollDemoScreen from '../components/ScrollDemoScreen';
-import DailyClassesSection from './HomeTab/DailyClassesSection';
+import ClassActivityOverlay from '../components/ClassActivityOverlay';
+import DailyClassesSection, { type DailyClassSession } from './HomeTab/DailyClassesSection';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -66,6 +67,7 @@ function HomeTabContent() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isScrollDemoOpen, setIsScrollDemoOpen] = useState(false);
+  const [selectedClassSession, setSelectedClassSession] = useState<DailyClassSession | null>(null);
 
   const dateId = useMemo(
     () => normalizeDateId(searchParams?.get('date') ?? null),
@@ -144,6 +146,14 @@ function HomeTabContent() {
   const weekdayColorClass = resolveAccentColor(general?.weekdayTextColor);
   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
+  const handleSelectClassSession = useCallback((session: DailyClassSession) => {
+    setSelectedClassSession(session);
+  }, []);
+
+  const handleCloseClassActivity = useCallback(() => {
+    setSelectedClassSession(null);
+  }, []);
+
   return (
     <>
       <div className="flex min-h-full flex-col">
@@ -202,9 +212,16 @@ function HomeTabContent() {
             dateId={dateId}
             authInitializing={authInitializing}
             isAuthenticated={isAuthenticated}
+            onSelectClass={handleSelectClassSession}
           />
         </div>
       </div>
+      <ClassActivityOverlay
+        open={Boolean(selectedClassSession)}
+        session={selectedClassSession}
+        fiscalYear={settings.calendar.fiscalYear ?? null}
+        onClose={handleCloseClassActivity}
+      />
       <ScrollDemoScreen
         open={isScrollDemoOpen}
         onClose={() => setIsScrollDemoOpen(false)}
