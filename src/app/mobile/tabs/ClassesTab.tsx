@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useMemo, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faListUl, faPlus, faTable } from "@fortawesome/free-solid-svg-icons";
@@ -28,7 +29,7 @@ function buildCalendarKey(entry: CalendarEntry): string {
 }
 
 export default function ClassesTab() {
-  const { settings } = useUserSettings();
+  const { settings, saveCalendarSettings } = useUserSettings();
   const { profile, isAuthenticated } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ClassesViewMode>("schedule");
@@ -74,6 +75,40 @@ export default function ClassesTab() {
     }
     return calendarEntries[0] ?? null;
   }, [calendarEntries, selectedCalendarKey]);
+
+  const fiscalYearOptions = useMemo(() => {
+    const years = Array.from(
+      new Set((settings.calendar.entries ?? []).map((entry) => entry.fiscalYear)),
+    );
+    return years.sort((a, b) => b.localeCompare(a));
+  }, [settings.calendar.entries]);
+
+  const handleChangeFiscalYear = (event: ChangeEvent<HTMLSelectElement>) => {
+    const nextFiscalYear = event.target.value;
+    if (!nextFiscalYear || nextFiscalYear === settings.calendar.fiscalYear) {
+      return;
+    }
+
+    const currentCalendarId = settings.calendar.calendarId;
+    const matchedEntry = settings.calendar.entries.find(
+      (entry) => entry.fiscalYear === nextFiscalYear && entry.calendarId === currentCalendarId,
+    );
+    const fallbackEntry = settings.calendar.entries.find(
+      (entry) => entry.fiscalYear === nextFiscalYear,
+    );
+
+    if (!matchedEntry && !fallbackEntry) {
+      return;
+    }
+
+    const targetEntry = matchedEntry ?? fallbackEntry!;
+
+    saveCalendarSettings({
+      fiscalYear: targetEntry.fiscalYear,
+      calendarId: targetEntry.calendarId,
+      entries: settings.calendar.entries,
+    });
+  };
 
   const viewTitle = viewMode === "schedule" ? "時間割" : "授業科目一覧";
 

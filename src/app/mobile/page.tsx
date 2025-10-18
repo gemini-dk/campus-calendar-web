@@ -4,7 +4,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faCalendar,
+  faCalendarDays,
+  faCalendarWeek,
   faChalkboardTeacher,
   faHome,
   faTasks,
@@ -14,15 +15,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import HomeTab from "./tabs/HomeTab";
 import CalendarTab from "./tabs/CalendarTab";
+import WeeklyCalendarTab from "./tabs/WeeklyCalendarTab";
 import TodoTab from "./tabs/TodoTab";
 import ClassesTab from "./tabs/ClassesTab";
 import type { TabDefinition, TabId } from "./tabs/types";
 
 const TABS: TabDefinition[] = [
-  { id: "home", label: "Home", icon: faHome, Component: HomeTab },
-  { id: "calendar", label: "Calendar", icon: faCalendar, Component: CalendarTab },
-  { id: "todo", label: "Todo", icon: faTasks, Component: TodoTab },
-  { id: "classes", label: "授業", icon: faChalkboardTeacher, Component: ClassesTab },
+  { id: "home", label: "1", icon: faHome, Component: HomeTab },
+  { id: "weekly", label: "7", icon: faCalendarWeek, Component: WeeklyCalendarTab },
+  { id: "calendar", label: "31", icon: faCalendarDays, Component: CalendarTab },
+  { id: "todo", label: "課題・メモ", icon: faTasks, Component: TodoTab },
+  { id: "classes", label: "授業管理", icon: faChalkboardTeacher, Component: ClassesTab },
 ];
 
 function MobilePageContent() {
@@ -32,7 +35,13 @@ function MobilePageContent() {
 
   const tabFromParams = useMemo<TabId>(() => {
     const param = searchParams.get("tab");
-    if (param === "home" || param === "calendar" || param === "todo" || param === "classes") {
+    if (
+      param === "home" ||
+      param === "weekly" ||
+      param === "calendar" ||
+      param === "todo" ||
+      param === "classes"
+    ) {
       return param;
     }
     return "home";
