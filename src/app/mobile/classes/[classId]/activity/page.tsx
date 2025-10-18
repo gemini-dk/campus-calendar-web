@@ -33,6 +33,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
 import DeliveryToggleGroup from "@/app/mobile/components/DeliveryToggleGroup";
+import CreateClassDialog, { type EditClassInitialData } from "@/app/mobile/tabs/classes/CreateClassDialog";
+import type { CalendarOption } from "@/app/mobile/tabs/classes/TermSettingsDialog";
 import type {
   AttendanceStatus,
   AttendanceSummary as AttendanceSummaryType,
@@ -46,6 +48,11 @@ import {
   mapTimetableClassDate,
   type TimetableClassDateDoc,
 } from "@/app/mobile/utils/classSchedule";
+import {
+  SPECIAL_SCHEDULE_OPTION_LABELS,
+  type SpecialScheduleOption,
+  type WeeklySlotSelection,
+} from "@/lib/data/service/class.service";
 import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
 import { db } from "@/lib/firebase/client";
@@ -94,8 +101,15 @@ type ClassDetail = {
   classType: ClassType;
   location: string | null;
   teacher: string | null;
+  fiscalYear: string | null;
+  calendarId: string | null;
   termDisplayName: string | null;
   termNames: string[];
+  termIds: string[];
+  specialScheduleOption: SpecialScheduleOption;
+  isFullyOnDemand: boolean;
+  credits: number | null;
+  creditsStatus: "in_progress" | "completed" | "failed";
   maxAbsenceDays: number | null;
   omitWeeklySlots: boolean;
 };
@@ -189,17 +203,39 @@ function mapActivityDocument(docSnapshot: QueryDocumentSnapshot<DocumentData>): 
 function mapWeeklySlotDocument(docSnapshot: QueryDocumentSnapshot<DocumentData>): WeeklySlot | null {
   const data = docSnapshot.data();
   const dayOfWeek = Number.parseInt(String(data.dayOfWeek ?? ""), 10);
-  const period = Number.parseInt(String(data.period ?? ""), 10);
   if (!Number.isFinite(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7) {
     return null;
   }
-  if (!Number.isFinite(period) || period <= 0) {
+
+  const periodValue = data.period;
+  let period: number;
+
+  if (typeof periodValue === "number" && Number.isFinite(periodValue)) {
+    period = Math.max(0, Math.trunc(periodValue));
+  } else if (typeof periodValue === "string") {
+    const trimmed = periodValue.trim();
+    if (trimmed.length === 0) {
+      period = 0;
+    } else if (/^(od|on_demand)$/i.test(trimmed)) {
+      period = 0;
+    } else {
+      const parsed = Number.parseInt(trimmed, 10);
+      if (!Number.isFinite(parsed)) {
+        return null;
+      }
+      period = parsed <= 0 ? 0 : parsed;
+    }
+  } else if (periodValue == null) {
+    period = 0;
+  } else {
     return null;
   }
+
   const displayOrder =
     typeof data.displayOrder === "number" && Number.isFinite(data.displayOrder)
       ? Math.max(0, Math.trunc(data.displayOrder))
       : 0;
+
   return {
     id: docSnapshot.id,
     dayOfWeek,
@@ -232,10 +268,29 @@ function mapClassDetailData(id: string, data: DocumentData | undefined): ClassDe
       ? data.teacher.trim()
       : null;
 
+  const fiscalYear = (() => {
+    if (typeof data.fiscalYear === "number" && Number.isFinite(data.fiscalYear)) {
+      return String(Math.trunc(data.fiscalYear));
+    }
+    if (typeof data.fiscalYear === "string" && data.fiscalYear.trim().length > 0) {
+      return data.fiscalYear.trim();
+    }
+    return null;
+  })();
+
+  const calendarId =
+    typeof data.calendarId === "string" && data.calendarId.trim().length > 0
+      ? data.calendarId.trim()
+      : null;
+
   const termNamesRaw = Array.isArray(data.termNames) ? data.termNames : [];
   const termNames = termNamesRaw
     .map((term) => (typeof term === "string" ? term.trim() : ""))
     .filter((term) => term.length > 0);
+  const termIdsRaw = Array.isArray(data.termIds) ? data.termIds : [];
+  const termIds = termIdsRaw
+    .map((termId) => (typeof termId === "string" ? termId.trim() : ""))
+    .filter((termId) => termId.length > 0);
   const termDisplayName = typeof data.termDisplayName === "string" ? data.termDisplayName : null;
 
   const maxAbsenceDays =
@@ -243,14 +298,38 @@ function mapClassDetailData(id: string, data: DocumentData | undefined): ClassDe
       ? Math.max(0, Math.trunc(data.maxAbsenceDays))
       : null;
 
+  const specialValue = typeof data.specialScheduleOption === "string" ? data.specialScheduleOption : "all";
+  const specialScheduleOption: SpecialScheduleOption =
+    SPECIAL_SCHEDULE_OPTION_LABELS[specialValue as SpecialScheduleOption]
+      ? (specialValue as SpecialScheduleOption)
+      : "all";
+
+  const isFullyOnDemand = data.isFullyOnDemand === true;
+
+  const credits =
+    typeof data.credits === "number" && Number.isFinite(data.credits) ? data.credits : null;
+
+  const statusValue = typeof data.creditsStatus === "string" ? data.creditsStatus : "in_progress";
+  const creditsStatus: ClassDetail["creditsStatus"] =
+    statusValue === "completed" || statusValue === "failed"
+      ? statusValue
+      : "in_progress";
+
   return {
     id,
     className,
     classType,
     location,
     teacher,
+    fiscalYear,
+    calendarId,
     termNames,
+    termIds,
     termDisplayName,
+    specialScheduleOption,
+    isFullyOnDemand,
+    credits,
+    creditsStatus,
     maxAbsenceDays,
     omitWeeklySlots: data.omitWeeklySlots === true,
   } satisfies ClassDetail;
@@ -267,10 +346,12 @@ function groupWeeklySlots(slots: WeeklySlot[]): string {
     grouped.set(slot.dayOfWeek, items);
   }
   const parts: string[] = [];
+  const weight = (value: number) => (value <= 0 ? 999 : value);
   for (const [day, periods] of grouped) {
     const weekday = WEEKDAY_LABELS.get(day) ?? `${day}`;
-    const sorted = periods.slice().sort((a, b) => a - b);
-    parts.push(`${weekday}曜${sorted.join("・")}限`);
+    const sorted = periods.slice().sort((a, b) => weight(a) - weight(b));
+    const labels = sorted.map((period) => (period <= 0 ? "オンデマンド" : `${period}限`));
+    parts.push(`${weekday}曜${labels.join("・")}`);
   }
   return parts.join("、");
 }
@@ -876,6 +957,7 @@ export function ClassActivityContent({
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [updatingAttendanceId, setUpdatingAttendanceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"history" | "upcoming">("history");
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const handleAttendanceChange = useCallback(
     async (classDateId: string, status: AttendanceStatus) => {
@@ -979,6 +1061,83 @@ export function ClassActivityContent({
     return [...undatedAssignments, ...datedItems];
   }, [activities, classDates, normalizedClassId, todayId]);
 
+  const hasAttendanceRecords = useMemo(() => {
+    return classDates.some((date) => date.attendanceStatus !== null);
+  }, [classDates]);
+
+  const calendarOptions = useMemo<CalendarOption[]>(() => {
+    const options = new Map<string, CalendarOption>();
+    const entries = settings.calendar.entries ?? [];
+    entries.forEach((entry) => {
+      if (!entry) {
+        return;
+      }
+      const fiscalYearValue =
+        typeof entry.fiscalYear === "string"
+          ? entry.fiscalYear.trim()
+          : typeof entry.fiscalYear === "number"
+            ? String(entry.fiscalYear).trim()
+            : "";
+      const calendarIdValue =
+        typeof entry.calendarId === "string"
+          ? entry.calendarId.trim()
+          : typeof entry.calendarId === "number"
+            ? String(entry.calendarId).trim()
+            : "";
+      if (!fiscalYearValue || !calendarIdValue) {
+        return;
+      }
+      const key = `${fiscalYearValue}::${calendarIdValue}`;
+      options.set(key, { fiscalYear: fiscalYearValue, calendarId: calendarIdValue });
+    });
+    if (classDetail?.fiscalYear && classDetail.calendarId) {
+      const key = `${classDetail.fiscalYear}::${classDetail.calendarId}`;
+      options.set(key, { fiscalYear: classDetail.fiscalYear, calendarId: classDetail.calendarId });
+    }
+    return Array.from(options.values());
+  }, [classDetail?.calendarId, classDetail?.fiscalYear, settings.calendar.entries]);
+
+  const editInitialData = useMemo<EditClassInitialData | null>(() => {
+    if (!classDetail || !classDetail.fiscalYear || !classDetail.calendarId) {
+      return null;
+    }
+
+    const weeklySelections: WeeklySlotSelection[] = weeklySlots.map((slot) => ({
+      dayOfWeek: slot.dayOfWeek,
+      period: slot.period,
+    }));
+
+    const existingWeeklySlotIds = weeklySlots.map((slot) => slot.id);
+    const existingClassDateIds = classDates.map((date) => date.id);
+
+    const generatedDates = classDates.map((date) => ({
+      date: date.classDate,
+      periods: date.periods,
+    }));
+
+    return {
+      classId: classDetail.id,
+      className: classDetail.className,
+      classType: classDetail.classType,
+      location: classDetail.location,
+      teacher: classDetail.teacher,
+      credits: classDetail.credits,
+      creditsStatus: classDetail.creditsStatus,
+      selectedTermIds: classDetail.termIds,
+      specialOption: classDetail.specialScheduleOption,
+      weeklySlots: weeklySelections,
+      isFullyOnDemand: classDetail.isFullyOnDemand,
+      maxAbsenceDays: classDetail.maxAbsenceDays ?? 0,
+      originalFiscalYear: classDetail.fiscalYear,
+      calendarId: classDetail.calendarId,
+      generatedClassDates: generatedDates,
+      existingWeeklySlotIds,
+      existingClassDateIds,
+    } satisfies EditClassInitialData;
+  }, [classDates, classDetail, weeklySlots]);
+
+  const canEditClass = Boolean(editInitialData && userId);
+
   const absenceMessage = attendanceSummary ? buildAbsenceMessage(attendanceSummary) : null;
   const absenceRatioLabel = attendanceSummary
     ? attendanceSummary.maxAbsenceDays === null
@@ -1056,7 +1215,14 @@ export function ClassActivityContent({
             </div>
             <button
               type="button"
-              className="flex h-10 items-center gap-2 rounded-full border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+              onClick={() => {
+                if (!canEditClass) {
+                  return;
+                }
+                setIsEditDialogOpen(true);
+              }}
+              disabled={!canEditClass}
+              className="flex h-10 items-center gap-2 rounded-full border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
             >
               <FontAwesomeIcon icon={faPen} className="text-sm" aria-hidden="true" />
               編集
@@ -1159,6 +1325,19 @@ export function ClassActivityContent({
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white px-4 py-6">
         {renderContent()}
       </div>
+      {isEditDialogOpen && editInitialData && classDetail && classDetail.fiscalYear && classDetail.calendarId ? (
+        <CreateClassDialog
+          isOpen={isEditDialogOpen}
+          onClose={() => setIsEditDialogOpen(false)}
+          calendarOptions={calendarOptions}
+          defaultFiscalYear={classDetail.fiscalYear}
+          defaultCalendarId={classDetail.calendarId}
+          userId={userId}
+          mode="edit"
+          initialData={editInitialData}
+          disableScheduleChanges={hasAttendanceRecords}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1174,4 +1353,3 @@ export default function ClassActivityPage() {
     <ClassActivityContent classId={classIdParam} fiscalYearOverride={fiscalYearParam} />
   );
 }
-

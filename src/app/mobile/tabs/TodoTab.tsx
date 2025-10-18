@@ -114,22 +114,17 @@ function mapActivity(doc: QueryDocumentSnapshot<DocumentData>): Activity {
   } satisfies Activity;
 }
 
-function formatDueDateLabel(value: string | null, type: ActivityType): string {
-  if (type === 'memo') {
-    return '未設定';
-  }
-
+function formatDueDateLabel(value: string | null): string {
   if (!value) {
     return '未設定';
   }
 
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return '未設定';
   }
 
   return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(date);
@@ -197,8 +192,12 @@ function ActivityListItem({
   onToggleStatus?: (activity: Activity) => void;
 }) {
   const { icon, className } = resolveIcon(activity.type, activity.status);
-  const dueLabel = formatDueDateLabel(activity.dueDate, activity.type);
-  const classLabel = activity.classId ?? '未設定';
+  const dueLabel =
+    activity.type === 'assignment' ? formatDueDateLabel(activity.dueDate) : null;
+  const classLabel =
+    typeof activity.classId === 'string' && activity.classId.trim().length > 0
+      ? activity.classId.trim()
+      : null;
   const createdLabel = formatDateLabel(activity.createdAt);
 
   return (
@@ -230,9 +229,17 @@ function ActivityListItem({
           {activity.title || '無題の項目'}
         </h3>
         <div className="flex items-center justify-between text-xs text-neutral-500">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="whitespace-nowrap">期限: {dueLabel}</span>
-            <span className="whitespace-nowrap">関連授業: {classLabel}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {dueLabel ? (
+              <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 font-semibold text-orange-700">
+                {dueLabel}
+              </span>
+            ) : null}
+            {classLabel ? (
+              <span className="inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 font-medium text-neutral-700">
+                {classLabel}
+              </span>
+            ) : null}
           </div>
           <span className="whitespace-nowrap text-neutral-400">作成日 {createdLabel}</span>
         </div>
@@ -279,7 +286,7 @@ function TodoList({
   }
 
   return (
-    <div className="flex w-full flex-col gap-5">
+    <div className="flex w-full flex-col gap-3">
       {items.map((item) => (
         <ActivityListItem
           key={item.id}
@@ -328,7 +335,7 @@ function MemoList({
   }
 
   return (
-    <div className="flex w-full flex-col gap-5">
+    <div className="flex w-full flex-col gap-3">
       {items.map((memo) => (
         <ActivityListItem key={memo.id} activity={memo} onSelect={onSelect} />
       ))}
@@ -639,7 +646,9 @@ export default function TodoTab() {
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
       <header className="flex h-[60px] w-full items-center justify-between border-b border-neutral-200 bg-white px-3">
-        <h1 className="text-lg font-semibold text-neutral-900">課題一覧、メモ一覧</h1>
+        <h1 className="text-lg font-semibold text-neutral-900">
+          {viewMode === 'todo' ? '課題一覧' : 'メモ一覧'}
+        </h1>
         <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
       </header>
 

@@ -10,6 +10,7 @@ import {
   computeRecommendedMaxAbsence,
   createTimetableClass,
   generateClassDates,
+  updateTimetableClass,
   type GeneratedClassDate,
   type SpecialScheduleOption,
   type WeeklySlotSelection,
@@ -59,6 +60,28 @@ const SPECIAL_SCHEDULE_LABELS: Record<SpecialScheduleOption, string> = {
   even_weeks: "偶数週",
 };
 
+type ClassFormMode = "create" | "edit";
+
+export type EditClassInitialData = {
+  classId: string;
+  className: string;
+  classType: FormState["classType"];
+  location: string | null;
+  teacher: string | null;
+  credits: number | null;
+  creditsStatus: FormState["creditsStatus"];
+  selectedTermIds: string[];
+  specialOption: SpecialScheduleOption;
+  weeklySlots: WeeklySlotSelection[];
+  isFullyOnDemand: boolean;
+  maxAbsenceDays: number;
+  originalFiscalYear: string;
+  calendarId: string;
+  generatedClassDates: GeneratedClassDate[];
+  existingWeeklySlotIds: string[];
+  existingClassDateIds: string[];
+};
+
 const WEEKDAY_LABELS = new Map<number, string>([
   [1, "月"],
   [2, "火"],
@@ -70,15 +93,28 @@ const WEEKDAY_LABELS = new Map<number, string>([
 
 const PREVIEW_LIMIT = 8;
 
-type CreateClassDialogProps = {
+type BaseCreateClassDialogProps = {
   isOpen: boolean;
   onClose: () => void;
   calendarOptions: CalendarOption[];
   defaultFiscalYear?: string | null;
   defaultCalendarId?: string | null;
   userId: string | null;
+};
+
+type CreateModeProps = {
+  mode?: Extract<ClassFormMode, "create">;
   onCreated?: () => void;
 };
+
+type EditModeProps = {
+  mode: Extract<ClassFormMode, "edit">;
+  initialData: EditClassInitialData;
+  disableScheduleChanges?: boolean;
+  onUpdated?: () => void;
+};
+
+type CreateClassDialogProps = BaseCreateClassDialogProps & (CreateModeProps | EditModeProps);
 
 function buildCalendarKey(option: CalendarOption): string {
   return `${option.fiscalYear}::${option.calendarId}`;
@@ -88,15 +124,58 @@ function filterEligibleTerms(terms: CalendarTerm[]): CalendarTerm[] {
   return terms.filter((term) => term.holidayFlag === 2);
 }
 
-export function CreateClassDialog({
-  isOpen,
-  onClose,
-  calendarOptions,
-  defaultFiscalYear,
-  defaultCalendarId,
-  userId,
-  onCreated,
-}: CreateClassDialogProps) {
+function areStringArraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
+}
+
+function areWeeklySlotsEqual(a: WeeklySlotSelection[], b: WeeklySlotSelection[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const normalize = (slots: WeeklySlotSelection[]) =>
+    slots
+      .map((slot) => `${slot.dayOfWeek}-${slot.period}`)
+      .sort();
+  const normalizedA = normalize(a);
+  const normalizedB = normalize(b);
+  return normalizedA.every((value, index) => value === normalizedB[index]);
+}
+
+function areGeneratedClassDatesEqual(a: GeneratedClassDate[], b: GeneratedClassDate[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const serialize = (items: GeneratedClassDate[]) =>
+    items
+      .map((item) => `${item.date}::${item.periods.join(',')}`)
+      .sort();
+  const serializedA = serialize(a);
+  const serializedB = serialize(b);
+  return serializedA.every((value, index) => value === serializedB[index]);
+}
+
+export function CreateClassDialog(props: CreateClassDialogProps) {
+  const {
+    isOpen,
+    onClose,
+    calendarOptions,
+    defaultFiscalYear,
+    defaultCalendarId,
+    userId,
+  } = props;
+
+  const mode: ClassFormMode = props.mode ?? "create";
+  const editProps = mode === "edit" ? (props as BaseCreateClassDialogProps & EditModeProps) : null;
+  const isEditMode = editProps !== null;
+  const editInitialData = editProps?.initialData ?? null;
+  const onCreated = !isEditMode ? (props as BaseCreateClassDialogProps & CreateModeProps).onCreated : undefined;
+  const onUpdated = editProps?.onUpdated;
+  const scheduleLocked = editProps?.disableScheduleChanges ?? false;
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM_STATE);
   const [selectedCalendar, setSelectedCalendar] = useState<CalendarOption | null>(null);
   const [calendarTerms, setCalendarTerms] = useState<CalendarTerm[]>([]);
@@ -116,6 +195,13 @@ export function CreateClassDialog({
 
   const termCacheRef = useRef<Map<string, CalendarTerm[]>>(new Map());
 
+  useEffect(() => {
+    if (scheduleLocked) {
+      setIsTermDialogOpen(false);
+      setIsWeeklyDialogOpen(false);
+    }
+  }, [scheduleLocked]);
+
   const loadTerms = useCallback(async (option: CalendarOption) => {
     const key = buildCalendarKey(option);
     const cached = termCacheRef.current.get(key);
@@ -132,12 +218,55 @@ export function CreateClassDialog({
     if (!isOpen) {
       return;
     }
-    setFormState(INITIAL_FORM_STATE);
+
     setSaveState("idle");
     setSaveError(null);
     setSaveSuccess(null);
-    setScheduleLoadState("idle");
     setScheduleError(null);
+
+    if (isEditMode && editInitialData) {
+      const fallbackOption: CalendarOption = {
+        fiscalYear: editInitialData.originalFiscalYear,
+        calendarId: editInitialData.calendarId,
+      };
+      const matchedOption = calendarOptions.find(
+        (option) =>
+          option.fiscalYear === editInitialData.originalFiscalYear &&
+          option.calendarId === editInitialData.calendarId,
+      );
+
+      setSelectedCalendar(matchedOption ?? fallbackOption);
+      setFormState({
+        className: editInitialData.className,
+        classType: editInitialData.classType,
+        location: editInitialData.location ?? "",
+        teacher: editInitialData.teacher ?? "",
+        creditsText:
+          typeof editInitialData.credits === "number" && Number.isFinite(editInitialData.credits)
+            ? String(editInitialData.credits)
+            : "",
+        creditsStatus: editInitialData.creditsStatus,
+        selectedTermIds: editInitialData.selectedTermIds,
+        specialOption: editInitialData.specialOption,
+        weeklySlots: editInitialData.weeklySlots,
+        isFullyOnDemand: editInitialData.isFullyOnDemand,
+        maxAbsenceDays: editInitialData.isFullyOnDemand
+          ? 0
+          : Math.max(0, Math.trunc(editInitialData.maxAbsenceDays)),
+        maxAbsenceTouched: true,
+      });
+      const hasGeneratedDates = editInitialData.generatedClassDates.length > 0;
+      setGeneratedClassDates(editInitialData.isFullyOnDemand ? [] : editInitialData.generatedClassDates);
+      setScheduleLoadState(
+        editInitialData.isFullyOnDemand ? "idle" : hasGeneratedDates ? "success" : "idle",
+      );
+      setTermLoadState("idle");
+      setTermError(null);
+      return;
+    }
+
+    setFormState(INITIAL_FORM_STATE);
+    setScheduleLoadState("idle");
     setGeneratedClassDates([]);
 
     const normalizedYear = defaultFiscalYear?.trim() ?? "";
@@ -149,7 +278,14 @@ export function CreateClassDialog({
     );
     const nextSelected = matched ?? calendarOptions[0] ?? null;
     setSelectedCalendar(nextSelected);
-  }, [calendarOptions, defaultCalendarId, defaultFiscalYear, isOpen]);
+  }, [
+    calendarOptions,
+    defaultCalendarId,
+    defaultFiscalYear,
+    editInitialData,
+    isEditMode,
+    isOpen,
+  ]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -217,7 +353,7 @@ export function CreateClassDialog({
   }, [isOpen, loadTerms, selectedCalendar]);
 
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || scheduleLocked) {
       return;
     }
 
@@ -284,6 +420,7 @@ export function CreateClassDialog({
     formState.specialOption,
     formState.weeklySlots,
     isOpen,
+    scheduleLocked,
     selectedCalendar,
   ]);
 
@@ -376,6 +513,18 @@ export function CreateClassDialog({
     isScheduleReady;
   const isSaveDisabled = saveState === "loading" || !canSave;
 
+  const headerTitle = isEditMode ? "授業を編集" : "授業を作成";
+  const saveButtonLabel = saveState === "loading"
+    ? isEditMode
+      ? "更新中..."
+      : "保存中..."
+    : isEditMode
+      ? "更新する"
+      : "保存する";
+  const scheduleRestrictionText = scheduleLocked
+    ? "出席記録が登録されているため、年度・学期・曜日・時限の変更はできません。"
+    : null;
+
   const handleClose = () => {
     onClose();
   };
@@ -449,6 +598,55 @@ export function CreateClassDialog({
         (termId) => termNameMap.get(termId) ?? termId,
       );
 
+      const weeklySlotsForSave = formState.isFullyOnDemand ? [] : formState.weeklySlots;
+      const generatedDatesForSave = formState.isFullyOnDemand ? [] : generatedClassDates;
+
+      if (isEditMode && editInitialData) {
+        const shouldUpdateSchedule = !scheduleLocked &&
+          (
+            selectedCalendar.fiscalYear !== editInitialData.originalFiscalYear ||
+            selectedCalendar.calendarId !== editInitialData.calendarId ||
+            !areStringArraysEqual(formState.selectedTermIds, editInitialData.selectedTermIds) ||
+            formState.specialOption !== editInitialData.specialOption ||
+            formState.isFullyOnDemand !== editInitialData.isFullyOnDemand ||
+            (!formState.isFullyOnDemand &&
+              !areWeeklySlotsEqual(formState.weeklySlots, editInitialData.weeklySlots)) ||
+            (!formState.isFullyOnDemand &&
+              !areGeneratedClassDatesEqual(generatedClassDates, editInitialData.generatedClassDates))
+          );
+
+        await updateTimetableClass({
+          userId,
+          classId: editInitialData.classId,
+          originalFiscalYear: editInitialData.originalFiscalYear,
+          newFiscalYear: selectedCalendar.fiscalYear,
+          calendarId: selectedCalendar.calendarId,
+          className: formState.className,
+          classType: formState.classType,
+          isFullyOnDemand: formState.isFullyOnDemand,
+          location: formState.location,
+          teacher: formState.teacher,
+          credits: creditsValue,
+          creditsStatus: formState.creditsStatus,
+          maxAbsenceDays: maxAbsenceValue,
+          termIds: formState.selectedTermIds,
+          termNames,
+          specialOption: formState.specialOption,
+          weeklySlots: weeklySlotsForSave,
+          generatedClassDates: generatedDatesForSave,
+          existingClassDateIds: editInitialData.existingClassDateIds,
+          existingWeeklySlotIds: editInitialData.existingWeeklySlotIds,
+          shouldUpdateSchedule,
+        });
+
+        setSaveState("idle");
+        setSaveError(null);
+        setSaveSuccess(null);
+        onUpdated?.();
+        onClose();
+        return;
+      }
+
       await createTimetableClass({
         userId,
         fiscalYear: selectedCalendar.fiscalYear,
@@ -464,22 +662,22 @@ export function CreateClassDialog({
         termIds: formState.selectedTermIds,
         termNames,
         specialOption: formState.specialOption,
-        weeklySlots: formState.isFullyOnDemand ? [] : formState.weeklySlots,
-        generatedClassDates: formState.isFullyOnDemand ? [] : generatedClassDates,
+        weeklySlots: weeklySlotsForSave,
+        generatedClassDates: generatedDatesForSave,
       });
 
       setSaveState("idle");
       setSaveError(null);
       setSaveSuccess(null);
-      if (onCreated) {
-        onCreated();
-      }
+      onCreated?.();
       onClose();
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "授業の保存に失敗しました。時間をおいて再度お試しください。";
+          : isEditMode
+            ? "授業の更新に失敗しました。時間をおいて再度お試しください。"
+            : "授業の保存に失敗しました。時間をおいて再度お試しください。";
       setSaveState("error");
       setSaveError(message);
       setSaveSuccess(null);
@@ -491,7 +689,7 @@ export function CreateClassDialog({
       <div className="flex h-full max-h-[680px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <header className="flex h-16 w-full items-center justify-between border-b border-neutral-200 px-5">
           <div>
-            <h2 className="text-lg font-semibold text-neutral-900">授業を作成</h2>
+            <h2 className="text-lg font-semibold text-neutral-900">{headerTitle}</h2>
             <p className="text-xs text-neutral-500">
               {selectedCalendar
                 ? `${selectedCalendar.fiscalYear}年度 / ${selectedCalendar.calendarId}`
@@ -590,8 +788,14 @@ export function CreateClassDialog({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setIsTermDialogOpen(true)}
-                    className="rounded border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100"
+                    onClick={() => {
+                      if (scheduleLocked) {
+                        return;
+                      }
+                      setIsTermDialogOpen(true);
+                    }}
+                    disabled={scheduleLocked}
+                    className="rounded border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
                   >
                     変更
                   </button>
@@ -604,8 +808,13 @@ export function CreateClassDialog({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setIsWeeklyDialogOpen(true)}
-                    disabled={formState.isFullyOnDemand}
+                    onClick={() => {
+                      if (scheduleLocked || formState.isFullyOnDemand) {
+                        return;
+                      }
+                      setIsWeeklyDialogOpen(true);
+                    }}
+                    disabled={formState.isFullyOnDemand || scheduleLocked}
                     className="rounded border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
                   >
                     変更
@@ -623,9 +832,13 @@ export function CreateClassDialog({
                       }))
                     }
                     className="h-4 w-4"
+                    disabled={scheduleLocked}
                   />
                   完全オンデマンド
                 </label>
+                {scheduleRestrictionText ? (
+                  <p className="text-xs text-neutral-500">{scheduleRestrictionText}</p>
+                ) : null}
               </div>
             </section>
 
@@ -759,12 +972,12 @@ export function CreateClassDialog({
             disabled={isSaveDisabled}
             className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
           >
-            {saveState === "loading" ? "保存中..." : "保存する"}
+            {saveButtonLabel}
           </button>
         </footer>
       </div>
 
-      {isTermDialogOpen ? (
+      {isTermDialogOpen && !scheduleLocked ? (
         <TermSettingsDialog
           isOpen={isTermDialogOpen}
           onClose={() => setIsTermDialogOpen(false)}
@@ -806,7 +1019,7 @@ export function CreateClassDialog({
         />
       ) : null}
 
-      {isWeeklyDialogOpen ? (
+      {isWeeklyDialogOpen && !scheduleLocked ? (
         <WeeklySlotsDialog
           isOpen={isWeeklyDialogOpen}
           onClose={() => setIsWeeklyDialogOpen(false)}
