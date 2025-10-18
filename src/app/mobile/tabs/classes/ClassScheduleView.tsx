@@ -14,7 +14,8 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 
-import type { CalendarTerm } from "@/lib/data/schema/calendar";
+import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
+import { getCalendarDay } from "@/lib/data/repository/calendar.repository";
 import { getCalendarTerms } from "@/lib/data/service/calendar.service";
 import type { SpecialScheduleOption } from "@/lib/data/service/class.service";
 import { SPECIAL_SCHEDULE_OPTION_LABELS } from "@/lib/data/service/class.service";
@@ -76,6 +77,91 @@ const PERIOD_COLUMN_WIDTH = "2ch";
 
 const DRAG_DETECTION_THRESHOLD = 6;
 const SWIPE_TRIGGER_RATIO = 0.25;
+
+function formatDateId(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function findTermIndexFromDay(
+  day: CalendarDay | null,
+  termIndexById: Map<string, number>,
+  termIndexByName: Map<string, number>,
+): number | null {
+  if (!day) {
+    return null;
+  }
+
+  const termId = typeof day.termId === "string" ? day.termId.trim() : "";
+  if (termId && termIndexById.has(termId)) {
+    return termIndexById.get(termId) ?? null;
+  }
+
+  const nameCandidates: (string | undefined)[] = [day.termName, day.termShortName];
+  for (const candidate of nameCandidates) {
+    const normalized = typeof candidate === "string" ? candidate.trim() : "";
+    if (!normalized) {
+      continue;
+    }
+    if (termIndexByName.has(normalized)) {
+      return termIndexByName.get(normalized) ?? null;
+    }
+  }
+
+  return null;
+}
+
+async function resolveInitialTermIndex(
+  terms: CalendarTerm[],
+  fiscalYear: string,
+  calendarId: string,
+): Promise<number> {
+  if (terms.length === 0) {
+    return 0;
+  }
+
+  const trimmedFiscalYear = fiscalYear.trim();
+  const trimmedCalendarId = calendarId.trim();
+  if (!trimmedFiscalYear || !trimmedCalendarId) {
+    return 0;
+  }
+
+  const fiscalYearNumber = Number.parseInt(trimmedFiscalYear, 10);
+  if (!Number.isFinite(fiscalYearNumber)) {
+    return 0;
+  }
+
+  const termIndexById = new Map<string, number>();
+  const termIndexByName = new Map<string, number>();
+  terms.forEach((term, index) => {
+    termIndexById.set(term.id, index);
+    termIndexByName.set(term.name, index);
+    if (term.shortName) {
+      termIndexByName.set(term.shortName, index);
+    }
+  });
+
+  const today = new Date();
+  const startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const deadline = new Date(fiscalYearNumber + 1, 2, 31);
+
+  for (
+    let current = new Date(startDate);
+    current.getTime() <= deadline.getTime();
+    current.setDate(current.getDate() + 1)
+  ) {
+    const dateId = formatDateId(current);
+    const day = await getCalendarDay(trimmedFiscalYear, trimmedCalendarId, dateId);
+    const termIndex = findTermIndexFromDay(day, termIndexById, termIndexByName);
+    if (termIndex !== null) {
+      return termIndex;
+    }
+  }
+
+  return Math.max(terms.length - 1, 0);
+}
 
 function mapTimetableClassDoc(
   doc: QueryDocumentSnapshot<DocumentData>,
@@ -256,8 +342,19 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
           return;
         }
         const filtered = items.filter((term) => term.holidayFlag === 2);
+        let initialIndex = 0;
+        if (filtered.length > 0) {
+          initialIndex = await resolveInitialTermIndex(
+            filtered,
+            calendar.fiscalYear,
+            calendar.calendarId,
+          );
+          if (!active) {
+            return;
+          }
+        }
         setTerms(filtered);
-        setActiveTermIndex(0);
+        setActiveTermIndex(initialIndex);
         setTranslateX(0);
         baseOffsetRef.current = 0;
         setIsAnimating(false);
