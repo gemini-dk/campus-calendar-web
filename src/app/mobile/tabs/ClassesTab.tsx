@@ -162,7 +162,7 @@ export default function ClassesTab() {
 
       <div
         className={`flex flex-1 flex-col overflow-y-auto ${
-          viewMode === "schedule" ? "" : "px-6"
+          viewMode === "schedule" ? "" : "px-3"
         }`}
       >
         {viewMode === "schedule" ? (
