@@ -480,7 +480,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
       ) : null}
 
       {enableSwipe ? (
-        <div className="flex h-5 w-full items-center justify-center gap-2 pb-4">
+        <div className="mt-4 flex h-5 w-full items-center justify-center gap-2">
           {pagerItems.map((item, index) => (
             <button
               key={item.id}
