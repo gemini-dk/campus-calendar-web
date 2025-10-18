@@ -10,6 +10,7 @@ import {
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
+import ScrollDemoScreen from '../components/ScrollDemoScreen';
 import DailyClassesSection from './HomeTab/DailyClassesSection';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
@@ -64,6 +65,7 @@ function HomeTabContent() {
   const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isScrollDemoOpen, setIsScrollDemoOpen] = useState(false);
 
   const dateId = useMemo(
     () => normalizeDateId(searchParams?.get('date') ?? null),
@@ -143,14 +145,22 @@ function HomeTabContent() {
   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
   return (
-    <div className="flex min-h-full flex-col">
-      <section
-        className="relative flex w-full min-h-[140px] flex-col justify-end px-8 pt-0 pb-3 shadow-sm"
-        style={{ backgroundColor }}
-      >
-        <div className="absolute right-4 top-3">
-          <UserHamburgerMenu />
-        </div>
+    <>
+      <div className="flex min-h-full flex-col">
+        <section
+          className="relative flex w-full min-h-[140px] flex-col justify-end px-8 pt-0 pb-3 shadow-sm"
+          style={{ backgroundColor }}
+        >
+          <div className="absolute right-4 top-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsScrollDemoOpen(true)}
+              className="flex h-11 items-center justify-center rounded-full border border-neutral-300 bg-white px-4 text-sm font-medium text-neutral-800 shadow-sm transition hover:bg-neutral-100"
+            >
+              検証画面
+            </button>
+            <UserHamburgerMenu />
+          </div>
         {loading ? (
           <div className="mt-8 text-center text-sm text-neutral-700">読み込み中...</div>
         ) : errorMessage ? (
@@ -184,17 +194,22 @@ function HomeTabContent() {
             </div>
           </div>
         )}
-      </section>
-      <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-3 pb-16 pt-6">
-        <DailyClassesSection
-          userId={profile?.uid ?? null}
-          fiscalYear={settings.calendar.fiscalYear}
-          dateId={dateId}
-          authInitializing={authInitializing}
-          isAuthenticated={isAuthenticated}
-        />
+        </section>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-3 pb-16 pt-6">
+          <DailyClassesSection
+            userId={profile?.uid ?? null}
+            fiscalYear={settings.calendar.fiscalYear}
+            dateId={dateId}
+            authInitializing={authInitializing}
+            isAuthenticated={isAuthenticated}
+          />
+        </div>
       </div>
-    </div>
+      <ScrollDemoScreen
+        open={isScrollDemoOpen}
+        onClose={() => setIsScrollDemoOpen(false)}
+      />
+    </>
   );
 }
 
