@@ -10,6 +10,7 @@ type DeliveryToggleGroupProps = {
   value: DeliveryType;
   onChange: (value: DeliveryType) => void;
   disabled?: boolean;
+  labels?: Partial<Record<Exclude<DeliveryType, 'unknown'>, string>>;
 };
 
 const DELIVERY_OPTIONS: {
@@ -39,10 +40,16 @@ export default function DeliveryToggleGroup({
   value,
   onChange,
   disabled,
+  labels,
 }: DeliveryToggleGroupProps) {
+  const options = DELIVERY_OPTIONS.map((option) => ({
+    ...option,
+    label: labels?.[option.value] ?? option.label,
+  }));
+
   return (
     <div className="flex h-12 w-fit items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 shadow-sm">
-      {DELIVERY_OPTIONS.map((option) => {
+      {options.map((option) => {
         const isActive = value === option.value;
         return (
           <button

@@ -31,7 +31,12 @@ import { useParams, useSearchParams } from "next/navigation";
 
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
-import type { AttendanceStatus, AttendanceSummary as AttendanceSummaryType } from "@/app/mobile/types";
+import DeliveryToggleGroup from "@/app/mobile/components/DeliveryToggleGroup";
+import type {
+  AttendanceStatus,
+  AttendanceSummary as AttendanceSummaryType,
+  DeliveryType,
+} from "@/app/mobile/types";
 import {
   buildAbsenceMessage,
   ClassType,
@@ -626,31 +631,29 @@ function SessionRecordItem({
   const periodLabel = formatPeriodLabel(record.periods);
 
   return (
-    <li className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-1 items-start gap-3">
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
-            授
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
-              {record.isTest ? (
-                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
-              ) : null}
-              {record.isCancelled ? (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
-              ) : null}
-            </div>
-            <span className="text-xs text-neutral-500">{periodLabel}</span>
-          </div>
+    <li className="flex items-start justify-between gap-3 py-3">
+      <div className="flex flex-1 items-start gap-3">
+        <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-semibold text-blue-700">
+          授
         </div>
-        <AttendanceToggleGroup
-          value={record.attendanceStatus}
-          onChange={(next) => onChange(record.classDateId, next)}
-          disabled={updating}
-        />
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
+            {record.isTest ? (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
+            ) : null}
+            {record.isCancelled ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
+            ) : null}
+          </div>
+          <span className="text-xs text-neutral-500">{periodLabel}</span>
+        </div>
       </div>
+      <AttendanceToggleGroup
+        value={record.attendanceStatus}
+        onChange={(next) => onChange(record.classDateId, next)}
+        disabled={updating}
+      />
     </li>
   );
 }
@@ -668,27 +671,25 @@ function ActivityRecordItem({
   const typeLabel = record.type === "memo" ? "授業メモ" : "課題";
 
   return (
-    <li className={`flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm ${className ?? ""}`.trim()}>
-      <div className="flex items-start gap-3">
-        <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
-          <FontAwesomeIcon icon={icon} className={`text-lg ${iconClass}`} aria-hidden="true" />
+    <li className={`flex items-start gap-3 py-3 ${className ?? ""}`.trim()}>
+      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
+        <FontAwesomeIcon icon={icon} className={`text-lg ${iconClass}`} aria-hidden="true" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="truncate text-sm font-semibold text-neutral-900">
+            {record.title || "無題の項目"}
+          </span>
+          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">{typeLabel}</span>
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-sm font-semibold text-neutral-900">
-              {record.title || "無題の項目"}
-            </span>
-            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">{typeLabel}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
-            {record.type === "assignment" ? <span>期限: {dueLabel}</span> : null}
-            <span>状態: {formatActivityStatusLabel(record.status)}</span>
-            <span>作成日: {createdLabel}</span>
-          </div>
-          {record.notes ? (
-            <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-neutral-600">{record.notes}</p>
-          ) : null}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
+          {record.type === "assignment" ? <span>期限: {dueLabel}</span> : null}
+          <span>状態: {formatActivityStatusLabel(record.status)}</span>
+          <span>作成日: {createdLabel}</span>
         </div>
+        {record.notes ? (
+          <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-neutral-600">{record.notes}</p>
+        ) : null}
       </div>
     </li>
   );
@@ -750,6 +751,7 @@ function UpcomingSessionItem({
   showHybridSelector: boolean;
 }) {
   const dateLabel = formatMonthDayCompact(session.classDate);
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>("in_person");
 
   return (
     <li className="flex w-full items-center justify-between gap-3 py-3">
@@ -757,7 +759,13 @@ function UpcomingSessionItem({
         <span className="text-sm font-semibold text-neutral-900">授業({dateLabel})</span>
       </div>
       <div className="flex items-center gap-2">
-        {showHybridSelector ? <HybridModeSelector /> : null}
+        {showHybridSelector ? (
+          <DeliveryToggleGroup
+            value={deliveryType}
+            onChange={setDeliveryType}
+            labels={{ remote: "ハイブリッド" }}
+          />
+        ) : null}
         <button
           type="button"
           className="flex h-9 w-[96px] items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
@@ -766,34 +774,6 @@ function UpcomingSessionItem({
         </button>
       </div>
     </li>
-  );
-}
-
-function HybridModeSelector() {
-  const [mode, setMode] = useState<"in_person" | "hybrid">("in_person");
-  const baseClass = "flex h-7 w-[88px] items-center justify-center rounded-full text-xs font-semibold transition";
-  const activeClass = "bg-blue-500 text-white";
-  const inactiveClass = "text-neutral-600 hover:bg-neutral-100";
-
-  return (
-    <div className="flex h-9 w-[188px] items-center justify-between rounded-full border border-neutral-200 bg-white px-1 py-1">
-      <button
-        type="button"
-        className={`${baseClass} ${mode === "in_person" ? activeClass : inactiveClass}`}
-        onClick={() => setMode("in_person")}
-        aria-pressed={mode === "in_person"}
-      >
-        対面
-      </button>
-      <button
-        type="button"
-        className={`${baseClass} ${mode === "hybrid" ? activeClass : inactiveClass}`}
-        onClick={() => setMode("hybrid")}
-        aria-pressed={mode === "hybrid"}
-      >
-        ハイブリッド
-      </button>
-    </div>
   );
 }
 
@@ -1138,7 +1118,7 @@ export function ClassActivityContent({
               combinedRecords.length === 0 ? (
                 <p className="text-sm text-neutral-600">表示できる活動記録がまだありません。</p>
               ) : (
-                <ul className="flex flex-col gap-3">
+                <ul className="flex flex-col divide-y divide-neutral-200 border-y border-neutral-200">
                   {combinedRecords.map((record) =>
                     record.kind === "session" ? (
                       <SessionRecordItem
