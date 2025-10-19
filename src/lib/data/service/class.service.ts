@@ -5,8 +5,12 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  where,
   writeBatch,
+  type CollectionReference,
   type DocumentReference,
+  type Query,
+  type DocumentData,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase/client';
@@ -108,6 +112,101 @@ export type UpdateTimetableClassParams = {
   existingClassDateIds: string[];
   shouldUpdateSchedule: boolean;
 };
+
+export type TimetableClassDocRefParams = {
+  userId: string;
+  fiscalYear: string;
+  classId: string;
+};
+
+function normalizeUserAndYear({
+  userId,
+  fiscalYear,
+}: {
+  userId: string;
+  fiscalYear: string;
+}): { userId: string; fiscalYear: string } | null {
+  const trimmedUserId = userId.trim();
+  const trimmedFiscalYear = fiscalYear.trim();
+
+  if (!trimmedUserId || !trimmedFiscalYear) {
+    return null;
+  }
+
+  return { userId: trimmedUserId, fiscalYear: trimmedFiscalYear };
+}
+
+export function getTimetableClassDocRef({
+  userId,
+  fiscalYear,
+  classId,
+}: TimetableClassDocRefParams): DocumentReference<DocumentData> | null {
+  const normalized = normalizeUserAndYear({ userId, fiscalYear });
+  const trimmedClassId = classId.trim();
+
+  if (!normalized || !trimmedClassId) {
+    return null;
+  }
+
+  return doc(
+    db,
+    'users',
+    normalized.userId,
+    'academic_years',
+    normalized.fiscalYear,
+    'timetable_classes',
+    trimmedClassId,
+  );
+}
+
+export function getTimetableClassWeeklySlotsCollection({
+  userId,
+  fiscalYear,
+  classId,
+}: TimetableClassDocRefParams): CollectionReference<DocumentData> | null {
+  const classRef = getTimetableClassDocRef({ userId, fiscalYear, classId });
+
+  if (!classRef) {
+    return null;
+  }
+
+  return collection(classRef, 'weekly_slots');
+}
+
+export function getAcademicYearClassDatesQuery({
+  userId,
+  fiscalYear,
+  classId,
+}: TimetableClassDocRefParams): Query<DocumentData> | null {
+  const normalized = normalizeUserAndYear({ userId, fiscalYear });
+  const trimmedClassId = classId.trim();
+
+  if (!normalized || !trimmedClassId) {
+    return null;
+  }
+
+  const classDatesRef = collection(
+    db,
+    'users',
+    normalized.userId,
+    'academic_years',
+    normalized.fiscalYear,
+    'class_dates',
+  );
+
+  return query(classDatesRef, where('classId', '==', trimmedClassId), orderBy('classDate', 'desc'));
+}
+
+export function getUserActivitiesQuery(userId: string): Query<DocumentData> | null {
+  const trimmedUserId = userId.trim();
+
+  if (!trimmedUserId) {
+    return null;
+  }
+
+  const activitiesRef = collection(db, 'users', trimmedUserId, 'activities');
+  return query(activitiesRef, orderBy('createdAt', 'desc'));
+}
 
 function buildTermNameMap(terms: CalendarTerm[]): Map<string, string> {
   return terms.reduce<Map<string, string>>((map, term) => {

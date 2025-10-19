@@ -17,14 +17,10 @@ import {
 import { faSquare, faSquareCheck } from "@fortawesome/free-regular-svg-icons";
 import {
   Timestamp,
-  collection,
   doc,
   onSnapshot,
-  orderBy,
-  query,
   serverTimestamp,
   updateDoc,
-  where,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Unsubscribe,
@@ -50,6 +46,10 @@ import {
 } from "@/app/mobile/utils/classSchedule";
 import {
   SPECIAL_SCHEDULE_OPTION_LABELS,
+  getAcademicYearClassDatesQuery,
+  getTimetableClassDocRef,
+  getTimetableClassWeeklySlotsCollection,
+  getUserActivitiesQuery,
   type SpecialScheduleOption,
   type WeeklySlotSelection,
 } from "@/lib/data/service/class.service";
@@ -528,15 +528,20 @@ function useClassActivityData({ userId, fiscalYear, classId }: UseClassActivityP
       }
     };
 
-    const classRef = doc(
-      db,
-      "users",
-      userId,
-      "academic_years",
-      fiscalYear,
-      "timetable_classes",
-      classId,
-    );
+    const classRef = getTimetableClassDocRef({ userId, fiscalYear, classId });
+
+    if (!classRef) {
+      if (!active) {
+        return () => {};
+      }
+      setClassDetail(null);
+      setWeeklySlots([]);
+      setClassDates([]);
+      setActivities([]);
+      setError("授業情報の取得に失敗しました。");
+      setLoading(false);
+      return () => {};
+    }
 
     let classLoaded = false;
     const unsubscribeClass = onSnapshot(
@@ -569,117 +574,133 @@ function useClassActivityData({ userId, fiscalYear, classId }: UseClassActivityP
       },
     );
 
-    const weeklySlotsRef = collection(classRef, "weekly_slots");
-    let slotsLoaded = false;
-    const unsubscribeSlots = onSnapshot(
-      weeklySlotsRef,
-      (snapshot) => {
-        if (!active) {
-          return;
-        }
-        const mapped = snapshot.docs
-          .map((docSnapshot) => mapWeeklySlotDocument(docSnapshot))
-          .filter((item): item is WeeklySlot => item !== null)
-          .sort((a, b) => {
-            if (a.displayOrder !== b.displayOrder) {
-              return a.displayOrder - b.displayOrder;
-            }
-            if (a.dayOfWeek !== b.dayOfWeek) {
-              return a.dayOfWeek - b.dayOfWeek;
-            }
-            return a.period - b.period;
-          });
-        setWeeklySlots(mapped);
-        if (!slotsLoaded) {
-          slotsLoaded = true;
-          markLoaded();
-        }
-      },
-      (err) => {
-        console.error("Failed to load weekly slots", err);
-        if (!active) {
-          return;
-        }
-        setWeeklySlots([]);
-        if (!slotsLoaded) {
-          slotsLoaded = true;
-          markLoaded();
-        }
-      },
-    );
-
-    const classDatesRef = collection(
-      db,
-      "users",
+    const weeklySlotsCollection = getTimetableClassWeeklySlotsCollection({
       userId,
-      "academic_years",
       fiscalYear,
-      "class_dates",
-    );
-    const classDatesQuery = query(
-      classDatesRef,
-      where("classId", "==", classId),
-      orderBy("classDate", "desc"),
-    );
-    let datesLoaded = false;
-    const unsubscribeDates = onSnapshot(
-      classDatesQuery,
-      (snapshot) => {
-        if (!active) {
-          return;
-        }
-        const mapped = snapshot.docs
-          .map((docSnapshot) => mapTimetableClassDate(docSnapshot))
-          .filter((item): item is TimetableClassDateDoc => item !== null);
-        setClassDates(mapped);
-        if (!datesLoaded) {
-          datesLoaded = true;
-          markLoaded();
-        }
-      },
-      (err) => {
-        console.error("Failed to load class dates", err);
-        if (!active) {
-          return;
-        }
-        setClassDates([]);
-        if (!datesLoaded) {
-          datesLoaded = true;
-          markLoaded();
-        }
-      },
-    );
+      classId,
+    });
+    let slotsLoaded = false;
+    const unsubscribeSlots: Unsubscribe = weeklySlotsCollection
+      ? onSnapshot(
+          weeklySlotsCollection,
+          (snapshot) => {
+            if (!active) {
+              return;
+            }
+            const mapped = snapshot.docs
+              .map((docSnapshot) => mapWeeklySlotDocument(docSnapshot))
+              .filter((item): item is WeeklySlot => item !== null)
+              .sort((a, b) => {
+                if (a.displayOrder !== b.displayOrder) {
+                  return a.displayOrder - b.displayOrder;
+                }
+                if (a.dayOfWeek !== b.dayOfWeek) {
+                  return a.dayOfWeek - b.dayOfWeek;
+                }
+                return a.period - b.period;
+              });
+            setWeeklySlots(mapped);
+            if (!slotsLoaded) {
+              slotsLoaded = true;
+              markLoaded();
+            }
+          },
+          (err) => {
+            console.error("Failed to load weekly slots", err);
+            if (!active) {
+              return;
+            }
+            setWeeklySlots([]);
+            if (!slotsLoaded) {
+              slotsLoaded = true;
+              markLoaded();
+            }
+          },
+        )
+      : () => {};
+    if (!weeklySlotsCollection && !slotsLoaded) {
+      setWeeklySlots([]);
+      slotsLoaded = true;
+      markLoaded();
+    }
 
-    const activitiesRef = collection(db, "users", userId, "activities");
-    const activitiesQuery = query(activitiesRef, orderBy("createdAt", "desc"));
+    const classDatesQuery = getAcademicYearClassDatesQuery({
+      userId,
+      fiscalYear,
+      classId,
+    });
+    let datesLoaded = false;
+    const unsubscribeDates: Unsubscribe = classDatesQuery
+      ? onSnapshot(
+          classDatesQuery,
+          (snapshot) => {
+            if (!active) {
+              return;
+            }
+            const mapped = snapshot.docs
+              .map((docSnapshot) => mapTimetableClassDate(docSnapshot))
+              .filter((item): item is TimetableClassDateDoc => item !== null);
+            setClassDates(mapped);
+            if (!datesLoaded) {
+              datesLoaded = true;
+              markLoaded();
+            }
+          },
+          (err) => {
+            console.error("Failed to load class dates", err);
+            if (!active) {
+              return;
+            }
+            setClassDates([]);
+            if (!datesLoaded) {
+              datesLoaded = true;
+              markLoaded();
+            }
+          },
+        )
+      : () => {};
+    if (!classDatesQuery && !datesLoaded) {
+      setClassDates([]);
+      datesLoaded = true;
+      markLoaded();
+    }
+
+    const activitiesQuery = getUserActivitiesQuery(userId);
     let activitiesLoaded = false;
-    const unsubscribeActivities = onSnapshot(
-      activitiesQuery,
-      (snapshot) => {
-        if (!active) {
-          return;
-        }
-        const mapped = snapshot.docs
-          .map((docSnapshot) => mapActivityDocument(docSnapshot))
-          .filter((activity) => activity.classId === classId);
-        setActivities(mapped);
-        if (!activitiesLoaded) {
-          activitiesLoaded = true;
-          markLoaded();
-        }
-      },
-      (err) => {
-        console.error("Failed to load activities", err);
-        if (!active) {
-          return;
-        }
-        setActivities([]);
-        if (!activitiesLoaded) {
-          activitiesLoaded = true;
-          markLoaded();
-        }
-      },
-    );
+    const unsubscribeActivities: Unsubscribe = activitiesQuery
+      ? onSnapshot(
+          activitiesQuery,
+          (snapshot) => {
+            if (!active) {
+              return;
+            }
+            const mapped = snapshot.docs
+              .map((docSnapshot) => mapActivityDocument(docSnapshot))
+              .filter((activity) => activity.classId === classId);
+            setActivities(mapped);
+            if (!activitiesLoaded) {
+              activitiesLoaded = true;
+              markLoaded();
+            }
+          },
+          (err) => {
+            console.error("Failed to load activities", err);
+            if (!active) {
+              return;
+            }
+            setActivities([]);
+            if (!activitiesLoaded) {
+              activitiesLoaded = true;
+              markLoaded();
+            }
+          },
+        )
+      : () => {};
+    if (!activitiesQuery && !activitiesLoaded) {
+      setActivities([]);
+      activitiesLoaded = true;
+      markLoaded();
+    }
 
     return () => {
       active = false;
