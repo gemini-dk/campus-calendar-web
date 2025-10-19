@@ -119,7 +119,7 @@ export default function ClassesTab() {
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-neutral-50">
-      <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-white px-4">
+      <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-[var(--color-my-secondary-container)] px-4">
         <div className="flex w-full items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="text-lg font-semibold text-neutral-900">{viewTitle}</div>
