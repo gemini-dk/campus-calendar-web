@@ -314,16 +314,15 @@ export default function PublicCalendarView({ fiscalYear, calendarId, initialMont
                       ) : null}
                     </div>
 
-                    <div className="mt-1 flex min-h-0 flex-1 flex-col gap-[2px] overflow-hidden">
-                      <span className="block w-full min-h-[24px] line-clamp-2 text-[11px] font-semibold text-neutral-800">
+                    <div className="mt-2 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
+                      <span className="block w-full min-h-[18px] truncate text-center text-[11px] text-neutral-800">
                         {academic?.label ?? "予定なし"}
                       </span>
-                      <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
-                        {academic?.subLabel ?? ""}
-                      </span>
-                      <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
-                        {day?.description ?? ""}
-                      </span>
+                      {academic?.subLabel ? (
+                        <span className="mt-[2px] block w-full min-h-[16px] truncate text-center text-[11px] font-bold text-neutral-900">
+                          {academic.subLabel}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 );
