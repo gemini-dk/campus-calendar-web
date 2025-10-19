@@ -147,6 +147,25 @@ function HomeTabContent() {
   const weekdayColorClass = resolveAccentColor(general?.weekdayTextColor);
   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
+  useEffect(() => {
+    const defaultThemeColor = '#f5f5f4';
+    let themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!themeMeta) {
+      themeMeta = document.createElement('meta');
+      themeMeta.name = 'theme-color';
+      themeMeta.content = defaultThemeColor;
+      document.head.appendChild(themeMeta);
+    }
+
+    const previousThemeColor = themeMeta.getAttribute('content') ?? defaultThemeColor;
+    const nextThemeColor = backgroundColor || defaultThemeColor;
+    themeMeta.setAttribute('content', nextThemeColor);
+
+    return () => {
+      themeMeta?.setAttribute('content', previousThemeColor);
+    };
+  }, [backgroundColor]);
+
   const handleSelectClassSession = useCallback((session: DailyClassSession) => {
     setSelectedActivity({
       classId: session.classId,
