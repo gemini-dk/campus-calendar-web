@@ -21,9 +21,9 @@ import ClassesTab from "./tabs/ClassesTab";
 import type { TabDefinition, TabId } from "./tabs/types";
 
 const TABS: TabDefinition[] = [
-  { id: "home", label: "1", icon: faHome, Component: HomeTab },
-  { id: "weekly", label: "7", icon: faCalendarWeek, Component: WeeklyCalendarTab },
-  { id: "calendar", label: "31", icon: faCalendarDays, Component: CalendarTab },
+  { id: "home", label: "ホーム", icon: faHome, Component: HomeTab },
+  { id: "weekly", label: "ウィークリー", icon: faCalendarWeek, Component: WeeklyCalendarTab },
+  { id: "calendar", label: "カレンダー", icon: faCalendarDays, Component: CalendarTab },
   { id: "todo", label: "課題・メモ", icon: faTasks, Component: TodoTab },
   { id: "classes", label: "授業管理", icon: faChalkboardTeacher, Component: ClassesTab },
 ];
@@ -115,7 +115,7 @@ function MobilePageContent() {
     <div className="flex h-full min-h-[100svh] w-full justify-center bg-neutral-100">
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
 
-        <main className="flex flex-1 flex-col overflow-hidden">
+        <main className="flex flex-1 flex-col overflow-hidden pb-6">
           <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50">
             {currentTab.id === "calendar" ? (
               <CalendarTab
@@ -130,25 +130,28 @@ function MobilePageContent() {
           </div>
         </main>
 
-        <nav className="flex h-[60px] flex-shrink-0 border-t border-neutral-200">
-          {TABS.map((tab) => {
-            const isActive = tab.id === activeTab;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => handleTabChange(tab.id)}
-                className={`flex h-full flex-1 flex-col items-center justify-center gap-1 text-sm font-medium transition ${
-                  isActive
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-neutral-600 hover:bg-neutral-100"
-                }`}
-              >
-                <FontAwesomeIcon icon={tab.icon} fontSize={22} />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
+        <nav className="flex h-[92px] flex-shrink-0 items-end justify-center bg-transparent px-5 pb-4">
+          <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
+            {TABS.map((tab) => {
+              const isActive = tab.id === activeTab;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  aria-label={tab.label}
+                  data-glitch="ﾓｼﾞﾊﾞｹ"
+                  className={`flex h-[48px] flex-1 items-center justify-center rounded-full text-sm font-medium transition ${
+                    isActive
+                      ? "bg-blue-500 text-white shadow"
+                      : "text-neutral-600 hover:bg-neutral-100"
+                  }`}
+                >
+                  <FontAwesomeIcon icon={tab.icon} fontSize={24} />
+                </button>
+              );
+            })}
+          </div>
         </nav>
       </div>
     </div>
