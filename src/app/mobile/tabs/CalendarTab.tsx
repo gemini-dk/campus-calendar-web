@@ -31,7 +31,7 @@ const ACCENT_COLOR_CLASS: Record<string, string> = {
 
 const BACKGROUND_COLOR_MAP: Record<string, string> = {
   none: 'var(--color-calendar-default-background)',
-  sunday: '#ffe5e5',
+  sunday: 'var(--color-my-background-dim)',
   holiday: 'var(--color-my-background-dim)',
   exam: 'var(--color-calendar-exam-background)',
   reserve: 'var(--color-my-secondary-container)',
