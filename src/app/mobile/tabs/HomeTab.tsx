@@ -23,11 +23,11 @@ const ACCENT_COLOR_CLASS: Record<string, string> = {
 };
 
 const BACKGROUND_COLOR_MAP: Record<string, string> = {
-  none: '#f5f5f4',
-  sunday: '#ffe5e5',
-  holiday: '#fff2d6',
-  exam: '#ebe5ff',
-  reserve: '#e1f4ff',
+  none: 'var(--color-calendar-default-background)',
+  sunday: 'var(--color-my-background-dim)',
+  holiday: 'var(--color-my-background-dim)',
+  exam: 'var(--color-calendar-exam-background)',
+  reserve: 'var(--color-my-secondary-container)',
 };
 
 function resolveAccentColor(accent: string | null | undefined): string {

@@ -748,7 +748,7 @@ export default function TodoTab() {
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
-      <header className="flex h-[60px] w-full items-center justify-between border-b border-neutral-200 bg-white px-3">
+      <header className="flex h-[60px] w-full items-center justify-between border-b border-neutral-200 bg-[var(--color-my-secondary-container)] px-3">
         <h1 className="text-lg font-semibold text-neutral-900">
           {viewMode === 'todo' ? '課題一覧' : 'メモ一覧'}
         </h1>

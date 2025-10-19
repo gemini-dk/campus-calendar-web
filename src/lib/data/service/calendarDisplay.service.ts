@@ -192,9 +192,13 @@ function computeAcademicDisplay(
     return DEFAULT_ACADEMIC_DISPLAY;
   }
 
-  const normalizedType = normalizeDayType(day.type);
-  const backgroundColor = determineBackgroundColor(normalizedType, actualWeekday);
   const hasSaturdayClasses = options.hasSaturdayClasses ?? true;
+  const normalizedType = normalizeDayType(day.type);
+  const backgroundColor = determineBackgroundColor(
+    normalizedType,
+    actualWeekday,
+    hasSaturdayClasses,
+  );
   const resolvedWeekdayNumber = resolveClassWeekday(day, actualWeekday);
   const suppressClassDetails = shouldSuppressClassDetails(
     normalizedType,
@@ -282,8 +286,13 @@ function normalizeDayType(type?: string | null): NormalizedDayType {
 function determineBackgroundColor(
   normalizedType: NormalizedDayType,
   actualWeekday: number,
+  hasSaturdayClasses: boolean,
 ): BackgroundColorType {
   if (actualWeekday === 0) {
+    return 'sunday';
+  }
+
+  if (actualWeekday === 6 && !hasSaturdayClasses) {
     return 'sunday';
   }
 
