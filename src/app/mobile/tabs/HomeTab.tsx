@@ -183,45 +183,45 @@ function HomeTabContent() {
     <>
       <div className="flex min-h-full flex-col">
         <section
-          className="relative flex w-full min-h-[140px] flex-col justify-end px-8 pt-0 pb-3 shadow-sm"
+          className="relative flex w-full min-h-[100px] flex-col justify-end px-8 pt-0 pb-2 shadow-sm"
           style={{ backgroundColor }}
         >
           <div className="absolute right-4 top-3 flex items-center gap-2">
             <UserHamburgerMenu />
           </div>
-        {loading ? (
-          <div className="mt-8 text-center text-sm text-neutral-700">読み込み中...</div>
-        ) : errorMessage ? (
-          <div className="mt-8 text-center text-sm text-red-600">{errorMessage}</div>
-        ) : (
-          <div className="flex w-full items-end justify-between gap-8 pt-6">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-baseline gap-3">
-                <p
-                  className={`text-[56px] font-semibold leading-none tracking-tight ${dateColorClass}`}
-                >
-                  {dayNumber}
-                </p>
-                <span
-                  className={`text-lg font-semibold tracking-wide ${weekdayColorClass}`}
-                >
-                  {weekdayLabel}
-                </span>
+          {loading ? (
+            <div className="mt-4 text-center text-sm text-neutral-700">読み込み中...</div>
+          ) : errorMessage ? (
+            <div className="mt-4 text-center text-sm text-red-600">{errorMessage}</div>
+          ) : (
+            <div className="flex w-full items-end justify-between gap-8 pt-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-baseline gap-3">
+                  <p
+                    className={`text-[56px] font-semibold leading-none tracking-tight ${dateColorClass}`}
+                  >
+                    {dayNumber}
+                  </p>
+                  <span
+                    className={`text-lg font-semibold tracking-wide ${weekdayColorClass}`}
+                  >
+                    {weekdayLabel}
+                  </span>
+                </div>
+                <span className="text-sm text-neutral-500">{supplementalText}</span>
               </div>
-              <span className="text-sm text-neutral-500">{supplementalText}</span>
-            </div>
-            <div className="flex min-h-[120px] flex-col items-end justify-end text-right">
-              <span className="text-lg font-semibold text-neutral-900">
-                {academic?.label ?? '-'}
-              </span>
-              {academic?.subLabel ? (
-                <span className="mt-1 text-xs font-semibold tracking-wide text-neutral-800">
-                  {academic.subLabel}
+              <div className="flex min-h-[96px] flex-col items-end justify-end text-right">
+                <span className="text-lg font-semibold text-neutral-900">
+                  {academic?.label ?? '-'}
                 </span>
-              ) : null}
+                {academic?.subLabel ? (
+                  <span className="mt-1 text-xs font-semibold tracking-wide text-neutral-800">
+                    {academic.subLabel}
+                  </span>
+                ) : null}
+              </div>
             </div>
-          </div>
-        )}
+          )}
         </section>
         <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-3 pb-16 pt-6">
           <DailyClassesSection
