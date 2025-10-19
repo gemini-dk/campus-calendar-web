@@ -159,7 +159,7 @@ export default function ClassesTab() {
         )}
       </div>
 
-      <div className="pointer-events-none fixed bottom-[72px] right-4 z-20 flex items-center gap-3">
+      <div className="pointer-events-none fixed bottom-[120px] right-4 z-20 flex items-center gap-3">
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-2.5 py-2 backdrop-blur">
           <ViewToggleButton
             icon={faTable}
@@ -178,7 +178,7 @@ export default function ClassesTab() {
           type="button"
           onClick={handleOpenDialog}
           disabled={!isAuthenticated || isDialogOpen}
-          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-md transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300"
           aria-label="授業を追加"
         >
           <FontAwesomeIcon icon={faPlus} fontSize={20} />
@@ -214,7 +214,7 @@ function ViewToggleButton({ icon, label, isActive, onClick }: ViewToggleButtonPr
       onClick={onClick}
       className={`flex h-12 w-12 items-center justify-center rounded-full transition ${
         isActive
-          ? "bg-blue-600 text-white"
+          ? "bg-blue-500 text-white shadow"
           : "bg-neutral-100 text-neutral-500 hover:bg-neutral-200"
       }`}
       aria-pressed={isActive}
