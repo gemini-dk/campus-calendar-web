@@ -115,7 +115,7 @@ function MobilePageContent() {
     <div className="flex h-full min-h-[100svh] w-full justify-center bg-neutral-100">
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
 
-        <main className="flex flex-1 flex-col overflow-hidden pb-6">
+        <main className="flex flex-1 flex-col overflow-hidden pb-4">
           <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50">
             {currentTab.id === "calendar" ? (
               <CalendarTab
@@ -130,7 +130,7 @@ function MobilePageContent() {
           </div>
         </main>
 
-        <nav className="flex h-[92px] flex-shrink-0 items-end justify-center bg-transparent px-5 pb-4">
+        <nav className="flex h-[80px] flex-shrink-0 items-center justify-center bg-transparent px-5 pb-5">
           <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
             {TABS.map((tab) => {
               const isActive = tab.id === activeTab;
