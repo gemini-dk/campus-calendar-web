@@ -30,11 +30,11 @@ const ACCENT_COLOR_CLASS: Record<string, string> = {
 };
 
 const BACKGROUND_COLOR_MAP: Record<string, string> = {
-  none: '#f5f5f4',
+  none: 'var(--color-calendar-default-background)',
   sunday: '#ffe5e5',
-  holiday: '#fff2d6',
-  exam: '#ebe5ff',
-  reserve: '#e1f4ff',
+  holiday: 'var(--color-my-background-dim)',
+  exam: 'var(--color-calendar-exam-background)',
+  reserve: 'var(--color-my-secondary-container)',
 };
 
 const CALENDAR_CELL_COUNT = 42;
@@ -570,7 +570,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
 
   return (
     <div className="flex h-full w-full flex-col bg-neutral-50">
-      <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-white px-4">
+      <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-[var(--color-my-secondary-container)] px-4">
         <div className="flex w-full items-center justify-between gap-3">
           <div className="text-lg font-semibold text-neutral-900">{monthLabel}</div>
           <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
@@ -680,6 +680,9 @@ function CalendarMonthSlide({
           const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
           const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
           const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
+          const cellBackgroundColor = isToday
+            ? 'var(--color-calendar-today-background)'
+            : backgroundColor;
 
           const isClassDay = day?.type === '授業日';
           const classOrder = academic?.classOrder;
@@ -705,7 +708,7 @@ function CalendarMonthSlide({
                   : 'hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60'
               }`}
               style={{
-                backgroundColor,
+                backgroundColor: cellBackgroundColor,
                 borderRightWidth: showRightBorder ? 1 : 0,
                 borderBottomWidth: showBottomBorder ? 1 : 0,
                 borderColor: 'rgba(212, 212, 216, 1)',
