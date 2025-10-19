@@ -159,7 +159,7 @@ export default function ClassesTab() {
         )}
       </div>
 
-      <div className="pointer-events-none fixed bottom-[120px] right-4 z-20 flex items-center gap-3">
+      <div className="pointer-events-none fixed bottom-[90px] right-4 z-20 flex items-center gap-3">
         <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-2.5 py-2 backdrop-blur">
           <ViewToggleButton
             icon={faTable}

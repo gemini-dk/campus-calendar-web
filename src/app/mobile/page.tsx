@@ -130,7 +130,7 @@ function MobilePageContent() {
           </div>
         </main>
 
-        <nav className="flex h-[80px] flex-shrink-0 items-end justify-center bg-transparent px-5 pb-3">
+        <nav className="flex h-[80px] flex-shrink-0 items-center justify-center bg-transparent px-5 pb-5">
           <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
             {TABS.map((tab) => {
               const isActive = tab.id === activeTab;

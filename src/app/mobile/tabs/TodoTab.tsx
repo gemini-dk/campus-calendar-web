@@ -784,8 +784,8 @@ export default function TodoTab() {
         )}
       </div>
 
-      <div className="pointer-events-none fixed bottom-[128px] right-6 z-20 flex items-center gap-4">
-        <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-blue-100 bg-white/90 px-3 py-2 shadow-lg backdrop-blur">
+      <div className="pointer-events-none fixed bottom-[90px] right-4 z-20 flex items-center gap-3">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-2.5 py-2 backdrop-blur">
           <ViewToggleButton
             icon={faListCheck}
             label="Todo ビュー"
@@ -802,10 +802,10 @@ export default function TodoTab() {
         <button
           type="button"
           onClick={handleOpenDialog}
-          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-500 text-white shadow-xl shadow-blue-500/30 transition hover:bg-blue-400"
+          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-md transition hover:bg-blue-400"
           aria-label="新規作成"
         >
-          <FontAwesomeIcon icon={faPlus} fontSize={22} />
+          <FontAwesomeIcon icon={faPlus} fontSize={20} />
         </button>
       </div>
 
