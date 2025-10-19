@@ -12,12 +12,12 @@
           <授業本体フィールド>
           /weekly_slots/{slotId}
               dayOfWeek, period, displayOrder
-          /class_dates/{classDateId}
-              classDate, periods, attendanceStatus, ...
+      /class_dates/{classDateId}
+          classId, classDate, periods, attendanceStatus, ...
 ```
 
 - 各ユーザーは年度ごとに授業を保持します。年度ドキュメントは `academic_year_settings` の移植先に相当します。
-- 授業ドキュメントは SQLite の `timetable_classes` レコードを 1:1 で移行し、週次枠 (`timetable_weekly_slots`) と授業日 (`timetable_class_dates`) はサブコレクションとして保持します。
+- 授業ドキュメントは SQLite の `timetable_classes` レコードを 1:1 で移行し、週次枠 (`timetable_weekly_slots`) はサブコレクションとして保持します。授業日 (`timetable_class_dates`) は年度直下の `class_dates` コレクションに集約し、各ドキュメントに `classId` を保持します。
 
 ## 授業ドキュメント仕様
 
@@ -48,13 +48,14 @@
 - フィールド: `dayOfWeek`(1=Mon〜7=Sun), `period`(1〜N, 0=オンデマンド), `displayOrder`(number), `createdAt`, `updatedAt`。
 - 週次枠は授業作成 UI のフォームから登録し、曜日＋時限の組み合わせで一意制約をかける（クライアントバリデーション + ルール）。
 
-### `class_dates` サブコレクション
+### `class_dates` コレクション
 
-- パス: `/users/{uid}/academic_years/{fiscalYear}/timetable_classes/{classId}/class_dates/{classDateId}`
-- おすすめドキュメント ID: `YYYY-MM-DD` もしくは `YYYY-MM-DD#slotHash`（複数枠対応）。
+- パス: `/users/{uid}/academic_years/{fiscalYear}/class_dates/{classDateId}`
+- おすすめドキュメント ID: `classId#YYYY-MM-DD` もしくは `classId#YYYY-MM-DD#slotHash`（複数枠対応）。
 - フィールド:
   | フィールド | 型 | 説明 |
   | --- | --- | --- |
+  | `classId` | string | 親授業ドキュメントの ID。 |
   | `classDate` | string (ISO 日付) | 集計・ソート用。 |
   | `periods` | array<number|string> | 対象コマ。オンデマンドは `"OD"` を推奨。 |
   | `attendanceStatus` | enum (`present`/`absent`/`late`/`null`) | 出欠結果。 |
@@ -81,8 +82,8 @@
 4. **欠席許容回数の計算**  
    - `isExcludedFromSummary == false` かつ `isCancelled == false` の件数を `count` とし、`floor(count * 0.33)` を上限 `count` でクリップして `maxAbsenceDays` に保存。  
    - `isFullyOnDemand == true` の場合は常に 0。
-5. **バッチ書き込み**  
-   - 授業本体とサブコレクション更新はバッチまたはトランザクションで実行し、中途半端な状態を避けます。
+5. **バッチ書き込み**
+   - 授業本体と関連コレクション（`weekly_slots`・`class_dates`）の更新はバッチまたはトランザクションで実行し、中途半端な状態を避けます。
 
 ## 日程編集・出欠更新
 
@@ -108,8 +109,8 @@
 | コレクション | クエリ | 推奨インデックス |
 | --- | --- | --- |
 | `timetable_classes` | 学期別フィルタ + 名称昇順 | `termNames ARRAY_CONTAINS`, `className ASC` |
-| `class_dates` | `isExcludedFromSummary == false` で `classDate ASC` | 複合インデックス (`isExcludedFromSummary`, `classDate`) |
-| `class_dates` | `attendanceStatus == null` かつ `classDate <= today` | (`attendanceStatus`, `classDate`) |
+| `class_dates` | `classId == ...` かつ `isExcludedFromSummary == false` で `classDate ASC` | 複合インデックス (`classId`, `isExcludedFromSummary`, `classDate`) |
+| `class_dates` | `classId == ...` かつ `attendanceStatus == null` で `classDate <= today` | (`classId`, `attendanceStatus`, `classDate`) |
 
 ## マイグレーション手順
 

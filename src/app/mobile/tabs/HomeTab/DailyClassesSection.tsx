@@ -17,8 +17,10 @@ import {
   collection,
   doc,
   onSnapshot,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Unsubscribe,
@@ -375,13 +377,12 @@ function useDailyClassSessions({
         userId,
         'academic_years',
         fiscalYear,
-        'timetable_classes',
-        classItem.id,
         'class_dates',
       );
+      const classDatesQuery = query(classDatesCollection, where('classId', '==', classItem.id));
 
       const unsubscribe = onSnapshot(
-        classDatesCollection,
+        classDatesQuery,
         (snapshot) => {
           const mapped = snapshot.docs
             .map((docSnapshot) => mapTimetableClassDate(docSnapshot))
@@ -474,7 +475,7 @@ function useDailyClassSessions({
   const loading = classesLoading || datesLoading;
 
   const updateAttendanceStatus = useCallback(
-    async (classId: string, classDateId: string, status: AttendanceStatus) => {
+    async (_classId: string, classDateId: string, status: AttendanceStatus) => {
       if (!userId || !fiscalYear) {
         throw new Error('ユーザー情報または年度情報が不足しています。');
       }
@@ -485,8 +486,6 @@ function useDailyClassSessions({
         userId,
         'academic_years',
         fiscalYear,
-        'timetable_classes',
-        classId,
         'class_dates',
         classDateId,
       );
@@ -503,7 +502,7 @@ function useDailyClassSessions({
   );
 
   const updateDeliveryType = useCallback(
-    async (classId: string, classDateId: string, deliveryType: DeliveryType) => {
+    async (_classId: string, classDateId: string, deliveryType: DeliveryType) => {
       if (!userId || !fiscalYear) {
         throw new Error('ユーザー情報または年度情報が不足しています。');
       }
@@ -514,8 +513,6 @@ function useDailyClassSessions({
         userId,
         'academic_years',
         fiscalYear,
-        'timetable_classes',
-        classId,
         'class_dates',
         classDateId,
       );
