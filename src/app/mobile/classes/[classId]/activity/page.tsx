@@ -24,6 +24,7 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Unsubscribe,
@@ -607,8 +608,19 @@ function useClassActivityData({ userId, fiscalYear, classId }: UseClassActivityP
       },
     );
 
-    const classDatesRef = collection(classRef, "class_dates");
-    const classDatesQuery = query(classDatesRef, orderBy("classDate", "desc"));
+    const classDatesRef = collection(
+      db,
+      "users",
+      userId,
+      "academic_years",
+      fiscalYear,
+      "class_dates",
+    );
+    const classDatesQuery = query(
+      classDatesRef,
+      where("classId", "==", classId),
+      orderBy("classDate", "desc"),
+    );
     let datesLoaded = false;
     const unsubscribeDates = onSnapshot(
       classDatesQuery,
@@ -698,8 +710,6 @@ function useClassActivityData({ userId, fiscalYear, classId }: UseClassActivityP
         userId,
         "academic_years",
         fiscalYear,
-        "timetable_classes",
-        classId,
         "class_dates",
         classDateId,
       );

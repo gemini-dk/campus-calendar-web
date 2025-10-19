@@ -290,15 +290,23 @@ function sortPeriodValues(a: number | 'OD', b: number | 'OD'): number {
   return weight(a) - weight(b);
 }
 
-function buildClassDateId(date: string, periods: (number | 'OD')[]): string {
-  if (periods.length === 0) {
-    return date;
-  }
-  const suffix = periods
-    .map((period) => (period === 'OD' ? 'OD' : `P${period}`))
-    .sort()
-    .join('_');
-  return `${date}#${suffix}`;
+function buildClassDateId(
+  classId: string,
+  date: string,
+  periods: (number | 'OD')[],
+): string {
+  const trimmedClassId = classId.trim();
+  const dateKey = (() => {
+    if (periods.length === 0) {
+      return date;
+    }
+    const suffix = periods
+      .map((period) => (period === 'OD' ? 'OD' : `P${period}`))
+      .sort()
+      .join('_');
+    return `${date}#${suffix}`;
+  })();
+  return `${trimmedClassId}#${dateKey}`;
 }
 
 function buildDeliveryType(classType: CreateTimetableClassParams['classType']) {
@@ -462,6 +470,14 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     'timetable_classes',
   );
   const classRef = doc(classCollection);
+  const classDatesCollection = collection(
+    db,
+    'users',
+    userId,
+    'academic_years',
+    fiscalYear,
+    'class_dates',
+  );
   const batch = writeBatch(db);
   const timestamp = serverTimestamp();
 
@@ -538,11 +554,8 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     if (!item.date || item.periods.length === 0) {
       continue;
     }
-    const classDateId = buildClassDateId(item.date, item.periods);
-    const classDateRef: DocumentReference = doc(
-      collection(classRef, 'class_dates'),
-      classDateId,
-    );
+    const classDateId = buildClassDateId(classRef.id, item.date, item.periods);
+    const classDateRef: DocumentReference = doc(classDatesCollection, classDateId);
 
     const periodsOrderKey = item.periods.reduce<number>((min, period) => {
       if (period === 'OD') {
@@ -552,6 +565,7 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     }, 999);
 
     batch.set(classDateRef, {
+      classId: classRef.id,
       classDate: item.date,
       periods: item.periods,
       attendanceStatus: null,
@@ -632,6 +646,8 @@ export async function updateTimetableClass({
 
   const classCollection = (fiscalYear: string) =>
     collection(db, 'users', trimmedUserId, 'academic_years', fiscalYear, 'timetable_classes');
+  const classDatesCollection = (fiscalYear: string) =>
+    collection(db, 'users', trimmedUserId, 'academic_years', fiscalYear, 'class_dates');
 
   const sourceClassRef = doc(classCollection(trimmedOriginalYear), trimmedClassId);
   const targetClassRef = doc(classCollection(trimmedNewYear), trimmedClassId);
@@ -706,7 +722,7 @@ export async function updateTimetableClass({
       if (!trimmedDateId) {
         continue;
       }
-      const dateRef = doc(collection(sourceClassRef, 'class_dates'), trimmedDateId);
+      const dateRef = doc(classDatesCollection(trimmedOriginalYear), trimmedDateId);
       batch.delete(dateRef);
     }
 
@@ -743,9 +759,9 @@ export async function updateTimetableClass({
         if (!item.date || item.periods.length === 0) {
           continue;
         }
-        const classDateId = buildClassDateId(item.date, item.periods);
+        const classDateId = buildClassDateId(trimmedClassId, item.date, item.periods);
         const classDateRef: DocumentReference = doc(
-          collection(targetClassRef, 'class_dates'),
+          classDatesCollection(trimmedNewYear),
           classDateId,
         );
 
@@ -757,6 +773,7 @@ export async function updateTimetableClass({
         }, 999);
 
         batch.set(classDateRef, {
+          classId: trimmedClassId,
           classDate: item.date,
           periods: item.periods,
           attendanceStatus: null,

@@ -1,6 +1,6 @@
 # 出欠管理仕様（Firestore 移行版）
 
-出欠に関わるデータは `/users/{uid}/academic_years/{fiscalYear}/timetable_classes/{classId}/class_dates/{classDateId}` に保存します。各授業は `/users/{uid}/academic_years/{fiscalYear}/timetable_classes/{classId}` で `maxAbsenceDays` などの集計値を保持します。
+出欠に関わるデータは `/users/{uid}/academic_years/{fiscalYear}/class_dates/{classDateId}` に保存します。各ドキュメントには `classId` を含め、対応する授業は `/users/{uid}/academic_years/{fiscalYear}/timetable_classes/{classId}` から辿ります。授業ドキュメントでは `maxAbsenceDays` などの集計値を保持します。
 
 ## データモデル
 - **出欠ステータス (`AttendanceStatus`)**  

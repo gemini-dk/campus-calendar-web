@@ -10,6 +10,7 @@ export type ClassType = 'in_person' | 'online' | 'hybrid' | 'on_demand';
 
 export type TimetableClassDateDoc = {
   id: string;
+  classId: string;
   classDate: string;
   periods: (number | 'OD')[];
   attendanceStatus: AttendanceStatus;
@@ -27,6 +28,10 @@ export function mapTimetableClassDate(
   docSnapshot: QueryDocumentSnapshot<DocumentData>,
 ): TimetableClassDateDoc | null {
   const data = docSnapshot.data();
+  const classId = typeof data.classId === 'string' ? data.classId.trim() : '';
+  if (!classId) {
+    return null;
+  }
   const classDate = typeof data.classDate === 'string' ? data.classDate : null;
   if (!classDate) {
     return null;
@@ -57,6 +62,7 @@ export function mapTimetableClassDate(
 
   return {
     id: docSnapshot.id,
+    classId,
     classDate,
     periods,
     attendanceStatus,
