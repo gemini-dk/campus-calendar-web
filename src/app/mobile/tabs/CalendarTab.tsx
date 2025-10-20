@@ -218,19 +218,6 @@ function getPeriodSortKey(periods: (number | 'OD')[]): number {
   return 1000;
 }
 
-function formatPeriodsForDisplay(periods: (number | 'OD')[]): string {
-  const numeric = periods
-    .filter((period): period is number => typeof period === 'number')
-    .sort((a, b) => a - b);
-  if (numeric.length > 0) {
-    return numeric.join(',');
-  }
-  if (periods.includes('OD')) {
-    return 'OD';
-  }
-  return '-';
-}
-
 function resolveSessionIcon(classType: ClassType, deliveryType: DeliveryType) {
   if (deliveryType === 'in_person') {
     return { icon: faChalkboardTeacher, className: 'text-blue-600' } as const;
@@ -1020,7 +1007,6 @@ function CalendarMonthSlide({
               <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">
                 <div className="flex flex-1 flex-col gap-[2px] overflow-hidden">
                   {classEntries.map((entry) => {
-                    const periodsLabel = formatPeriodsForDisplay(entry.periods);
                     const { icon, className: iconColorClass } = resolveSessionIcon(
                       entry.classType,
                       entry.deliveryType,
@@ -1030,9 +1016,6 @@ function CalendarMonthSlide({
                         key={entry.id}
                         className="flex min-h-[16px] items-center gap-1 text-[10px] leading-[1.2]"
                       >
-                        <span className="min-w-[24px] flex-shrink-0 whitespace-nowrap text-[10px] font-medium text-neutral-500">
-                          {periodsLabel}
-                        </span>
                         <FontAwesomeIcon
                           icon={icon}
                           fontSize={10}
