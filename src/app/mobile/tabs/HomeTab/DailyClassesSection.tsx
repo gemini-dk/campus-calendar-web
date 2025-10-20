@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCalendarDays,
   faChalkboardTeacher,
+  faCirclePlus,
   faCircleQuestion,
   faListCheck,
   faNoteSticky,
@@ -113,10 +114,10 @@ const CLASS_TYPE_ICON: Record<ClassType, IconDefinition> = {
 };
 
 const CLASS_TYPE_ICON_CLASS: Record<ClassType, string> = {
-  in_person: 'text-blue-600',
-  online: 'text-purple-600',
-  on_demand: 'text-amber-500',
-  hybrid: 'text-sky-600',
+  in_person: 'text-neutral-500',
+  online: 'text-neutral-500',
+  on_demand: 'text-neutral-500',
+  hybrid: 'text-neutral-500',
 };
 
 function getTodayId(): string {
@@ -698,17 +699,19 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
         <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-600">
           {periodLabel}
         </span>
-        <span
-          className={`flex items-center gap-2 text-sm font-medium text-neutral-600 ${locationInfo.iconClass}`}
-        >
-          <FontAwesomeIcon icon={locationInfo.icon} className="text-base" aria-hidden="true" />
-          <span className="text-neutral-600">
+        <span className="flex items-center gap-2 text-sm font-medium text-neutral-500">
+          <FontAwesomeIcon
+            icon={locationInfo.icon}
+            className={`text-base ${locationInfo.iconClass}`}
+            aria-hidden="true"
+          />
+          <span className="text-neutral-500">
             {locationInfo.link ? (
               <a
                 href={locationInfo.link}
                 target="_blank"
                 rel="noreferrer"
-                className="font-medium text-blue-600 underline-offset-2 hover:underline"
+                className="font-medium text-neutral-500 underline-offset-2 hover:text-neutral-600 hover:underline"
                 onClick={handleInteractiveClick}
               >
                 {locationInfo.label}
@@ -731,7 +734,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
       </div>
 
       <div className="flex flex-col">
-        <h3 className="text-lg font-semibold text-neutral-900">{session.className}</h3>
+        <h3 className="mb-2 text-lg font-semibold text-neutral-900">{session.className}</h3>
       </div>
 
       <AttendanceSummary
@@ -742,8 +745,18 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
 
       <div className="flex w-full flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
-          <ActionButton icon={faListCheck} label="課題作成" onClick={handleInteractiveClick} />
-          <ActionButton icon={faNoteSticky} label="メモ作成" variant="purple" onClick={handleInteractiveClick} />
+          <ActionButton
+            icon={faListCheck}
+            label="課題作成"
+            showCreateIndicator
+            onClick={handleInteractiveClick}
+          />
+          <ActionButton
+            icon={faNoteSticky}
+            label="メモ作成"
+            showCreateIndicator
+            onClick={handleInteractiveClick}
+          />
         </div>
         {showRightSideActions ? (
           <div className="ml-auto flex items-center gap-2" onClick={handleInteractiveClick}>
@@ -784,10 +797,17 @@ type ActionButtonProps = {
   icon: IconDefinition;
   label: string;
   variant?: 'blue' | 'purple' | 'neutral';
+  showCreateIndicator?: boolean;
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
 };
 
-function ActionButton({ icon, label, variant = 'blue', onClick }: ActionButtonProps) {
+function ActionButton({
+  icon,
+  label,
+  variant = 'blue',
+  showCreateIndicator = false,
+  onClick,
+}: ActionButtonProps) {
   const variantClass = (() => {
     switch (variant) {
       case 'purple':
@@ -808,7 +828,14 @@ function ActionButton({ icon, label, variant = 'blue', onClick }: ActionButtonPr
       className={`flex h-11 w-11 items-center justify-center rounded-full text-lg transition ${variantClass}`}
       onClick={onClick}
     >
-      <FontAwesomeIcon icon={icon} className="text-lg" aria-hidden="true" />
+      <span className="relative flex items-center justify-center">
+        <FontAwesomeIcon icon={icon} className="text-lg" aria-hidden="true" />
+        {showCreateIndicator ? (
+          <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[0.625rem] text-blue-600 ring-1 ring-blue-200">
+            <FontAwesomeIcon icon={faCirclePlus} aria-hidden="true" />
+          </span>
+        ) : null}
+      </span>
     </button>
   );
 }
