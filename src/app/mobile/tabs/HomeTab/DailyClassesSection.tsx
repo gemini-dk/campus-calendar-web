@@ -696,10 +696,10 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
       onClick={onSelectClass ? handleCardClick : undefined}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <span className="rounded-full bg-neutral-100 px-3 py-1 text-sm font-semibold text-neutral-600">
+        <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-semibold text-neutral-600">
           {periodLabel}
         </span>
-        <span className="flex items-center gap-2 text-sm font-medium text-neutral-500">
+        <span className="flex items-center gap-2 text-xs font-medium text-neutral-500">
           <FontAwesomeIcon
             icon={locationInfo.icon}
             className={`text-base ${locationInfo.iconClass}`}
