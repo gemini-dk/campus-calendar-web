@@ -1005,7 +1005,7 @@ function CalendarMonthSlide({
               </div>
 
               <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">
-                <div className="flex flex-1 flex-col gap-[2px] overflow-hidden">
+                <div className="flex flex-1 flex-col gap-[1px] overflow-hidden">
                   {classEntries.map((entry) => {
                     const { icon, className: iconColorClass } = resolveSessionIcon(
                       entry.classType,
@@ -1014,7 +1014,7 @@ function CalendarMonthSlide({
                     return (
                       <div
                         key={entry.id}
-                        className="flex min-h-[16px] items-center gap-1 text-[10px] leading-[1.2]"
+                        className="flex min-h-[14px] items-center gap-1 pl-[3px] text-[10px] leading-[1.08]"
                       >
                         <FontAwesomeIcon
                           icon={icon}
