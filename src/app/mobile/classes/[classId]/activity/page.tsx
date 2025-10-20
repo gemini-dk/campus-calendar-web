@@ -17,6 +17,7 @@ import {
 import { faSquare, faSquareCheck } from "@fortawesome/free-regular-svg-icons";
 import {
   Timestamp,
+  collection,
   doc,
   onSnapshot,
   serverTimestamp,
@@ -55,7 +56,6 @@ import {
 } from "@/lib/data/service/class.service";
 import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
-import { db } from "@/lib/firebase/client";
 
 const WEEKDAY_LABELS = new Map<number, string>([
   [1, "月"],
@@ -725,15 +725,11 @@ function useClassActivityData({ userId, fiscalYear, classId }: UseClassActivityP
       if (!userId || !fiscalYear || !classId) {
         throw new Error("ユーザー情報または年度情報が不足しています。");
       }
-      const classDateRef = doc(
-        db,
-        "users",
-        userId,
-        "academic_years",
-        fiscalYear,
-        "class_dates",
-        classDateId,
-      );
+      const classRef = getTimetableClassDocRef({ userId, fiscalYear, classId });
+      if (!classRef) {
+        throw new Error("授業情報が取得できませんでした。");
+      }
+      const classDateRef = doc(collection(classRef, "class_dates"), classDateId);
       await updateDoc(classDateRef, {
         attendanceStatus: status ?? null,
         updatedAt: serverTimestamp(),

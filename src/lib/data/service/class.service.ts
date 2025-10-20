@@ -5,7 +5,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  where,
   writeBatch,
   type CollectionReference,
   type DocumentReference,
@@ -178,23 +177,15 @@ export function getAcademicYearClassDatesQuery({
   fiscalYear,
   classId,
 }: TimetableClassDocRefParams): Query<DocumentData> | null {
-  const normalized = normalizeUserAndYear({ userId, fiscalYear });
-  const trimmedClassId = classId.trim();
+  const classRef = getTimetableClassDocRef({ userId, fiscalYear, classId });
 
-  if (!normalized || !trimmedClassId) {
+  if (!classRef) {
     return null;
   }
 
-  const classDatesRef = collection(
-    db,
-    'users',
-    normalized.userId,
-    'academic_years',
-    normalized.fiscalYear,
-    'class_dates',
-  );
+  const classDatesRef = collection(classRef, 'class_dates');
 
-  return query(classDatesRef, where('classId', '==', trimmedClassId), orderBy('classDate', 'desc'));
+  return query(classDatesRef, orderBy('classDate', 'desc'));
 }
 
 export function getUserActivitiesQuery(userId: string): Query<DocumentData> | null {
@@ -569,14 +560,7 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     'timetable_classes',
   );
   const classRef = doc(classCollection);
-  const classDatesCollection = collection(
-    db,
-    'users',
-    userId,
-    'academic_years',
-    fiscalYear,
-    'class_dates',
-  );
+  const classDatesCollection = collection(classRef, 'class_dates');
   const batch = writeBatch(db);
   const timestamp = serverTimestamp();
 
@@ -745,11 +729,12 @@ export async function updateTimetableClass({
 
   const classCollection = (fiscalYear: string) =>
     collection(db, 'users', trimmedUserId, 'academic_years', fiscalYear, 'timetable_classes');
-  const classDatesCollection = (fiscalYear: string) =>
-    collection(db, 'users', trimmedUserId, 'academic_years', fiscalYear, 'class_dates');
+  const buildClassRef = (fiscalYear: string) =>
+    doc(classCollection(fiscalYear), trimmedClassId);
+  const classDatesCollection = (classRef: DocumentReference) => collection(classRef, 'class_dates');
 
-  const sourceClassRef = doc(classCollection(trimmedOriginalYear), trimmedClassId);
-  const targetClassRef = doc(classCollection(trimmedNewYear), trimmedClassId);
+  const sourceClassRef = buildClassRef(trimmedOriginalYear);
+  const targetClassRef = buildClassRef(trimmedNewYear);
 
   const batch = writeBatch(db);
   const timestamp = serverTimestamp();
@@ -821,7 +806,7 @@ export async function updateTimetableClass({
       if (!trimmedDateId) {
         continue;
       }
-      const dateRef = doc(classDatesCollection(trimmedOriginalYear), trimmedDateId);
+      const dateRef = doc(classDatesCollection(sourceClassRef), trimmedDateId);
       batch.delete(dateRef);
     }
 
@@ -860,7 +845,7 @@ export async function updateTimetableClass({
         }
         const classDateId = buildClassDateId(trimmedClassId, item.date, item.periods);
         const classDateRef: DocumentReference = doc(
-          classDatesCollection(trimmedNewYear),
+          classDatesCollection(targetClassRef),
           classDateId,
         );
 

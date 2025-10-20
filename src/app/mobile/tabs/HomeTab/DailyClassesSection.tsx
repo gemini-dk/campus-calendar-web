@@ -17,10 +17,10 @@ import {
   collection,
   doc,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   updateDoc,
-  where,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Unsubscribe,
@@ -371,15 +371,17 @@ function useDailyClassSessions({
     const unsubscribers: Unsubscribe[] = [];
 
     for (const classItem of classes) {
-      const classDatesCollection = collection(
+      const classRef = doc(
         db,
         'users',
         userId,
         'academic_years',
         fiscalYear,
-        'class_dates',
+        'timetable_classes',
+        classItem.id,
       );
-      const classDatesQuery = query(classDatesCollection, where('classId', '==', classItem.id));
+      const classDatesCollection = collection(classRef, 'class_dates');
+      const classDatesQuery = query(classDatesCollection, orderBy('classDate', 'desc'));
 
       const unsubscribe = onSnapshot(
         classDatesQuery,
@@ -475,7 +477,7 @@ function useDailyClassSessions({
   const loading = classesLoading || datesLoading;
 
   const updateAttendanceStatus = useCallback(
-    async (_classId: string, classDateId: string, status: AttendanceStatus) => {
+    async (classId: string, classDateId: string, status: AttendanceStatus) => {
       if (!userId || !fiscalYear) {
         throw new Error('ユーザー情報または年度情報が不足しています。');
       }
@@ -486,6 +488,8 @@ function useDailyClassSessions({
         userId,
         'academic_years',
         fiscalYear,
+        'timetable_classes',
+        classId,
         'class_dates',
         classDateId,
       );
@@ -502,7 +506,7 @@ function useDailyClassSessions({
   );
 
   const updateDeliveryType = useCallback(
-    async (_classId: string, classDateId: string, deliveryType: DeliveryType) => {
+    async (classId: string, classDateId: string, deliveryType: DeliveryType) => {
       if (!userId || !fiscalYear) {
         throw new Error('ユーザー情報または年度情報が不足しています。');
       }
@@ -513,6 +517,8 @@ function useDailyClassSessions({
         userId,
         'academic_years',
         fiscalYear,
+        'timetable_classes',
+        classId,
         'class_dates',
         classDateId,
       );
