@@ -291,7 +291,7 @@ export default function PublicCalendarView({ fiscalYear, calendarId, initialMont
                       isCurrentMonth ? "" : "opacity-50"
                     } ${
                       isToday
-                        ? "outline outline-2 outline-blue-400"
+                        ? ""
                         : "hover:bg-neutral-200/60"
                     }`}
                     style={{

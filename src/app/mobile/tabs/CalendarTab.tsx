@@ -220,16 +220,16 @@ function getPeriodSortKey(periods: (number | 'OD')[]): number {
 
 function resolveSessionIcon(classType: ClassType, deliveryType: DeliveryType) {
   if (deliveryType === 'in_person') {
-    return { icon: faChalkboardTeacher, className: 'text-blue-600' } as const;
+    return { icon: faChalkboardTeacher, className: 'text-neutral-500' } as const;
   }
   if (deliveryType === 'remote') {
-    return { icon: faVideo, className: 'text-purple-600' } as const;
+    return { icon: faVideo, className: 'text-neutral-500' } as const;
   }
   if (classType === 'online' || classType === 'on_demand') {
-    return { icon: faVideo, className: 'text-purple-600' } as const;
+    return { icon: faVideo, className: 'text-neutral-500' } as const;
   }
   if (classType === 'in_person') {
-    return { icon: faChalkboardTeacher, className: 'text-blue-600' } as const;
+    return { icon: faChalkboardTeacher, className: 'text-neutral-500' } as const;
   }
   return { icon: faCircleQuestion, className: 'text-neutral-500' } as const;
 }
@@ -979,11 +979,7 @@ function CalendarMonthSlide({
               onClick={() => onDateSelect?.(dateId)}
               className={`flex h-full min-h-0 w-full flex-col overflow-hidden text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
                 isCurrentMonth ? '' : 'opacity-50'
-              } ${
-                isToday
-                  ? 'outline outline-2 outline-blue-400'
-                  : 'hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60'
-              }`}
+              } hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60`}
               style={{
                 backgroundColor: cellBackgroundColor,
                 borderRightWidth: showRightBorder ? 1 : 0,
