@@ -6,6 +6,13 @@ import type {
   DeliveryType,
 } from '@/app/mobile/types';
 
+export type AbsenceMessage =
+  | null
+  | {
+      text: string;
+      emphasize?: boolean;
+    };
+
 export type ClassType = 'in_person' | 'online' | 'hybrid' | 'on_demand';
 
 export type TimetableClassDateDoc = {
@@ -120,24 +127,26 @@ export function computeAttendanceSummary(
   } satisfies AttendanceSummary;
 }
 
-export function buildAbsenceMessage(summary: AttendanceSummary): string | null {
-  if (summary.maxAbsenceDays === null) {
+export function buildAbsenceMessage(summary: AttendanceSummary): AbsenceMessage {
+  if (summary.maxAbsenceDays === null || summary.maxAbsenceDays <= 0) {
     return null;
   }
-  if (summary.maxAbsenceDays <= 0) {
-    return '欠席可能日数は設定されていません。';
-  }
+
   const remaining = summary.maxAbsenceDays - summary.absentCount;
+
   if (remaining > 1) {
-    return `あと${remaining}日欠席可能です。`;
+    return { text: `あと${remaining}日欠席可能です` };
   }
+
   if (remaining === 1) {
-    return 'あと1日欠席可能です。';
+    return { text: 'あと一回しか休めません', emphasize: true };
   }
+
   if (remaining === 0) {
-    return '欠席可能日数は残り0日です。';
+    return { text: 'これ以上休めません', emphasize: true };
   }
-  return `欠席可能日数を${Math.abs(remaining)}日超過しています。`;
+
+  return { text: 'すでにオーバーしています' };
 }
 
 export function formatPeriodLabel(periods: (number | 'OD')[]): string {

@@ -1,10 +1,11 @@
 'use client';
 
 import type { AttendanceSummary as AttendanceSummaryType } from '@/app/mobile/types';
+import type { AbsenceMessage } from '@/app/mobile/utils/classSchedule';
 
 type AttendanceSummaryProps = {
   summary: AttendanceSummaryType;
-  absenceMessage: string | null;
+  absenceMessage: AbsenceMessage;
   absenceRatioLabel: string;
   className?: string;
 };
@@ -44,7 +45,11 @@ export default function AttendanceSummary({
         </div>
         <div className="flex flex-col items-end text-red-500">
           <span className="text-sm font-semibold">{absenceRatioLabel}</span>
-          {absenceMessage ? <span className="text-xs font-medium">{absenceMessage}</span> : null}
+          {absenceMessage ? (
+            <span className={`text-xs ${absenceMessage.emphasize ? 'font-bold' : 'font-medium'}`}>
+              {absenceMessage.text}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="relative flex h-3 w-full overflow-hidden rounded-full bg-neutral-200">
