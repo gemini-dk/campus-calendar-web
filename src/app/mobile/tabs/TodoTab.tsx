@@ -141,7 +141,6 @@ function formatDateLabel(value: Date | null): string {
   }
 
   return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(value);
@@ -149,11 +148,11 @@ function formatDateLabel(value: Date | null): string {
 
 function resolveIcon(type: ActivityType, status: ActivityStatus) {
   if (type === 'memo') {
-    return { icon: faNoteSticky, className: 'text-blue-600' };
+    return { icon: faNoteSticky, className: 'text-neutral-500' };
   }
 
   if (status === 'done') {
-    return { icon: faSquareCheck, className: 'text-emerald-500' };
+    return { icon: faSquareCheck, className: 'text-neutral-500' };
   }
 
   return { icon: faSquare, className: 'text-neutral-500' };
@@ -221,19 +220,19 @@ function ActivityListItem({
               event.stopPropagation();
               onToggleStatus?.(activity);
             }}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200"
+            className="flex h-11 w-11 items-center justify-center text-neutral-500 transition hover:text-neutral-700"
             aria-label={activity.status === 'done' ? '未完了に戻す' : '完了にする'}
           >
             <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
           </button>
         ) : (
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100">
+          <div className="flex h-11 w-11 items-center justify-center text-neutral-500">
             <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
           </div>
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
-        <h3 className="truncate text-base font-semibold text-neutral-900">
+        <h3 className="truncate text-base font-normal text-neutral-900">
           {activity.title || '無題の項目'}
         </h3>
         <div className="flex items-center justify-between text-xs text-neutral-500">
@@ -249,7 +248,7 @@ function ActivityListItem({
               </span>
             ) : null}
           </div>
-          <span className="whitespace-nowrap text-neutral-400">作成日 {createdLabel}</span>
+          <span className="whitespace-nowrap text-neutral-400">{createdLabel}</span>
         </div>
       </div>
     </article>
