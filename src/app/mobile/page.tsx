@@ -4,8 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faCalendarDays,
-  faCalendarWeek,
+  faCalendar,
   faChalkboardTeacher,
   faHome,
   faTasks,
@@ -35,13 +34,13 @@ const TABS: TabDefinition[] = [
   {
     id: "weekly",
     label: "ウィークリー",
-    icon: <CalendarOverlayIcon baseIcon={faCalendarWeek} label="7" size={TAB_ICON_SIZE} />,
+    icon: <CalendarOverlayIcon baseIcon={faCalendar} label="7" size={TAB_ICON_SIZE} />,
     Component: WeeklyCalendarTab,
   },
   {
     id: "calendar",
     label: "カレンダー",
-    icon: <CalendarOverlayIcon baseIcon={faCalendarDays} label="31" size={TAB_ICON_SIZE} />,
+    icon: <CalendarOverlayIcon baseIcon={faCalendar} label="31" size={TAB_ICON_SIZE} />,
     Component: CalendarTab,
   },
   { id: "todo", label: "課題・メモ", icon: renderDefaultTabIcon(faTasks), Component: TodoTab },
