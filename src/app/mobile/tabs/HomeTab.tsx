@@ -244,7 +244,7 @@ function HomeTabContent() {
                 <span className="text-sm text-neutral-500">{supplementalText}</span>
               </div>
               <div className="flex min-h-[96px] flex-col items-end justify-end text-right">
-                <span className="text-lg font-semibold text-neutral-900">
+                <span className="text-base font-semibold text-neutral-900">
                   {academic?.label ?? '-'}
                 </span>
                 {academic?.subLabel ? (
