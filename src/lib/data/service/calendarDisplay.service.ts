@@ -120,30 +120,20 @@ function computeGeneralDisplay(
 }
 
 function determineAccentColor(day: CalendarDay | null, weekdayNumber: number): AccentColor {
-  if (!day) {
-    if (weekdayNumber === 0) {
-      return 'holiday';
-    }
-    if (weekdayNumber === 6) {
-      return 'saturday';
-    }
-    return 'default';
-  }
+  const isNationalHoliday = Boolean(day?.nationalHolidayName && day.nationalHolidayName.length > 0);
 
-  const normalizedType = normalizeDayType(day.type);
-  if (
-    day.isHoliday ||
-    (day.nationalHolidayName && day.nationalHolidayName.length > 0) ||
-    normalizedType === 'holiday'
-  ) {
+  if (isNationalHoliday) {
     return 'holiday';
   }
+
   if (weekdayNumber === 0) {
     return 'holiday';
   }
+
   if (weekdayNumber === 6) {
     return 'saturday';
   }
+
   return 'default';
 }
 
