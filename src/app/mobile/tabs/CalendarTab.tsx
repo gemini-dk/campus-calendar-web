@@ -3,11 +3,35 @@
 import type { PointerEvent as ReactPointerEvent, TransitionEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+  faChalkboardTeacher,
+  faCircleQuestion,
+  faVideo,
+} from '@fortawesome/free-solid-svg-icons';
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  type DocumentData,
+  type QueryDocumentSnapshot,
+  type Unsubscribe,
+} from 'firebase/firestore';
+
 import {
   getCalendarDisplayInfo,
   type CalendarDisplayInfo,
 } from '@/lib/data/service/calendarDisplay.service';
+import {
+  mapTimetableClassDate,
+  type ClassType,
+  type TimetableClassDateDoc,
+} from '@/app/mobile/utils/classSchedule';
+import type { DeliveryType } from '@/app/mobile/types';
+import { db } from '@/lib/firebase/client';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
+import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
 
 const CALENDAR_SETTINGS_ERROR_MESSAGE =
@@ -39,6 +63,25 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
 
 const CALENDAR_CELL_COUNT = 42;
 const DRAG_DETECTION_THRESHOLD = 6;
+
+const CLASS_TYPE_VALUES: ClassType[] = ['in_person', 'online', 'hybrid', 'on_demand'];
+
+type CalendarClassSummary = {
+  id: string;
+  className: string;
+  classType: ClassType;
+};
+
+type CalendarDayClassEntry = {
+  id: string;
+  classId: string;
+  className: string;
+  classType: ClassType;
+  deliveryType: DeliveryType;
+  periods: (number | 'OD')[];
+};
+
+type ClassEntriesByDateMap = Record<string, CalendarDayClassEntry[]>;
 
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
 
@@ -117,12 +160,106 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
+function mapTimetableClassSummary(
+  docSnapshot: QueryDocumentSnapshot<DocumentData>,
+): CalendarClassSummary | null {
+  const data = docSnapshot.data();
+  const className = typeof data.className === 'string' ? data.className.trim() : '';
+  if (!className) {
+    return null;
+  }
+
+  const rawType = typeof data.classType === 'string' ? data.classType.trim() : '';
+  const classType = CLASS_TYPE_VALUES.includes(rawType as ClassType)
+    ? (rawType as ClassType)
+    : 'in_person';
+
+  return { id: docSnapshot.id, className, classType } satisfies CalendarClassSummary;
+}
+
+function areClassDateListsEqual(
+  prev: TimetableClassDateDoc[] | undefined,
+  next: TimetableClassDateDoc[],
+): boolean {
+  if (!prev) {
+    return false;
+  }
+  if (prev.length !== next.length) {
+    return false;
+  }
+  for (let index = 0; index < prev.length; index += 1) {
+    const left = prev[index];
+    const right = next[index];
+    if (
+      left.id !== right.id ||
+      left.classDate !== right.classDate ||
+      left.deliveryType !== right.deliveryType ||
+      left.periods.length !== right.periods.length
+    ) {
+      return false;
+    }
+    for (let periodIndex = 0; periodIndex < left.periods.length; periodIndex += 1) {
+      if (left.periods[periodIndex] !== right.periods[periodIndex]) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function getPeriodSortKey(periods: (number | 'OD')[]): number {
+  const numeric = periods.filter((period): period is number => typeof period === 'number');
+  if (numeric.length > 0) {
+    return Math.min(...numeric);
+  }
+  if (periods.includes('OD')) {
+    return 999;
+  }
+  return 1000;
+}
+
+function formatPeriodsForDisplay(periods: (number | 'OD')[]): string {
+  const numeric = periods
+    .filter((period): period is number => typeof period === 'number')
+    .sort((a, b) => a - b);
+  if (numeric.length > 0) {
+    return numeric.join(',');
+  }
+  if (periods.includes('OD')) {
+    return 'OD';
+  }
+  return '-';
+}
+
+function resolveSessionIcon(classType: ClassType, deliveryType: DeliveryType) {
+  if (deliveryType === 'in_person') {
+    return { icon: faChalkboardTeacher, className: 'text-blue-600' } as const;
+  }
+  if (deliveryType === 'remote') {
+    return { icon: faVideo, className: 'text-purple-600' } as const;
+  }
+  if (classType === 'online' || classType === 'on_demand') {
+    return { icon: faVideo, className: 'text-purple-600' } as const;
+  }
+  if (classType === 'in_person') {
+    return { icon: faChalkboardTeacher, className: 'text-blue-600' } as const;
+  }
+  return { icon: faCircleQuestion, className: 'text-neutral-500' } as const;
+}
+
 export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const { settings, initialized } = useUserSettings();
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
   const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
   const configKeyRef = useRef(configKey);
+  const { profile } = useAuth();
+  const userId = profile?.uid ?? null;
+
+  const [classSummaries, setClassSummaries] = useState<Record<string, CalendarClassSummary>>({});
+  const [classDatesByClass, setClassDatesByClass] =
+    useState<Record<string, TimetableClassDateDoc[]>>({});
+  const classDateUnsubscribeRef = useRef<Record<string, Unsubscribe>>({});
 
   const activeCalendarEntry = useMemo(() => {
     if (!fiscalYear || !calendarId) {
@@ -189,6 +326,155 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
     setMonthStates({});
     monthStatesRef.current = {};
   }, [configKey]);
+
+  useEffect(() => {
+    const unsubscribeClassDates = () => {
+      const entries = Object.entries(classDateUnsubscribeRef.current);
+      for (const [, unsubscribe] of entries) {
+        try {
+          unsubscribe();
+        } catch (err) {
+          console.error('Failed to unsubscribe class dates listener', err);
+        }
+      }
+      classDateUnsubscribeRef.current = {};
+    };
+
+    if (!userId || !fiscalYear) {
+      unsubscribeClassDates();
+      setClassSummaries({});
+      setClassDatesByClass({});
+      return () => {};
+    }
+
+    const classesRef = collection(
+      db,
+      'users',
+      userId,
+      'academic_years',
+      fiscalYear,
+      'timetable_classes',
+    );
+    const classesQuery = query(classesRef, orderBy('className'));
+
+    const unsubscribe = onSnapshot(
+      classesQuery,
+      (snapshot) => {
+        const nextSummaries: Record<string, CalendarClassSummary> = {};
+        const activeClassIds = new Set<string>();
+
+        snapshot.docs.forEach((docSnapshot) => {
+          const summary = mapTimetableClassSummary(docSnapshot);
+          if (!summary) {
+            return;
+          }
+          nextSummaries[summary.id] = summary;
+          activeClassIds.add(summary.id);
+
+          if (!classDateUnsubscribeRef.current[summary.id]) {
+            const classDatesRef = collection(docSnapshot.ref, 'class_dates');
+            const classDatesQuery = query(classDatesRef, orderBy('classDate'));
+            const unsubscribeDates = onSnapshot(
+              classDatesQuery,
+              (datesSnapshot) => {
+                const mapped = datesSnapshot.docs
+                  .map((dateSnapshot) => mapTimetableClassDate(dateSnapshot))
+                  .filter((item): item is TimetableClassDateDoc => item !== null);
+                setClassDatesByClass((prev) => {
+                  const prevItems = prev[summary.id];
+                  if (areClassDateListsEqual(prevItems, mapped)) {
+                    return prev;
+                  }
+                  return { ...prev, [summary.id]: mapped };
+                });
+              },
+              (error) => {
+                console.error('Failed to load class dates', error);
+                setClassDatesByClass((prev) => {
+                  if (!(summary.id in prev)) {
+                    return prev;
+                  }
+                  const next = { ...prev };
+                  delete next[summary.id];
+                  return next;
+                });
+              },
+            );
+            classDateUnsubscribeRef.current[summary.id] = unsubscribeDates;
+          }
+        });
+
+        setClassSummaries(nextSummaries);
+
+        setClassDatesByClass((prev) => {
+          const next = { ...prev };
+          let changed = false;
+          Object.keys(next).forEach((classId) => {
+            if (!activeClassIds.has(classId)) {
+              delete next[classId];
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+
+        Object.keys(classDateUnsubscribeRef.current).forEach((classId) => {
+          if (!activeClassIds.has(classId)) {
+            try {
+              classDateUnsubscribeRef.current[classId]?.();
+            } catch (err) {
+              console.error('Failed to unsubscribe class dates listener', err);
+            }
+            delete classDateUnsubscribeRef.current[classId];
+          }
+        });
+      },
+      (error) => {
+        console.error('Failed to load timetable classes', error);
+        setClassSummaries({});
+        setClassDatesByClass({});
+        unsubscribeClassDates();
+      },
+    );
+
+    return () => {
+      unsubscribe();
+      unsubscribeClassDates();
+    };
+  }, [fiscalYear, userId]);
+
+  const classEntriesByDate = useMemo(() => {
+    const next: ClassEntriesByDateMap = {};
+    Object.keys(classSummaries).forEach((classId) => {
+      const summary = classSummaries[classId];
+      const dates = classDatesByClass[classId] ?? [];
+      dates.forEach((item) => {
+        if (!next[item.classDate]) {
+          next[item.classDate] = [];
+        }
+        next[item.classDate].push({
+          id: `${classId}#${item.id}`,
+          classId,
+          className: summary.className,
+          classType: summary.classType,
+          deliveryType: item.deliveryType,
+          periods: item.periods,
+        });
+      });
+    });
+
+    Object.keys(next).forEach((dateId) => {
+      next[dateId].sort((a, b) => {
+        const periodOrder = getPeriodSortKey(a.periods) - getPeriodSortKey(b.periods);
+        if (periodOrder !== 0) {
+          return periodOrder;
+        }
+        return a.className.localeCompare(b.className, 'ja');
+      });
+    });
+
+    return next;
+  }, [classDatesByClass, classSummaries]);
 
   const requestMonthData = useCallback(
     (monthDate: Date, options?: { force?: boolean }) => {
@@ -613,6 +899,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
                         monthDate={monthDate}
                         monthState={state}
                         infoMap={infoMap}
+                        classEntriesByDate={classEntriesByDate}
                         todayId={todayId}
                         onRetry={handleRetry}
                         onDateSelect={onDateSelect}
@@ -639,6 +926,7 @@ type CalendarMonthSlideProps = {
   monthDate: Date;
   monthState: MonthState | undefined;
   infoMap: CalendarInfoMap;
+  classEntriesByDate: ClassEntriesByDateMap;
   todayId: string;
   onRetry: (monthDate: Date) => void;
   onDateSelect?: (dateId: string) => void;
@@ -648,6 +936,7 @@ function CalendarMonthSlide({
   monthDate,
   monthState,
   infoMap,
+  classEntriesByDate,
   todayId,
   onRetry,
   onDateSelect,
@@ -671,6 +960,7 @@ function CalendarMonthSlide({
           const general = info?.calendar;
           const academic = info?.academic;
           const day = info?.day ?? null;
+          const classEntries = classEntriesByDate[dateId] ?? [];
 
           const isCurrentMonth =
             date.getFullYear() === monthDate.getFullYear() &&
@@ -727,16 +1017,34 @@ function CalendarMonthSlide({
                 ) : null}
               </div>
 
-              <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden gap-[2px]">
-                <span className="block w-full min-h-[24px] line-clamp-2 text-[11px] font-semibold text-neutral-800">
-                  {academic?.label ?? '予定なし'}
-                </span>
-                <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
-                  {academic?.subLabel ?? ''}
-                </span>
-                <span className="block w-full min-h-[12px] line-clamp-1 text-[10px] text-neutral-600">
-                  {day?.description ?? ''}
-                </span>
+              <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">
+                <div className="flex flex-1 flex-col gap-[2px] overflow-hidden">
+                  {classEntries.map((entry) => {
+                    const periodsLabel = formatPeriodsForDisplay(entry.periods);
+                    const { icon, className: iconColorClass } = resolveSessionIcon(
+                      entry.classType,
+                      entry.deliveryType,
+                    );
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex min-h-[16px] items-center gap-1 text-[10px] leading-[1.2]"
+                      >
+                        <span className="min-w-[24px] flex-shrink-0 whitespace-nowrap text-[10px] font-medium text-neutral-500">
+                          {periodsLabel}
+                        </span>
+                        <FontAwesomeIcon
+                          icon={icon}
+                          fontSize={10}
+                          className={`${iconColorClass} flex-shrink-0`}
+                        />
+                        <span className="flex-1 truncate text-[10px] text-neutral-800">
+                          {entry.className}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </button>
           );
