@@ -6,11 +6,11 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faCalendarDays,
   faChalkboardTeacher,
-  faCirclePlus,
   faCircleQuestion,
   faListCheck,
   faNoteSticky,
   faPlay,
+  faPlus,
   faVideo,
 } from '@fortawesome/free-solid-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
@@ -696,7 +696,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
       onClick={onSelectClass ? handleCardClick : undefined}
     >
       <div className="flex flex-wrap items-center gap-3">
-        <span className="rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-600">
+        <span className="rounded-full bg-neutral-100 px-3 py-1 text-sm font-semibold text-neutral-600">
           {periodLabel}
         </span>
         <span className="flex items-center gap-2 text-sm font-medium text-neutral-500">
@@ -734,7 +734,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
       </div>
 
       <div className="flex flex-col">
-        <h3 className="mb-2 text-lg font-semibold text-neutral-900">{session.className}</h3>
+        <h3 className="mb-2 text-[1.125rem] text-neutral-900 text-center">{session.className}</h3>
       </div>
 
       <AttendanceSummary
@@ -831,8 +831,8 @@ function ActionButton({
       <span className="relative flex items-center justify-center">
         <FontAwesomeIcon icon={icon} className="text-lg" aria-hidden="true" />
         {showCreateIndicator ? (
-          <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[0.625rem] text-blue-600 ring-1 ring-blue-200">
-            <FontAwesomeIcon icon={faCirclePlus} aria-hidden="true" />
+          <span className="absolute -bottom-1 -right-1 flex h-[0.875rem] w-[0.875rem] items-center justify-center rounded-full bg-white text-[0.5rem] text-blue-600 ring-1 ring-blue-200">
+            <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
           </span>
         ) : null}
       </span>
