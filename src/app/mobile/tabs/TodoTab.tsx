@@ -149,11 +149,11 @@ function formatDateLabel(value: Date | null): string {
 
 function resolveIcon(type: ActivityType, status: ActivityStatus) {
   if (type === 'memo') {
-    return { icon: faNoteSticky, className: 'text-blue-600' };
+    return { icon: faNoteSticky, className: 'text-neutral-500' };
   }
 
   if (status === 'done') {
-    return { icon: faSquareCheck, className: 'text-emerald-500' };
+    return { icon: faSquareCheck, className: 'text-neutral-500' };
   }
 
   return { icon: faSquare, className: 'text-neutral-500' };
@@ -221,13 +221,13 @@ function ActivityListItem({
               event.stopPropagation();
               onToggleStatus?.(activity);
             }}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100 text-neutral-600 transition hover:bg-neutral-200"
+            className="flex h-11 w-11 items-center justify-center text-neutral-500 transition hover:text-neutral-700"
             aria-label={activity.status === 'done' ? '未完了に戻す' : '完了にする'}
           >
             <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
           </button>
         ) : (
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-neutral-100">
+          <div className="flex h-11 w-11 items-center justify-center text-neutral-500">
             <FontAwesomeIcon icon={icon} fontSize={22} className={className} />
           </div>
         )}
