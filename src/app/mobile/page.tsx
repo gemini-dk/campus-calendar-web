@@ -34,13 +34,13 @@ const TABS: TabDefinition[] = [
   {
     id: "weekly",
     label: "ウィークリー",
-    icon: <CalendarOverlayIcon baseIcon={faCalendar} label="7" size={TAB_ICON_SIZE} />,
+    icon: <CalendarOverlayIcon baseIcon={faCalendar} label="7" size={TAB_ICON_SIZE + 2} />,
     Component: WeeklyCalendarTab,
   },
   {
     id: "calendar",
     label: "カレンダー",
-    icon: <CalendarOverlayIcon baseIcon={faCalendar} label="31" size={TAB_ICON_SIZE} />,
+    icon: <CalendarOverlayIcon baseIcon={faCalendar} label="31" size={TAB_ICON_SIZE + 2} />,
     Component: CalendarTab,
   },
   { id: "todo", label: "課題・メモ", icon: renderDefaultTabIcon(faTasks), Component: TodoTab },
