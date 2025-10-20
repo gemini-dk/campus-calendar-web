@@ -141,7 +141,6 @@ function formatDateLabel(value: Date | null): string {
   }
 
   return new Intl.DateTimeFormat('ja-JP', {
-    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(value);
@@ -233,7 +232,7 @@ function ActivityListItem({
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
-        <h3 className="truncate text-base font-semibold text-neutral-900">
+        <h3 className="truncate text-base font-normal text-neutral-900">
           {activity.title || '無題の項目'}
         </h3>
         <div className="flex items-center justify-between text-xs text-neutral-500">
@@ -249,7 +248,7 @@ function ActivityListItem({
               </span>
             ) : null}
           </div>
-          <span className="whitespace-nowrap text-neutral-400">作成日 {createdLabel}</span>
+          <span className="whitespace-nowrap text-neutral-400">{createdLabel}</span>
         </div>
       </div>
     </article>
