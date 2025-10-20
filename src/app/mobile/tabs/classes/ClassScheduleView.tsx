@@ -1210,7 +1210,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                           detailLabel: "オンデマンド",
                                         })
                                       }
-                                      className="flex min-h-0 flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1 text-left"
+                                      className="flex min-h-0 flex-col gap-1 rounded-lg border border-blue-200 bg-blue-50 px-1 py-1 text-left"
                                       style={{
                                         flexBasis: `${basisPercent}%`,
                                         maxWidth: `${maxWidthPercent}%`,
@@ -1296,7 +1296,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                                           detailLabel,
                                         })
                                       }
-                                      className="absolute flex min-h-0 flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 pointer-events-auto"
+                                      className="absolute flex min-h-0 flex-col gap-1 rounded-lg border border-blue-200 bg-blue-50 px-1 py-1 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 pointer-events-auto"
                                       style={{
                                         top: topValue,
                                         height: heightValue,
