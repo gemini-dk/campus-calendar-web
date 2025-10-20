@@ -1,10 +1,11 @@
 'use client';
 
 import type { AttendanceSummary as AttendanceSummaryType } from '@/app/mobile/types';
+import type { AbsenceMessage } from '@/app/mobile/utils/classSchedule';
 
 type AttendanceSummaryProps = {
   summary: AttendanceSummaryType;
-  absenceMessage: string | null;
+  absenceMessage: AbsenceMessage;
   absenceRatioLabel: string;
   className?: string;
 };
@@ -25,6 +26,11 @@ export default function AttendanceSummary({
     absent: toPercent(summary.absentCount),
   };
 
+  const absenceLimitPosition =
+    summary.totalCount > 0 && summary.maxAbsenceDays !== null && summary.maxAbsenceDays > 0
+      ? 100 - toPercent(summary.maxAbsenceDays)
+      : null;
+
   return (
     <div className={`flex flex-col gap-3 ${className ?? ''}`.trim()}>
       <div className="flex flex-wrap items-start justify-between gap-2.5">
@@ -33,13 +39,17 @@ export default function AttendanceSummary({
           <span className="text-sm text-neutral-600">
             /{summary.totalCount}{' '}
             <span className="text-neutral-500">
-              (遅刻: {summary.lateCount}, 未入力: {summary.unrecordedCount})
+              (遅: {summary.lateCount}, 未: {summary.unrecordedCount})
             </span>
           </span>
         </div>
         <div className="flex flex-col items-end text-red-500">
           <span className="text-sm font-semibold">{absenceRatioLabel}</span>
-          {absenceMessage ? <span className="text-xs font-medium">{absenceMessage}</span> : null}
+          {absenceMessage ? (
+            <span className={`text-xs ${absenceMessage.emphasize ? 'font-bold' : 'font-medium'}`}>
+              {absenceMessage.text}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="relative flex h-3 w-full overflow-hidden rounded-full bg-neutral-200">
@@ -52,6 +62,13 @@ export default function AttendanceSummary({
           style={{ width: `${segments.absent}%` }}
           className="absolute right-0 top-0 h-full bg-red-500"
         />
+        {absenceLimitPosition !== null ? (
+          <span
+            style={{ left: `${absenceLimitPosition}%` }}
+            className="pointer-events-none absolute top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black"
+            aria-hidden
+          />
+        ) : null}
       </div>
     </div>
   );
