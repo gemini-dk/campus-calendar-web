@@ -10,6 +10,7 @@ import {
   faHome,
   faTasks,
 } from "@fortawesome/free-solid-svg-icons";
+import type { IconDefinition } from "@fortawesome/free-solid-svg-icons";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -18,14 +19,38 @@ import CalendarTab from "./tabs/CalendarTab";
 import WeeklyCalendarTab from "./tabs/WeeklyCalendarTab";
 import TodoTab from "./tabs/TodoTab";
 import ClassesTab from "./tabs/ClassesTab";
+import CalendarOverlayIcon from "./components/CalendarOverlayIcon";
 import type { TabDefinition, TabId } from "./tabs/types";
 
+const TAB_ICON_SIZE = 24;
+
+const renderDefaultTabIcon = (icon: IconDefinition) => (
+  <span className="flex h-6 w-6 items-center justify-center" aria-hidden="true">
+    <FontAwesomeIcon icon={icon} fontSize={TAB_ICON_SIZE} />
+  </span>
+);
+
 const TABS: TabDefinition[] = [
-  { id: "home", label: "ホーム", icon: faHome, Component: HomeTab },
-  { id: "weekly", label: "ウィークリー", icon: faCalendarWeek, Component: WeeklyCalendarTab },
-  { id: "calendar", label: "カレンダー", icon: faCalendarDays, Component: CalendarTab },
-  { id: "todo", label: "課題・メモ", icon: faTasks, Component: TodoTab },
-  { id: "classes", label: "授業管理", icon: faChalkboardTeacher, Component: ClassesTab },
+  { id: "home", label: "ホーム", icon: renderDefaultTabIcon(faHome), Component: HomeTab },
+  {
+    id: "weekly",
+    label: "ウィークリー",
+    icon: <CalendarOverlayIcon baseIcon={faCalendarWeek} label="7" size={TAB_ICON_SIZE} />,
+    Component: WeeklyCalendarTab,
+  },
+  {
+    id: "calendar",
+    label: "カレンダー",
+    icon: <CalendarOverlayIcon baseIcon={faCalendarDays} label="31" size={TAB_ICON_SIZE} />,
+    Component: CalendarTab,
+  },
+  { id: "todo", label: "課題・メモ", icon: renderDefaultTabIcon(faTasks), Component: TodoTab },
+  {
+    id: "classes",
+    label: "授業管理",
+    icon: renderDefaultTabIcon(faChalkboardTeacher),
+    Component: ClassesTab,
+  },
 ];
 
 function MobilePageContent() {
@@ -147,7 +172,7 @@ function MobilePageContent() {
                       : "text-neutral-600 hover:bg-neutral-100"
                   }`}
                 >
-                  <FontAwesomeIcon icon={tab.icon} fontSize={24} />
+                  {tab.icon}
                 </button>
               );
             })}
