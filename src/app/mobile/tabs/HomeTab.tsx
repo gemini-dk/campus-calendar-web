@@ -30,6 +30,39 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
   reserve: 'var(--color-my-secondary-container)',
 };
 
+function resolveThemeColorValue(
+  color: string | null | undefined,
+  fallback: string,
+): string {
+  if (!color) {
+    return fallback;
+  }
+
+  const trimmedColor = color.trim();
+  if (trimmedColor.startsWith('var(')) {
+    const start = trimmedColor.indexOf('(');
+    const end = trimmedColor.lastIndexOf(')');
+    if (start >= 0 && end > start) {
+      const inner = trimmedColor.slice(start + 1, end);
+      const [variableToken, fallbackToken] = inner.split(',');
+      const variableName = variableToken?.trim();
+      if (variableName) {
+        const rootStyles = getComputedStyle(document.documentElement);
+        const resolvedValue = rootStyles.getPropertyValue(variableName).trim();
+        if (resolvedValue) {
+          return resolvedValue;
+        }
+      }
+      const fallbackValue = fallbackToken?.trim();
+      if (fallbackValue) {
+        return fallbackValue;
+      }
+    }
+  }
+
+  return trimmedColor || fallback;
+}
+
 function resolveAccentColor(accent: string | null | undefined): string {
   return ACCENT_COLOR_CLASS[accent ?? ''] ?? ACCENT_COLOR_CLASS.default;
 }
@@ -148,7 +181,7 @@ function HomeTabContent() {
   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
   useEffect(() => {
-    const defaultThemeColor = '#f5f5f4';
+    const defaultThemeColor = '#f5f9ff';
     let themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
     if (!themeMeta) {
       themeMeta = document.createElement('meta');
@@ -158,7 +191,7 @@ function HomeTabContent() {
     }
 
     const previousThemeColor = themeMeta.getAttribute('content') ?? defaultThemeColor;
-    const nextThemeColor = backgroundColor || defaultThemeColor;
+    const nextThemeColor = resolveThemeColorValue(backgroundColor, defaultThemeColor);
     themeMeta.setAttribute('content', nextThemeColor);
 
     return () => {
