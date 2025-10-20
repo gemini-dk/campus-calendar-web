@@ -72,6 +72,16 @@ type ScheduleCellItem = {
   specialScheduleOption: SpecialScheduleOption;
 };
 
+type DayScheduleEvent = {
+  id: string;
+  entry: ScheduleCellItem;
+  startIndex: number;
+  periodSpan: number;
+  columnIndex: number;
+  columnCount: number;
+  periodKeys: string[];
+};
+
 const WEEKDAY_HEADERS = [
   { key: 1, label: "月" },
   { key: 2, label: "火" },
@@ -244,6 +254,94 @@ function mapWeeklySlotDoc(doc: QueryDocumentSnapshot<DocumentData>): WeeklySlotD
     dayOfWeek,
     periodKey,
   } satisfies WeeklySlotDoc;
+}
+
+type DayEventRecord = {
+  entry: ScheduleCellItem;
+  indices: Set<number>;
+  labels: Map<number, string>;
+};
+
+function buildDayEvent(
+  classId: string,
+  record: DayEventRecord,
+  indices: number[],
+): DayScheduleEvent {
+  const startIndex = indices[0] ?? 0;
+  const periodKeys = indices.map((index) => record.labels.get(index) ?? String(index + 1));
+  return {
+    id: `${classId}-${startIndex}`,
+    entry: record.entry,
+    startIndex,
+    periodSpan: Math.max(indices.length, 1),
+    columnIndex: 0,
+    columnCount: 1,
+    periodKeys,
+  } satisfies DayScheduleEvent;
+}
+
+function assignDayEventColumns(events: DayScheduleEvent[]): void {
+  if (events.length === 0) {
+    return;
+  }
+
+  events.sort((a, b) => {
+    if (a.startIndex !== b.startIndex) {
+      return a.startIndex - b.startIndex;
+    }
+    const aEnd = a.startIndex + a.periodSpan;
+    const bEnd = b.startIndex + b.periodSpan;
+    if (aEnd !== bEnd) {
+      return aEnd - bEnd;
+    }
+    return a.entry.className.localeCompare(b.entry.className, "ja");
+  });
+
+  type DayEventGroup = { id: number; maxColumns: number; events: DayScheduleEvent[] };
+  type ActiveItem = { event: DayScheduleEvent; groupId: number; endIndex: number };
+
+  const groups: DayEventGroup[] = [];
+  let nextGroupId = 0;
+  let active: ActiveItem[] = [];
+
+  for (const event of events) {
+    const eventStart = event.startIndex;
+    const eventEnd = event.startIndex + event.periodSpan;
+    active = active.filter((item) => item.endIndex > eventStart);
+
+    const activeGroupId = active.length > 0 ? active[0]?.groupId ?? null : null;
+    let group: DayEventGroup | undefined;
+    if (activeGroupId !== null) {
+      group = groups.find((item) => item.id === activeGroupId);
+    }
+    if (!group) {
+      group = { id: nextGroupId++, maxColumns: 0, events: [] } satisfies DayEventGroup;
+      groups.push(group);
+    }
+
+    const usedColumns = new Set<number>();
+    for (const item of active) {
+      if (item.groupId === group.id) {
+        usedColumns.add(item.event.columnIndex);
+      }
+    }
+    let columnIndex = 0;
+    while (usedColumns.has(columnIndex)) {
+      columnIndex += 1;
+    }
+
+    event.columnIndex = columnIndex;
+    group.maxColumns = Math.max(group.maxColumns, columnIndex + 1);
+    event.columnCount = group.maxColumns;
+    group.events.push(event);
+    active.push({ event, groupId: group.id, endIndex: eventEnd });
+  }
+
+  for (const group of groups) {
+    for (const event of group.events) {
+      event.columnCount = Math.max(group.maxColumns, 1);
+    }
+  }
 }
 
 export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) {
@@ -626,12 +724,23 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     return `${PERIOD_COLUMN_WIDTH} repeat(${weekdayCount}, minmax(0, 1fr))`;
   }, [weekdayHeaders.length]);
 
-  const rowTemplate = useMemo(() => {
-    if (periodLabels.length === 0) {
-      return undefined;
+  const regularPeriodLabels = useMemo(
+    () => periodLabels.filter((label) => label !== "FOD"),
+    [periodLabels],
+  );
+
+  const hasFullOnDemandRow = periodLabels.includes("FOD");
+
+  const gridRowTemplate = useMemo(() => {
+    const rows: string[] = ["auto"];
+    if (regularPeriodLabels.length > 0) {
+      rows.push(`repeat(${regularPeriodLabels.length}, minmax(0, 1fr))`);
     }
-    return `repeat(${periodLabels.length}, minmax(0, 1fr))`;
-  }, [periodLabels.length]);
+    if (hasFullOnDemandRow) {
+      rows.push("auto");
+    }
+    return rows.join(" ");
+  }, [hasFullOnDemandRow, regularPeriodLabels.length]);
 
   const enableSwipe = pagerItems.length > 1;
 
@@ -642,7 +751,7 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     }
 
     const allowedWeekdays = new Set(weekdayHeaders.map((weekday) => weekday.key));
-    const availablePeriodKeys = new Set(periodLabels.filter((label) => label !== "FOD"));
+    const availablePeriodKeys = new Set(regularPeriodLabels);
     const termNameToId = new Map<string, string>();
     const orderedTermIds = terms.map((term) => {
       termNameToId.set(term.name, term.id);
@@ -698,7 +807,74 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
     }
 
     return result;
-  }, [classes, periodLabels, terms, weekdayHeaders, weeklySlotRecords]);
+  }, [classes, regularPeriodLabels, terms, weekdayHeaders, weeklySlotRecords]);
+
+  const scheduleLayoutByTerm = useMemo(() => {
+    const layout = new Map<string, Map<number, DayScheduleEvent[]>>();
+    if (regularPeriodLabels.length === 0) {
+      return layout;
+    }
+
+    const periodIndexMap = new Map<string, number>();
+    regularPeriodLabels.forEach((label, index) => {
+      periodIndexMap.set(label, index);
+    });
+
+    for (const [termId, cellMap] of scheduleByTerm) {
+      const dayMap = new Map<number, DayScheduleEvent[]>();
+      for (const weekday of weekdayHeaders) {
+        const entriesByClass = new Map<string, DayEventRecord>();
+        for (const label of regularPeriodLabels) {
+          const index = periodIndexMap.get(label);
+          if (index == null) {
+            continue;
+          }
+          const cellKey = `${weekday.key}-${label}`;
+          const entries = cellMap.get(cellKey) ?? [];
+          for (const entry of entries) {
+            const record = entriesByClass.get(entry.classId) ?? {
+              entry,
+              indices: new Set<number>(),
+              labels: new Map<number, string>(),
+            } satisfies DayEventRecord;
+            record.indices.add(index);
+            record.labels.set(index, label);
+            entriesByClass.set(entry.classId, record);
+          }
+        }
+
+        const dayEvents: DayScheduleEvent[] = [];
+        for (const [classId, record] of entriesByClass) {
+          const sortedIndices = Array.from(record.indices).sort((a, b) => a - b);
+          let sequence: number[] = [];
+          for (const index of sortedIndices) {
+            if (sequence.length === 0 || index === sequence[sequence.length - 1] + 1) {
+              sequence.push(index);
+            } else {
+              if (sequence.length > 0) {
+                dayEvents.push(buildDayEvent(classId, record, sequence));
+              }
+              sequence = [index];
+            }
+          }
+          if (sequence.length > 0) {
+            dayEvents.push(buildDayEvent(classId, record, sequence));
+          }
+        }
+
+        assignDayEventColumns(dayEvents);
+
+        if (dayEvents.length > 0) {
+          dayMap.set(weekday.key, dayEvents);
+        }
+      }
+      if (dayMap.size > 0) {
+        layout.set(termId, dayMap);
+      }
+    }
+
+    return layout;
+  }, [regularPeriodLabels, scheduleByTerm, weekdayHeaders]);
 
   const isWeeklySlotsLoading = useMemo(
     () => classes.some((classItem) => !initializedWeeklySlots[classItem.id]),
@@ -938,10 +1114,12 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
             }}
           >
             {pagerItems.map((item, index) => {
-              const scheduleForTerm = !item.isPlaceholder ? scheduleByTerm.get(item.id) : null;
+              const layoutForTerm = !item.isPlaceholder ? scheduleLayoutByTerm.get(item.id) ?? null : null;
               const fullOnDemandEntries = !item.isPlaceholder
                 ? fullOnDemandByTerm.get(item.id) ?? []
                 : [];
+              const weekdayCount = Math.max(weekdayHeaders.length, 1);
+              const overlayRowSpan = regularPeriodLabels.length;
               return (
                 <div
                   key={item.id}
@@ -951,180 +1129,203 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                 >
                   <div className="flex h-full min-h-0 w-full flex-col">
                     <div
-                      className="grid h-10 w-full flex-shrink-0 border-b border-l border-t border-neutral-200 bg-neutral-100"
-                      style={{ gridTemplateColumns: columnTemplate }}
+                      className="grid h-full w-full border-b border-l border-neutral-200"
+                      style={{
+                        gridTemplateColumns: columnTemplate,
+                        gridTemplateRows: gridRowTemplate,
+                      }}
                     >
-                      <div className="flex h-10 w-full items-center justify-center border-r border-neutral-200 text-xs font-semibold uppercase tracking-wide text-neutral-600" />
-                      {weekdayHeaders.map((weekday) => (
+                      <div
+                        className="flex h-10 w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-100 text-xs font-semibold uppercase tracking-wide text-neutral-600"
+                        style={{ gridColumnStart: 1, gridRowStart: 1 }}
+                      />
+                      {weekdayHeaders.map((weekday, weekdayIndex) => (
                         <div
-                          key={weekday.key}
-                          className="flex h-10 items-center justify-center border-r border-neutral-200 bg-neutral-100 text-base font-semibold text-neutral-800"
+                          key={`header-${weekday.key}`}
+                          className="flex h-10 items-center justify-center border-b border-r border-neutral-200 bg-neutral-100 text-base font-semibold text-neutral-800"
+                          style={{ gridColumnStart: weekdayIndex + 2, gridRowStart: 1 }}
                         >
                           {weekday.label}
                         </div>
                       ))}
-                    </div>
 
-                    <div className="flex-1 min-h-0 w-full">
-                      <div
-                        className="grid h-full w-full border-b border-l border-neutral-200"
-                        style={{
-                          gridTemplateColumns: columnTemplate,
-                          ...(rowTemplate ? { gridTemplateRows: rowTemplate } : {}),
-                        }}
-                      >
-                        {periodLabels.map((label) => {
-                          const isFullOnDemandRow = label === "FOD";
-                          if (isFullOnDemandRow) {
-                            const weekdayCount = Math.max(weekdayHeaders.length, 1);
-                            return (
-                              <Fragment key={label}>
-                                <div className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-                                  <span className="block w-full truncate">{label}</span>
-                                </div>
-                                <div
-                                  className="flex h-full min-h-0 w-full flex-col border-b border-r border-neutral-200 bg-white"
-                                  style={{ gridColumn: `span ${weekdayCount}` }}
-                                >
-                                  {fullOnDemandEntries.length > 0 ? (
-                                    <div className="flex h-full min-h-0 w-full flex-wrap items-stretch gap-1 p-1">
-                                      {fullOnDemandEntries.map((entry, entryIndex) => {
-                                        const specialLabel =
-                                          entry.specialScheduleOption !== "all"
-                                            ? SPECIAL_SCHEDULE_OPTION_LABELS[
-                                                entry.specialScheduleOption
-                                              ]
-                                            : null;
-                                        const maxWidthPercent = 100 / weekdayCount;
-                                        const basisPercent = Math.min(
-                                          100 / fullOnDemandEntries.length,
-                                          maxWidthPercent,
-                                        );
-                                        return (
-                                          <button
-                                            key={`${entry.classId}-full-${entryIndex}`}
-                                            type="button"
-                                            onClick={() =>
-                                              handleOpenClassActivity({
-                                                classId: entry.classId,
-                                                className: entry.className,
-                                                periods: ["OD"],
-                                                detailLabel: "オンデマンド",
-                                              })
-                                            }
-                                            className="flex min-h-0 flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1 text-left"
-                                            style={{
-                                              flexBasis: `${basisPercent}%`,
-                                              maxWidth: `${maxWidthPercent}%`,
-                                              flexGrow: 1,
-                                            }}
-                                          >
-                                            <div className="flex flex-1 min-h-0 items-center justify-center px-1">
-                                              <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
-                                                {entry.className}
-                                              </p>
-                                            </div>
-                                            {specialLabel ? (
-                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
-                                                <span className="block w-full truncate whitespace-nowrap">
-                                                  {specialLabel}
-                                                </span>
-                                              </p>
-                                            ) : null}
-                                            {entry.location ? (
-                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
-                                                <span className="block w-full truncate whitespace-nowrap">
-                                                  {entry.location}
-                                                </span>
-                                              </p>
-                                            ) : null}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  ) : null}
-                                </div>
-                              </Fragment>
-                            );
-                          }
+                      {regularPeriodLabels.map((label, rowIndex) => (
+                        <Fragment key={`row-${label}`}>
+                          <div
+                            className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600"
+                            style={{ gridColumnStart: 1, gridRowStart: rowIndex + 2 }}
+                          >
+                            <span className="block w-full truncate">{label}</span>
+                          </div>
+                          {weekdayHeaders.map((weekday, weekdayIndex) => (
+                            <div
+                              key={`cell-${label}-${weekday.key}`}
+                              className="border-b border-r border-neutral-200 bg-white"
+                              style={{
+                                gridColumnStart: weekdayIndex + 2,
+                                gridRowStart: rowIndex + 2,
+                              }}
+                            />
+                          ))}
+                        </Fragment>
+                      ))}
 
-                          return (
-                            <Fragment key={label}>
-                              <div className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600">
-                                <span className="block w-full truncate">{label}</span>
-                              </div>
-                              {weekdayHeaders.map((weekday) => {
-                                const periodKey = label;
-                                const cellKey = `${weekday.key}-${periodKey}`;
-                                const entries = scheduleForTerm?.get(cellKey) ?? [];
-                                return (
-                                  <div
-                                    key={`${label}-${weekday.key}`}
-                                    className="flex h-full min-h-0 w-full flex-col border-b border-r border-neutral-200 bg-white"
-                                  >
-                                    {entries.length > 0 ? (
-                                      <div className="flex h-full min-h-0 w-full flex-col gap-1 p-1">
-                                      {entries.map((entry) => {
-                                        const specialLabel =
-                                          entry.specialScheduleOption !== "all"
-                                            ? SPECIAL_SCHEDULE_OPTION_LABELS[
-                                                entry.specialScheduleOption
-                                              ]
-                                            : null;
-                                        const numericPeriod = Number.parseInt(periodKey, 10);
-                                        const normalizedPeriods: (number | "OD")[] =
-                                          periodKey === "OD"
-                                            ? ["OD"]
-                                            : Number.isFinite(numericPeriod)
-                                            ? [numericPeriod]
-                                            : [];
-                                        const periodLabel = formatPeriodLabel(normalizedPeriods);
-                                        const detailLabel = `${weekday.label}曜 ${periodLabel}`;
-                                        return (
-                                          <button
-                                            key={`${entry.classId}-${weekday.key}-${periodKey}`}
-                                            type="button"
-                                            onClick={() =>
-                                              handleOpenClassActivity({
-                                                classId: entry.classId,
-                                                className: entry.className,
-                                                periods: normalizedPeriods,
-                                                detailLabel,
-                                              })
-                                            }
-                                            className="flex flex-1 min-h-0 w-full flex-col gap-1 rounded-xl border border-blue-200 bg-blue-50 px-1 py-1 text-left"
-                                          >
-                                            <div className="flex flex-1 min-h-0 items-center justify-center px-1">
-                                              <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
-                                                {entry.className}
-                                              </p>
-                                            </div>
-                                            {specialLabel ? (
-                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
-                                                <span className="block w-full truncate whitespace-nowrap">
-                                                  {specialLabel}
-                                                </span>
-                                              </p>
-                                            ) : null}
-                                            {entry.location ? (
-                                              <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
-                                                <span className="block w-full truncate whitespace-nowrap">
-                                                  {entry.location}
-                                                </span>
-                                              </p>
-                                            ) : null}
-                                          </button>
-                                        );
-                                      })}
+                      {hasFullOnDemandRow ? (
+                        <>
+                          <div
+                            className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600"
+                            style={{ gridColumnStart: 1, gridRowStart: regularPeriodLabels.length + 2 }}
+                          >
+                            <span className="block w-full truncate">FOD</span>
+                          </div>
+                          <div
+                            className="flex min-h-0 w-full flex-col border-b border-r border-neutral-200 bg-white"
+                            style={{
+                              gridColumnStart: 2,
+                              gridColumnEnd: weekdayCount + 2,
+                              gridRowStart: regularPeriodLabels.length + 2,
+                            }}
+                          >
+                            {fullOnDemandEntries.length > 0 ? (
+                              <div className="flex h-full min-h-0 w-full flex-wrap items-stretch gap-1 p-1">
+                                {fullOnDemandEntries.map((entry, entryIndex) => {
+                                  const specialLabel =
+                                    entry.specialScheduleOption !== "all"
+                                      ? SPECIAL_SCHEDULE_OPTION_LABELS[entry.specialScheduleOption]
+                                      : null;
+                                  const maxWidthPercent = 100 / weekdayCount;
+                                  const basisPercent = Math.min(
+                                    100 / fullOnDemandEntries.length,
+                                    maxWidthPercent,
+                                  );
+                                  return (
+                                    <button
+                                      key={`${entry.classId}-full-${entryIndex}`}
+                                      type="button"
+                                      onClick={() =>
+                                        handleOpenClassActivity({
+                                          classId: entry.classId,
+                                          className: entry.className,
+                                          periods: ["OD"],
+                                          detailLabel: "オンデマンド",
+                                        })
+                                      }
+                                      className="flex min-h-0 flex-col gap-1 rounded-lg border border-blue-200 bg-blue-50 px-1 py-1 text-left"
+                                      style={{
+                                        flexBasis: `${basisPercent}%`,
+                                        maxWidth: `${maxWidthPercent}%`,
+                                        flexGrow: 1,
+                                      }}
+                                    >
+                                      <div className="flex flex-1 min-h-0 items-center justify-center px-1">
+                                        <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
+                                          {entry.className}
+                                        </p>
                                       </div>
-                                    ) : null}
-                                  </div>
-                                );
-                              })}
-                            </Fragment>
-                          );
-                        })}
-                      </div>
+                                      {specialLabel ? (
+                                        <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
+                                          <span className="block w-full truncate whitespace-nowrap">{specialLabel}</span>
+                                        </p>
+                                      ) : null}
+                                      {entry.location ? (
+                                        <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
+                                          <span className="block w-full truncate whitespace-nowrap">{entry.location}</span>
+                                        </p>
+                                      ) : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        </>
+                      ) : null}
+
+                      {overlayRowSpan > 0
+                        ? weekdayHeaders.map((weekday, weekdayIndex) => {
+                            const events = layoutForTerm?.get(weekday.key) ?? [];
+                            if (events.length === 0) {
+                              return null;
+                            }
+                            const rowCount = overlayRowSpan;
+                            return (
+                              <div
+                                key={`overlay-${weekday.key}`}
+                                className="relative h-full w-full pointer-events-none p-1"
+                                style={{
+                                  gridColumnStart: weekdayIndex + 2,
+                                  gridRowStart: 2,
+                                  gridRowEnd: 2 + overlayRowSpan,
+                                }}
+                              >
+                                {events.map((event) => {
+                                  const widthRatio = 1 / Math.max(event.columnCount, 1);
+                                  const leftRatio = event.columnIndex / Math.max(event.columnCount, 1);
+                                  const topPercent = (event.startIndex / rowCount) * 100;
+                                  const heightPercent = (event.periodSpan / rowCount) * 100;
+                                  const widthPercent = widthRatio * 100;
+                                  const leftPercent = leftRatio * 100;
+                                  const normalizedPeriods = event.periodKeys
+                                    .map<(number | "OD")>((key) => {
+                                      if (key === "OD") {
+                                        return "OD";
+                                      }
+                                      const numeric = Number.parseInt(key, 10);
+                                      return Number.isFinite(numeric) ? numeric : "OD";
+                                    })
+                                    .filter((value, idx, array) => array.findIndex((v) => v === value) === idx);
+                                  const periodLabel = formatPeriodLabel(normalizedPeriods);
+                                  const detailLabel = `${weekday.label}曜 ${periodLabel}`;
+                                  const specialLabel =
+                                    event.entry.specialScheduleOption !== "all"
+                                      ? SPECIAL_SCHEDULE_OPTION_LABELS[event.entry.specialScheduleOption]
+                                      : null;
+                                  const topValue = `calc(${topPercent}% + 0.125rem)`;
+                                  const heightValue = `calc(${heightPercent}% - 0.25rem)`;
+                                  const leftValue = `calc(${leftPercent}% + 0.125rem)`;
+                                  const widthValue = `calc(${widthPercent}% - 0.25rem)`;
+                                  return (
+                                    <button
+                                      key={event.id}
+                                      type="button"
+                                      onClick={() =>
+                                        handleOpenClassActivity({
+                                          classId: event.entry.classId,
+                                          className: event.entry.className,
+                                          periods: normalizedPeriods,
+                                          detailLabel,
+                                        })
+                                      }
+                                      className="absolute flex min-h-0 flex-col gap-1 rounded-lg border border-blue-200 bg-blue-50 px-1 py-1 text-left shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 pointer-events-auto"
+                                      style={{
+                                        top: topValue,
+                                        height: heightValue,
+                                        left: leftValue,
+                                        width: widthValue,
+                                      }}
+                                    >
+                                      <div className="flex flex-1 min-h-0 items-center justify-center px-1">
+                                        <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
+                                          {event.entry.className}
+                                        </p>
+                                      </div>
+                                      {specialLabel ? (
+                                        <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-200/70 px-1 text-center text-[10px] font-semibold text-blue-700">
+                                          <span className="block w-full truncate whitespace-nowrap">{specialLabel}</span>
+                                        </p>
+                                      ) : null}
+                                      {event.entry.location ? (
+                                        <p className="flex h-4 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
+                                          <span className="block w-full truncate whitespace-nowrap">{event.entry.location}</span>
+                                        </p>
+                                      ) : null}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })
+                        : null}
                     </div>
                   </div>
                 </div>
