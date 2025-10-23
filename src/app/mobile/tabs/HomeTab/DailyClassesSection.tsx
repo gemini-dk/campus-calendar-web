@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -28,6 +29,7 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase/client';
+import { findNextClassDateAfter } from '@/lib/data/service/class.service';
 
 import AttendanceToggleGroup from '@/app/mobile/components/AttendanceToggleGroup';
 import AttendanceSummary from '@/app/mobile/components/AttendanceSummary';
@@ -60,6 +62,7 @@ export type DailyClassSession = {
   id: string;
   classId: string;
   classDateId: string;
+  classDate: string;
   className: string;
   classType: ClassType;
   location: string | null;
@@ -448,6 +451,7 @@ function useDailyClassSessions({
           id: `${classItem.id}#${dateItem.id}`,
           classId: classItem.id,
           classDateId: dateItem.id,
+          classDate: dateItem.classDate,
           className: classItem.className,
           classType: classItem.classType,
           location: classItem.location,
@@ -604,6 +608,8 @@ export default function DailyClassesSection({
               onChangeAttendance={updateAttendanceStatus}
               onChangeDeliveryType={updateDeliveryType}
               onSelectClass={onSelectClass}
+              userId={userId}
+              fiscalYear={fiscalYear}
             />
           ))}
         </ul>
@@ -625,12 +631,25 @@ type DailyClassCardProps = {
     deliveryType: DeliveryType,
   ) => Promise<void>;
   onSelectClass?: (session: DailyClassSession) => void;
+  userId: string | null;
+  fiscalYear: string | null;
 };
 
-function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onSelectClass }: DailyClassCardProps) {
+function DailyClassCard({
+  session,
+  onChangeAttendance,
+  onChangeDeliveryType,
+  onSelectClass,
+  userId,
+  fiscalYear,
+}: DailyClassCardProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [attendanceUpdating, setAttendanceUpdating] = useState(false);
   const [deliveryUpdating, setDeliveryUpdating] = useState(false);
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const periodLabel = formatPeriodLabel(session.periods);
   const locationInfo = buildSessionLocationDisplay(session);
@@ -684,9 +703,104 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
     }
   };
 
-  const handleInteractiveClick = (event: MouseEvent<HTMLElement>) => {
+  const formatMonthDay = useCallback((value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+    const month = value.slice(5, 7);
+    const day = value.slice(8, 10);
+    return `${month}/${day}`;
+  }, []);
+
+  const buildAssignmentTitle = useCallback(
+    (value: string) => `${formatMonthDay(value)}の授業で出題された課題`,
+    [formatMonthDay],
+  );
+
+  const buildMemoTitle = useCallback(
+    (value: string) => `${formatMonthDay(value)}の授業メモ`,
+    [formatMonthDay],
+  );
+
+  const handleInteractiveClick = useCallback((event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
-  };
+  }, []);
+
+  const navigateToActivityForm = useCallback(
+    (
+      type: 'assignment' | 'memo',
+      options: { title: string; classId: string; dueDate?: string | null },
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', 'todo');
+      params.set('activityAction', 'create');
+      params.set('activityType', type);
+      params.set('activityTitle', options.title);
+      params.set('activityClassId', options.classId);
+      params.set('activityView', type === 'memo' ? 'memo' : 'todo');
+      if (type === 'assignment' && options.dueDate) {
+        params.set('activityDueDate', options.dueDate);
+      } else {
+        params.delete('activityDueDate');
+      }
+
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleCreateAssignment = useCallback(
+    async (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      setActionError(null);
+
+      const title = buildAssignmentTitle(session.classDate);
+      let dueDate: string | null = null;
+
+      if (userId && fiscalYear) {
+        try {
+          dueDate = await findNextClassDateAfter({
+            userId,
+            fiscalYear,
+            classId: session.classId,
+            classDate: session.classDate,
+          });
+        } catch (err) {
+          console.error('Failed to compute next class date', err);
+        }
+      }
+
+      navigateToActivityForm('assignment', {
+        title,
+        classId: session.classId,
+        dueDate,
+      });
+    },
+    [
+      buildAssignmentTitle,
+      fiscalYear,
+      navigateToActivityForm,
+      session.classDate,
+      session.classId,
+      userId,
+    ],
+  );
+
+  const handleCreateMemo = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      setActionError(null);
+
+      const title = buildMemoTitle(session.classDate);
+
+      navigateToActivityForm('memo', {
+        title,
+        classId: session.classId,
+      });
+    },
+    [buildMemoTitle, navigateToActivityForm, session.classDate, session.classId],
+  );
 
   return (
     <li
@@ -712,7 +826,7 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium text-neutral-500 underline-offset-2 hover:text-neutral-600 hover:underline"
-                onClick={handleInteractiveClick}
+                onClick={(event) => event.stopPropagation()}
               >
                 {locationInfo.label}
               </a>
@@ -749,13 +863,13 @@ function DailyClassCard({ session, onChangeAttendance, onChangeDeliveryType, onS
             icon={faListCheck}
             label="課題作成"
             showCreateIndicator
-            onClick={handleInteractiveClick}
+            onClick={handleCreateAssignment}
           />
           <ActionButton
             icon={faNoteSticky}
             label="メモ作成"
             showCreateIndicator
-            onClick={handleInteractiveClick}
+            onClick={handleCreateMemo}
           />
         </div>
         {showRightSideActions ? (
