@@ -32,7 +32,7 @@ export default function CalendarOverlayIcon({
     >
       <FontAwesomeIcon icon={baseIcon} style={{ fontSize: size }} />
       <span
-        className="pointer-events-none absolute flex items-center justify-center font-bold leading-none text-current"
+        className="pointer-events-none absolute flex items-center justify-center font-bold leading-none text-white group-data-[active=true]:text-blue-500"
         style={{ fontSize: labelFontSize, transform: labelTranslateY }}
       >
         {label}

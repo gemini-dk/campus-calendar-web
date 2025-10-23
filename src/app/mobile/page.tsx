@@ -165,7 +165,8 @@ function MobilePageContent() {
                   onClick={() => handleTabChange(tab.id)}
                   aria-label={tab.label}
                   data-glitch="ﾓｼﾞﾊﾞｹ"
-                  className={`flex h-[48px] flex-1 items-center justify-center rounded-full text-sm font-medium transition ${
+                  data-active={isActive}
+                  className={`group flex h-[48px] flex-1 items-center justify-center rounded-full text-sm font-medium transition ${
                     isActive
                       ? "bg-blue-500 text-white shadow"
                       : "text-neutral-600 hover:bg-neutral-100"
