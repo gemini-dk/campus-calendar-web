@@ -10,14 +10,15 @@ const FISCAL_YEAR = "2025";
 export const dynamic = "force-dynamic";
 
 type PageProps = {
-  params: { webId: string };
+  params: Promise<{ webId: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const university = await getUniversityByWebId(params.webId);
+  const { webId } = await params;
+  const university = await getUniversityByWebId(webId);
   if (!university) {
     return {
-      title: `${params.webId} | 2025年度 学事予定`,
+      title: `${webId} | 2025年度 学事予定`,
     };
   }
   return {
@@ -27,7 +28,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function Page({ params }: PageProps) {
-  const university = await getUniversityByWebId(params.webId);
+  const { webId } = await params;
+  const university = await getUniversityByWebId(webId);
   if (!university) {
     notFound();
   }
