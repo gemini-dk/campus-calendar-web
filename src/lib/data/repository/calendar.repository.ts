@@ -9,7 +9,7 @@ import {
   where,
 } from 'firebase/firestore';
 
-import { db } from '@/lib/firebase/client';
+import { db } from '@/lib/firebase/firestore';
 
 import {
   calendarDaySchema,
