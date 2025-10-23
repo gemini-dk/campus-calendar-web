@@ -82,7 +82,8 @@ function coerceCalendarData(
       || normalizeString((record as { title?: unknown }).title)
       || normalizeString((record as { displayName?: unknown }).displayName);
   const calendarIdCandidate =
-    normalizeString((record as { calendarId?: unknown }).calendarId)
+    normalizeString(id)
+      || normalizeString((record as { calendarId?: unknown }).calendarId)
       || normalizeString((record as { id?: unknown }).id);
   const fiscalYearCandidate =
     normalizeString((record as { fiscalYear?: unknown }).fiscalYear)
@@ -144,7 +145,8 @@ export async function getUniversityByWebId(webId: string): Promise<University | 
   if (snapshot.empty) {
     return null;
   }
-  return coerceUniversityData(snapshot.docs[0].id, snapshot.docs[0].data());
+  const parsed = coerceUniversityData(snapshot.docs[0].id, snapshot.docs[0].data());
+  return parsed;
 }
 
 async function listCalendarsFromYearCollection(
@@ -156,9 +158,11 @@ async function listCalendarsFromYearCollection(
   const calendarsQuery = query(calendarsRef, where('universityCode', '==', universityCode));
   const snapshot = await getDocs(calendarsQuery);
 
-  return snapshot.docs
+  const calendars = snapshot.docs
     .map((docSnap) => coerceCalendarData(docSnap.id, docSnap.data(), fiscalYear))
     .filter((item): item is UniversityCalendar => item !== null && item.fiscalYear === fiscalYear);
+
+  return calendars;
 }
 
 async function listCalendarsFromSubcollection(
@@ -168,9 +172,10 @@ async function listCalendarsFromSubcollection(
   const calendarsRef = collection(db, 'universities', universityId, 'calendars');
   const snapshot = await getDocs(calendarsRef);
 
-  return snapshot.docs
+  const calendars = snapshot.docs
     .map((docSnap) => coerceCalendarData(docSnap.id, docSnap.data(), fiscalYear))
     .filter((item): item is UniversityCalendar => item !== null && item.fiscalYear === fiscalYear);
+  return calendars;
 }
 
 async function listCalendarsFromDocument(
