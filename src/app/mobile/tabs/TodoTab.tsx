@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -550,6 +551,10 @@ export default function TodoTab() {
 
   const [classOptions, setClassOptions] = useState<TimetableClassSummary[]>([]);
 
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
+
   const { profile, isAuthenticated, initializing: authInitializing } = useAuth();
   const { settings } = useUserSettings();
   const activeFiscalYearSetting = settings.calendar.fiscalYear;
@@ -744,6 +749,43 @@ export default function TodoTab() {
     },
     [profile?.uid],
   );
+
+  useEffect(() => {
+    const action = searchParams.get('activityAction');
+    if (action !== 'create') {
+      return;
+    }
+
+    const typeParam = searchParams.get('activityType');
+    const resolvedType: ActivityType = typeParam === 'memo' ? 'memo' : 'assignment';
+    const titleParam = searchParams.get('activityTitle') ?? '';
+    const classIdParam = searchParams.get('activityClassId') ?? '';
+    const dueDateParam = searchParams.get('activityDueDate') ?? '';
+    const viewParam = searchParams.get('activityView');
+
+    setViewMode(viewParam === 'memo' ? 'memo' : 'todo');
+    setDialogType(resolvedType);
+    setFormState({
+      title: titleParam,
+      notes: '',
+      classId: classIdParam,
+      dueDate: resolvedType === 'assignment' ? dueDateParam : '',
+      isCompleted: false,
+    });
+    setDialogError(null);
+    setSelectedActivity(null);
+    setIsDialogOpen(true);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('activityAction');
+    params.delete('activityType');
+    params.delete('activityTitle');
+    params.delete('activityClassId');
+    params.delete('activityDueDate');
+    params.delete('activityView');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">

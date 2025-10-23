@@ -2,9 +2,11 @@ import {
   collection,
   doc,
   getDocs,
+  limit,
   orderBy,
   query,
   serverTimestamp,
+  startAfter,
   writeBatch,
   type CollectionReference,
   type DocumentReference,
@@ -197,6 +199,58 @@ export function getUserActivitiesQuery(userId: string): Query<DocumentData> | nu
 
   const activitiesRef = collection(db, 'users', trimmedUserId, 'activities');
   return query(activitiesRef, orderBy('createdAt', 'desc'));
+}
+
+function normalizeClassDate(value: string): string | null {
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+export async function findNextClassDateAfter({
+  userId,
+  fiscalYear,
+  classId,
+  classDate,
+}: {
+  userId: string;
+  fiscalYear: string;
+  classId: string;
+  classDate: string;
+}): Promise<string | null> {
+  const classRef = getTimetableClassDocRef({ userId, fiscalYear, classId });
+  if (!classRef) {
+    return null;
+  }
+
+  const normalizedDate = normalizeClassDate(classDate);
+  if (!normalizedDate) {
+    return null;
+  }
+
+  const classDatesCollection = collection(classRef, 'class_dates');
+  const nextDateQuery = query(
+    classDatesCollection,
+    orderBy('classDate', 'asc'),
+    startAfter(normalizedDate),
+    limit(1),
+  );
+
+  const snapshot = await getDocs(nextDateQuery);
+  if (snapshot.empty) {
+    return null;
+  }
+
+  const docSnapshot = snapshot.docs[0];
+  const data = docSnapshot.data();
+  const nextDate = typeof data.classDate === 'string' ? data.classDate : null;
+  if (!nextDate) {
+    return null;
+  }
+
+  return nextDate;
 }
 
 function buildTermNameMap(terms: CalendarTerm[]): Map<string, string> {
