@@ -51,6 +51,7 @@ function coerceUniversityData(id: string, data: unknown): University | null {
   }
   const capacityCandidate = normalizeNumber((record as { capacity?: unknown }).capacity);
   const homepageCandidate = normalizeString((record as { homepageUrl?: unknown }).homepageUrl);
+  const codeCandidate = normalizeString((record as { code?: unknown }).code);
 
   const candidate = {
     id,
@@ -59,6 +60,7 @@ function coerceUniversityData(id: string, data: unknown): University | null {
     webId: webIdCandidate,
     capacity: capacityCandidate,
     homepageUrl: homepageCandidate || undefined,
+    code: codeCandidate || undefined,
   } satisfies Partial<University> & { id: string };
 
   try {
@@ -145,6 +147,20 @@ export async function getUniversityByWebId(webId: string): Promise<University | 
   return coerceUniversityData(snapshot.docs[0].id, snapshot.docs[0].data());
 }
 
+async function listCalendarsFromYearCollection(
+  universityCode: string,
+  fiscalYear: string,
+): Promise<UniversityCalendar[]> {
+  const collectionName = `calendars_${fiscalYear}`;
+  const calendarsRef = collection(db, collectionName);
+  const calendarsQuery = query(calendarsRef, where('universityCode', '==', universityCode));
+  const snapshot = await getDocs(calendarsQuery);
+
+  return snapshot.docs
+    .map((docSnap) => coerceCalendarData(docSnap.id, docSnap.data(), fiscalYear))
+    .filter((item): item is UniversityCalendar => item !== null && item.fiscalYear === fiscalYear);
+}
+
 async function listCalendarsFromSubcollection(
   universityId: string,
   fiscalYear: string,
@@ -199,10 +215,24 @@ async function listCalendarsFromDocument(
 }
 
 export async function listUniversityCalendars(
-  universityId: string,
+  university: Pick<University, 'id' | 'code'>,
   fiscalYear: string,
 ): Promise<UniversityCalendar[]> {
-  const fromSubcollection = await listCalendarsFromSubcollection(universityId, fiscalYear);
+  if (university.code) {
+    const fromYearCollection = await listCalendarsFromYearCollection(university.code, fiscalYear);
+    if (fromYearCollection.length > 0) {
+      return fromYearCollection.sort((a, b) => {
+        const orderA = typeof a.order === 'number' ? a.order : Number.MAX_SAFE_INTEGER;
+        const orderB = typeof b.order === 'number' ? b.order : Number.MAX_SAFE_INTEGER;
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        return a.name.localeCompare(b.name, 'ja');
+      });
+    }
+  }
+
+  const fromSubcollection = await listCalendarsFromSubcollection(university.id, fiscalYear);
   if (fromSubcollection.length > 0) {
     return fromSubcollection.sort((a, b) => {
       const orderA = typeof a.order === 'number' ? a.order : Number.MAX_SAFE_INTEGER;
@@ -214,7 +244,7 @@ export async function listUniversityCalendars(
     });
   }
 
-  const fromDocument = await listCalendarsFromDocument(universityId, fiscalYear);
+  const fromDocument = await listCalendarsFromDocument(university.id, fiscalYear);
   return fromDocument.sort((a, b) => {
     const orderA = typeof a.order === 'number' ? a.order : Number.MAX_SAFE_INTEGER;
     const orderB = typeof b.order === 'number' ? b.order : Number.MAX_SAFE_INTEGER;

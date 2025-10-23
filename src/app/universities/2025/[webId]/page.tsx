@@ -32,7 +32,7 @@ export default async function Page({ params }: PageProps) {
     notFound();
   }
 
-  const calendars = await listUniversityCalendars(university.id, FISCAL_YEAR);
+  const calendars = await listUniversityCalendars(university, FISCAL_YEAR);
 
   return (
     <main className="min-h-screen w-full bg-neutral-100">

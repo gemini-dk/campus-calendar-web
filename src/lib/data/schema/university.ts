@@ -5,6 +5,7 @@ export const universitySchema = z
     id: z.string(),
     name: z.string().min(1, 'name は必須です'),
     webId: z.string().min(1, 'webId は必須です'),
+    code: z.string().min(1, 'code は必須です').optional(),
     capacity: z.number().int().nonnegative().optional(),
     homepageUrl: z.string().url().optional(),
     shortName: z.string().optional(),
