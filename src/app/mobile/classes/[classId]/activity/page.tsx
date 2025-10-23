@@ -753,16 +753,36 @@ function useClassActivityData({ userId, fiscalYear, classId }: UseClassActivityP
 
 function resolveActivityIcon(type: ActivityType, status: ActivityStatus) {
   if (type === "memo") {
-    return { icon: faNoteSticky, className: "text-blue-600", background: "bg-blue-50" };
+    return { icon: faNoteSticky, className: "text-neutral-500" };
   }
   if (status === "done") {
-    return { icon: faSquareCheck, className: "text-emerald-500", background: "bg-emerald-50" };
+    return { icon: faSquareCheck, className: "text-neutral-500" };
   }
-  return { icon: faSquare, className: "text-neutral-500", background: "bg-neutral-100" };
+  return { icon: faSquare, className: "text-neutral-500" };
 }
 
-function formatActivityStatusLabel(status: ActivityStatus): string {
-  return status === "done" ? "完了" : "未完了";
+function resolveActivityClassLabel(activity: ActivityDoc, classDetail: ClassDetail | null): string | null {
+  if (!activity.classId) {
+    return null;
+  }
+  if (classDetail && activity.classId === classDetail.id) {
+    return classDetail.className?.trim().length ? classDetail.className : activity.classId;
+  }
+  return activity.classId;
+}
+
+function formatAssignmentDueBadge(value: string | null): string {
+  if (!value) {
+    return "未設定";
+  }
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return "未設定";
+  }
+  return new Intl.DateTimeFormat("ja-JP", {
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 function SessionRecordItem({
@@ -777,60 +797,69 @@ function SessionRecordItem({
   const dateLabel = formatMonthDayLabel(record.classDate);
 
   return (
-    <li className="flex items-center justify-between gap-3 py-3">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
-          {record.isTest ? (
-            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
-          ) : null}
-          {record.isCancelled ? (
-            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
-          ) : null}
+    <li className="py-1">
+      <article className="flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
+            {record.isTest ? (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
+            ) : null}
+            {record.isCancelled ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
+            ) : null}
+          </div>
         </div>
-      </div>
-      <AttendanceToggleGroup
-        value={record.attendanceStatus}
-        onChange={(next) => onChange(record.classDateId, next)}
-        disabled={updating}
-      />
+        <AttendanceToggleGroup
+          value={record.attendanceStatus}
+          onChange={(next) => onChange(record.classDateId, next)}
+          disabled={updating}
+        />
+      </article>
     </li>
   );
 }
 
 function ActivityRecordItem({
   record,
+  classLabel,
   className,
 }: {
   record: ActivityDoc;
+  classLabel?: string | null;
   className?: string;
 }) {
-  const { icon, className: iconClass, background } = resolveActivityIcon(record.type, record.status);
-  const dueLabel = formatDueDateLabel(record.dueDate, record.type);
+  const { icon, className: iconClass } = resolveActivityIcon(record.type, record.status);
+  const dueLabel = record.type === "assignment" ? formatAssignmentDueBadge(record.dueDate) : null;
   const createdLabel = formatDateLabel(record.createdAt ?? record.updatedAt);
-  const typeLabel = record.type === "memo" ? "授業メモ" : "課題";
 
   return (
-    <li className={`flex items-start gap-3 py-3 ${className ?? ""}`.trim()}>
-      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
-        <FontAwesomeIcon icon={icon} className={`text-lg ${iconClass}`} aria-hidden="true" />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-semibold text-neutral-900">
-            {record.title || "無題の項目"}
-          </span>
-          <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-semibold text-neutral-500">{typeLabel}</span>
+    <li className={`py-1 ${className ?? ""}`.trim()}>
+      <article className="flex w-full items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+        <div className="flex w-[50px] flex-shrink-0 items-center justify-center">
+          <div className="flex h-11 w-11 items-center justify-center text-neutral-500">
+            <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-neutral-500">
-          {record.type === "assignment" ? <span>期限: {dueLabel}</span> : null}
-          <span>状態: {formatActivityStatusLabel(record.status)}</span>
-          <span>作成日: {createdLabel}</span>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <h3 className="truncate text-base font-normal text-neutral-900">{record.title || "無題の項目"}</h3>
+          <div className="flex items-center justify-between text-xs text-neutral-500">
+            <div className="flex flex-wrap items-center gap-2">
+              {dueLabel ? (
+                <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 font-semibold text-orange-700">
+                  {dueLabel}
+                </span>
+              ) : null}
+              {classLabel ? (
+                <span className="inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 font-medium text-neutral-700">
+                  {classLabel}
+                </span>
+              ) : null}
+            </div>
+            <span className="whitespace-nowrap text-neutral-400">{createdLabel}</span>
+          </div>
         </div>
-        {record.notes ? (
-          <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs text-neutral-600">{record.notes}</p>
-        ) : null}
-      </div>
+      </article>
     </li>
   );
 }
@@ -846,6 +875,7 @@ type UpcomingAssignmentTimelineItem = {
   activity: ActivityDoc;
   dueTimestamp: number | null;
   createdTimestamp: number;
+  classLabel: string | null;
 };
 
 type UpcomingSessionTimelineItem = {
@@ -871,7 +901,7 @@ function UpcomingActivityPanel({
   }
 
   return (
-    <ul className="flex w-full flex-col divide-y divide-neutral-200 border-y border-neutral-200">
+    <ul className="flex w-full flex-col gap-3">
       {items.map((item) =>
         item.kind === "session" ? (
           <UpcomingSessionItem
@@ -880,7 +910,11 @@ function UpcomingActivityPanel({
             showHybridSelector={isHybridClass}
           />
         ) : (
-          <UpcomingAssignmentItem key={`assignment-${item.id}`} activity={item.activity} />
+          <UpcomingAssignmentItem
+            key={`assignment-${item.id}`}
+            activity={item.activity}
+            classLabel={item.classLabel}
+          />
         ),
       )}
     </ul>
@@ -922,27 +956,36 @@ function UpcomingSessionItem({
   );
 }
 
-function UpcomingAssignmentItem({ activity }: { activity: ActivityDoc }) {
-  const { icon, className: iconClass, background } = resolveActivityIcon(activity.type, activity.status);
-  const dueLabel = formatDueDateLabel(activity.dueDate, activity.type);
-  const classLabel = activity.classId ?? "未設定";
+function UpcomingAssignmentItem({ activity, classLabel }: { activity: ActivityDoc; classLabel: string | null }) {
+  const { icon, className: iconClass } = resolveActivityIcon(activity.type, activity.status);
+  const dueLabel = formatAssignmentDueBadge(activity.dueDate);
   const createdLabel = formatDateLabel(activity.createdAt ?? activity.updatedAt);
 
   return (
-    <li className="flex w-full items-center gap-3 py-3">
-      <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full ${background}`}>
-        <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <h3 className="truncate text-base font-semibold text-neutral-900">{activity.title || "無題の項目"}</h3>
-        <div className="flex items-center justify-between text-xs text-neutral-500">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span className="whitespace-nowrap">期限: {dueLabel}</span>
-            <span className="whitespace-nowrap">関連授業: {classLabel}</span>
+    <li className="py-1">
+      <article className="flex w-full items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+        <div className="flex w-[50px] flex-shrink-0 items-center justify-center">
+          <div className="flex h-11 w-11 items-center justify-center text-neutral-500">
+            <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
           </div>
-          <span className="whitespace-nowrap text-neutral-400">作成日 {createdLabel}</span>
         </div>
-      </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <h3 className="truncate text-base font-normal text-neutral-900">{activity.title || "無題の項目"}</h3>
+          <div className="flex items-center justify-between text-xs text-neutral-500">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 font-semibold text-orange-700">
+                {dueLabel}
+              </span>
+              {classLabel ? (
+                <span className="inline-flex items-center rounded-full bg-neutral-200 px-2 py-0.5 font-medium text-neutral-700">
+                  {classLabel}
+                </span>
+              ) : null}
+            </div>
+            <span className="whitespace-nowrap text-neutral-400">{createdLabel}</span>
+          </div>
+        </div>
+      </article>
     </li>
   );
 }
@@ -1091,6 +1134,7 @@ export function ClassActivityContent({
         activity,
         dueTimestamp: parseDueTimestamp(activity.dueDate),
         createdTimestamp: activity.createdAt?.getTime() ?? activity.updatedAt?.getTime() ?? 0,
+        classLabel: resolveActivityClassLabel(activity, classDetail),
       }));
 
     const undatedAssignments = assignmentItems
@@ -1117,7 +1161,7 @@ export function ClassActivityContent({
     });
 
     return [...undatedAssignments, ...datedItems];
-  }, [activities, classDates, normalizedClassId, todayId]);
+  }, [activities, classDates, classDetail, normalizedClassId, todayId]);
 
   const hasAttendanceRecords = useMemo(() => {
     return classDates.some((date) => date.attendanceStatus !== null);
@@ -1368,7 +1412,7 @@ export function ClassActivityContent({
               combinedRecords.length === 0 ? (
                 <p className="text-sm text-neutral-600">表示できる活動記録がまだありません。</p>
               ) : (
-                <ul className="flex flex-col divide-y divide-neutral-200 border-y border-neutral-200">
+                <ul className="flex flex-col gap-3">
                   {combinedRecords.map((record) =>
                     record.kind === "session" ? (
                       <SessionRecordItem
@@ -1378,7 +1422,11 @@ export function ClassActivityContent({
                         updating={updatingAttendanceId === record.classDateId}
                       />
                     ) : (
-                      <ActivityRecordItem key={record.id} record={record.activity} />
+                      <ActivityRecordItem
+                        key={record.id}
+                        record={record.activity}
+                        classLabel={resolveActivityClassLabel(record.activity, classDetail)}
+                      />
                     ),
                   )}
                 </ul>
