@@ -752,29 +752,51 @@ export default function TodoTab() {
 
   useEffect(() => {
     const action = searchParams.get('activityAction');
-    if (action !== 'create') {
+    if (action !== 'create' && action !== 'edit') {
       return;
     }
 
-    const typeParam = searchParams.get('activityType');
-    const resolvedType: ActivityType = typeParam === 'memo' ? 'memo' : 'assignment';
-    const titleParam = searchParams.get('activityTitle') ?? '';
-    const classIdParam = searchParams.get('activityClassId') ?? '';
-    const dueDateParam = searchParams.get('activityDueDate') ?? '';
-    const viewParam = searchParams.get('activityView');
+    if (action === 'create') {
+      const typeParam = searchParams.get('activityType');
+      const resolvedType: ActivityType = typeParam === 'memo' ? 'memo' : 'assignment';
+      const titleParam = searchParams.get('activityTitle') ?? '';
+      const classIdParam = searchParams.get('activityClassId') ?? '';
+      const dueDateParam = searchParams.get('activityDueDate') ?? '';
+      const viewParam = searchParams.get('activityView');
 
-    setViewMode(viewParam === 'memo' ? 'memo' : 'todo');
-    setDialogType(resolvedType);
-    setFormState({
-      title: titleParam,
-      notes: '',
-      classId: classIdParam,
-      dueDate: resolvedType === 'assignment' ? dueDateParam : '',
-      isCompleted: false,
-    });
-    setDialogError(null);
-    setSelectedActivity(null);
-    setIsDialogOpen(true);
+      setViewMode(viewParam === 'memo' ? 'memo' : 'todo');
+      setDialogType(resolvedType);
+      setFormState({
+        title: titleParam,
+        notes: '',
+        classId: classIdParam,
+        dueDate: resolvedType === 'assignment' ? dueDateParam : '',
+        isCompleted: false,
+      });
+      setDialogError(null);
+      setSelectedActivity(null);
+      setIsDialogOpen(true);
+    } else if (action === 'edit') {
+      const activityId = searchParams.get('activityId');
+      if (!activityId) {
+        return;
+      }
+
+      const activity =
+        assignments.find((item) => item.id === activityId) ??
+        memos.find((item) => item.id === activityId);
+
+      if (!activity) {
+        return;
+      }
+
+      setViewMode(activity.type === 'memo' ? 'memo' : 'todo');
+      setDialogType(activity.type);
+      setFormState(createFormStateFromActivity(activity));
+      setDialogError(null);
+      setSelectedActivity(activity);
+      setIsDialogOpen(true);
+    }
 
     const params = new URLSearchParams(searchParams.toString());
     params.delete('activityAction');
@@ -783,9 +805,10 @@ export default function TodoTab() {
     params.delete('activityClassId');
     params.delete('activityDueDate');
     params.delete('activityView');
+    params.delete('activityId');
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [pathname, router, searchParams]);
+  }, [assignments, memos, pathname, router, searchParams]);
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">

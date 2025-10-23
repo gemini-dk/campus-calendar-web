@@ -26,7 +26,7 @@ import {
   type QueryDocumentSnapshot,
   type Unsubscribe,
 } from "firebase/firestore";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
@@ -56,6 +56,7 @@ import {
 } from "@/lib/data/service/class.service";
 import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
+import { db } from "@/lib/firebase/client";
 
 const WEEKDAY_LABELS = new Map<number, string>([
   [1, "月"],
@@ -824,10 +825,14 @@ function ActivityRecordItem({
   record,
   classLabel,
   className,
+  onSelect,
+  onToggleAssignmentStatus,
 }: {
   record: ActivityDoc;
   classLabel?: string | null;
   className?: string;
+  onSelect?: (activity: ActivityDoc) => void;
+  onToggleAssignmentStatus?: (activity: ActivityDoc) => void;
 }) {
   const { icon, className: iconClass } = resolveActivityIcon(record.type, record.status);
   const dueLabel = record.type === "assignment" ? formatAssignmentDueBadge(record.dueDate) : null;
@@ -835,11 +840,28 @@ function ActivityRecordItem({
 
   return (
     <li className={`py-1 ${className ?? ""}`.trim()}>
-      <article className="flex w-full items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+      <article
+        className="flex w-full cursor-pointer items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+        onClick={() => onSelect?.(record)}
+      >
         <div className="flex w-[50px] flex-shrink-0 items-center justify-center">
-          <div className="flex h-11 w-11 items-center justify-center text-neutral-500">
-            <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
-          </div>
+          {record.type === "assignment" ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggleAssignmentStatus?.(record);
+              }}
+              className="flex h-11 w-11 items-center justify-center text-neutral-500 transition hover:text-neutral-700"
+              aria-label={record.status === "done" ? "未完了に戻す" : "完了にする"}
+            >
+              <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
+            </button>
+          ) : (
+            <div className="flex h-11 w-11 items-center justify-center text-neutral-500">
+              <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
+            </div>
+          )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <h3 className="truncate text-base font-normal text-neutral-900">{record.title || "無題の項目"}</h3>
@@ -892,9 +914,13 @@ type UpcomingTimelineItem =
 function UpcomingActivityPanel({
   items,
   isHybridClass,
+  onSelectActivity,
+  onToggleAssignmentStatus,
 }: {
   items: UpcomingTimelineItem[];
   isHybridClass: boolean;
+  onSelectActivity?: (activity: ActivityDoc) => void;
+  onToggleAssignmentStatus?: (activity: ActivityDoc) => void;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-neutral-600">今後の活動はありません。</p>;
@@ -914,6 +940,8 @@ function UpcomingActivityPanel({
             key={`assignment-${item.id}`}
             activity={item.activity}
             classLabel={item.classLabel}
+            onSelect={onSelectActivity}
+            onToggleAssignmentStatus={onToggleAssignmentStatus}
           />
         ),
       )}
@@ -956,18 +984,39 @@ function UpcomingSessionItem({
   );
 }
 
-function UpcomingAssignmentItem({ activity, classLabel }: { activity: ActivityDoc; classLabel: string | null }) {
+function UpcomingAssignmentItem({
+  activity,
+  classLabel,
+  onSelect,
+  onToggleAssignmentStatus,
+}: {
+  activity: ActivityDoc;
+  classLabel: string | null;
+  onSelect?: (activity: ActivityDoc) => void;
+  onToggleAssignmentStatus?: (activity: ActivityDoc) => void;
+}) {
   const { icon, className: iconClass } = resolveActivityIcon(activity.type, activity.status);
   const dueLabel = formatAssignmentDueBadge(activity.dueDate);
   const createdLabel = formatDateLabel(activity.createdAt ?? activity.updatedAt);
 
   return (
     <li className="py-1">
-      <article className="flex w-full items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+      <article
+        className="flex w-full cursor-pointer items-stretch gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 shadow-sm transition hover:border-blue-200 hover:shadow-md"
+        onClick={() => onSelect?.(activity)}
+      >
         <div className="flex w-[50px] flex-shrink-0 items-center justify-center">
-          <div className="flex h-11 w-11 items-center justify-center text-neutral-500">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleAssignmentStatus?.(activity);
+            }}
+            className="flex h-11 w-11 items-center justify-center text-neutral-500 transition hover:text-neutral-700"
+            aria-label={activity.status === "done" ? "未完了に戻す" : "完了にする"}
+          >
             <FontAwesomeIcon icon={icon} fontSize={22} className={iconClass} aria-hidden="true" />
-          </div>
+          </button>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <h3 className="truncate text-base font-normal text-neutral-900">{activity.title || "無題の項目"}</h3>
@@ -1023,6 +1072,7 @@ export function ClassActivityContent({
 }) {
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const { settings } = useUserSettings();
+  const router = useRouter();
 
   const normalizedClassId = useMemo(() => {
     if (classId == null) {
@@ -1257,6 +1307,43 @@ export function ClassActivityContent({
   const locationLabel = buildClassLocationLabel(classDetail);
   const teacherLabel = classDetail?.teacher ?? "-";
 
+  const handleToggleAssignmentStatus = useCallback(
+    async (activity: ActivityDoc) => {
+      if (!profile?.uid) {
+        return;
+      }
+
+      try {
+        const docRef = doc(db, "users", profile.uid, "activities", activity.id);
+        const nextStatus: ActivityStatus = activity.status === "done" ? "pending" : "done";
+        await updateDoc(docRef, {
+          status: nextStatus,
+          updatedAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error("Failed to toggle assignment status", err);
+      }
+    },
+    [profile?.uid],
+  );
+
+  const handleSelectActivity = useCallback(
+    (activity: ActivityDoc) => {
+      const params = new URLSearchParams();
+      params.set("tab", "todo");
+      params.set("activityAction", "edit");
+      params.set("activityId", activity.id);
+      params.set("activityType", activity.type);
+      params.set("activityView", activity.type === "memo" ? "memo" : "todo");
+      if (activity.classId) {
+        params.set("activityClassId", activity.classId);
+      }
+      const query = params.toString();
+      router.push(query ? `/mobile?${query}` : "/mobile");
+    },
+    [router],
+  );
+
   const renderContent = () => {
     if (authInitializing) {
       return (
@@ -1426,6 +1513,8 @@ export function ClassActivityContent({
                         key={record.id}
                         record={record.activity}
                         classLabel={resolveActivityClassLabel(record.activity, classDetail)}
+                        onSelect={handleSelectActivity}
+                        onToggleAssignmentStatus={handleToggleAssignmentStatus}
                       />
                     ),
                   )}
@@ -1435,6 +1524,8 @@ export function ClassActivityContent({
               <UpcomingActivityPanel
                 items={upcomingTimelineItems}
                 isHybridClass={classDetail?.classType === "hybrid"}
+                onSelectActivity={handleSelectActivity}
+                onToggleAssignmentStatus={handleToggleAssignmentStatus}
               />
             )}
           </div>
