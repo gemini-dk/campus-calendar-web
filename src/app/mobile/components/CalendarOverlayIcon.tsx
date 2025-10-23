@@ -19,8 +19,10 @@ export default function CalendarOverlayIcon({
 }: CalendarOverlayIconProps) {
   const dimension = `${size}px`;
   const baseFontSize = size * 0.4;
-  const labelFontSize = `calc(${baseFontSize}px - 1pt)`;
-  const labelTranslateY = `translateY(calc(${verticalOffset}px + 1pt))`;
+  const PT_IN_PX = 4 / 3;
+  const labelFontSizeValue = Math.max(0, baseFontSize - PT_IN_PX);
+  const labelFontSize = `${labelFontSizeValue}px`;
+  const labelTranslateY = `translateY(${verticalOffset + PT_IN_PX}px)`;
 
   return (
     <span
