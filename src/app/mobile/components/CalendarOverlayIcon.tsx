@@ -18,7 +18,11 @@ export default function CalendarOverlayIcon({
   verticalOffset = 4,
 }: CalendarOverlayIconProps) {
   const dimension = `${size}px`;
-  const fontSize = size * 0.40;
+  const baseFontSize = size * 0.4;
+  const PT_IN_PX = 4 / 3;
+  const labelFontSizeValue = Math.max(0, baseFontSize - PT_IN_PX);
+  const labelFontSize = `${labelFontSizeValue}px`;
+  const labelTranslateY = `translateY(${verticalOffset + PT_IN_PX}px)`;
 
   return (
     <span
@@ -28,8 +32,8 @@ export default function CalendarOverlayIcon({
     >
       <FontAwesomeIcon icon={baseIcon} style={{ fontSize: size }} />
       <span
-        className="pointer-events-none absolute flex items-center justify-center font-bold leading-none text-current"
-        style={{ fontSize, transform: `translateY(${verticalOffset}px)`,color:"white" }}
+        className="pointer-events-none absolute flex items-center justify-center font-bold leading-none text-white group-data-[active=true]:text-blue-500"
+        style={{ fontSize: labelFontSize, transform: labelTranslateY }}
       >
         {label}
       </span>
