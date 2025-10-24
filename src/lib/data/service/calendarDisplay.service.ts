@@ -213,8 +213,10 @@ function computeAcademicDisplay(
   });
 
   const subLabel = computeAcademicSubLabel({
+    normalizedType,
     day,
-    term,
+    actualWeekday,
+    weekdayNumber,
   });
 
   return {
@@ -331,27 +333,17 @@ function computeAcademicLabel({
 }): string {
   const termName = term?.name ?? day.termName ?? '-';
   const shortName = term?.shortName ?? day.termShortName ?? termName;
-  const termHolidayFlag = term?.holidayFlag ?? (term?.isHoliday ? 1 : undefined);
-
-  if (termHolidayFlag === 1) {
-    return termName;
+  const trimmedShortName = typeof shortName === 'string' ? shortName.trim() : '';
+  if (trimmedShortName.length > 0) {
+    return trimmedShortName;
   }
 
-  if (normalizedType === 'exam') {
-    return `${termName} 試験`;
-  }
-  if (normalizedType === 'holiday') {
-    return `${termName} 休講日`;
-  }
-  if (normalizedType === 'reserve') {
-    return `${termName} 予備日`;
+  const trimmedTermName = typeof termName === 'string' ? termName.trim() : '';
+  if (trimmedTermName.length > 0) {
+    return trimmedTermName;
   }
 
-  if (normalizedType === 'class') {
-    return shortName;
-  }
-
-  return termName;
+  return '予定なし';
 }
 
 function shouldSuppressClassDetails(
@@ -372,18 +364,37 @@ function shouldSuppressClassDetails(
 }
 
 function computeAcademicSubLabel({
+  normalizedType,
   day,
-  term,
+  actualWeekday,
+  weekdayNumber,
 }: {
+  normalizedType: NormalizedDayType;
   day: CalendarDay;
-  term: CalendarTerm | null;
+  actualWeekday: number;
+  weekdayNumber: number | null;
 }): string | null {
-  const termName = term?.name ?? day.termName ?? null;
-  const shortName = term?.shortName ?? day.termShortName ?? termName;
+  const description =
+    typeof day.description === 'string' && day.description.length > 0
+      ? day.description
+      : undefined;
 
-  if (typeof shortName === 'string' && shortName.trim().length > 0) {
-    return shortName;
+  if (normalizedType === 'class' && day.isHoliday) {
+    return description ?? '特別授業日';
   }
 
-  return null;
+  if (normalizedType === 'holiday' && day.isHoliday === false) {
+    return description ?? '特別休講日';
+  }
+
+  if (
+    normalizedType === 'class' &&
+    typeof day.classWeekday === 'number' &&
+    weekdayNumber !== null &&
+    weekdayNumber !== clampWeekday(actualWeekday)
+  ) {
+    return description ?? '曜日振替授業日';
+  }
+
+  return description ?? null;
 }
