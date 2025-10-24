@@ -11,6 +11,16 @@ export const universitySchema = z
     shortName: z.string().optional(),
     prefecture: z.string().optional(),
     type: z.string().optional(),
+    colorRgb: z
+      .string()
+      .regex(/^(\d{1,3}),(\d{1,3}),(\d{1,3})$/)
+      .refine((value) =>
+        value.split(',').every((component) => {
+          const numeric = Number.parseInt(component, 10);
+          return Number.isFinite(numeric) && numeric >= 0 && numeric <= 255;
+        }),
+      )
+      .optional(),
   })
   .passthrough();
 

@@ -5,6 +5,7 @@ import {
   getDocs,
   query,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase/firestore';
@@ -36,6 +37,68 @@ function normalizeNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function normalizeRgbComponents(components: unknown[]): string | undefined {
+  if (components.length !== 3) {
+    return undefined;
+  }
+
+  const normalized: string[] = [];
+  for (const component of components) {
+    let numericValue: number | null = null;
+    if (typeof component === 'number' && Number.isFinite(component)) {
+      numericValue = component;
+    } else if (typeof component === 'string') {
+      const trimmed = component.trim();
+      if (!trimmed) {
+        return undefined;
+      }
+      const parsed = Number.parseInt(trimmed, 10);
+      if (Number.isFinite(parsed)) {
+        numericValue = parsed;
+      }
+    }
+
+    if (numericValue === null) {
+      return undefined;
+    }
+
+    const rounded = Math.round(numericValue);
+    if (rounded < 0 || rounded > 255) {
+      return undefined;
+    }
+
+    normalized.push(String(rounded));
+  }
+
+  return normalized.join(',');
+}
+
+function normalizeColorRgb(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const stripped = trimmed.replace(/^"+|"+$/g, '');
+    const parts = stripped.split(',').map((part) => part.trim()).filter((part) => part.length > 0);
+    return normalizeRgbComponents(parts);
+  }
+
+  if (Array.isArray(value)) {
+    return normalizeRgbComponents(value);
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const record = value as { r?: unknown; g?: unknown; b?: unknown };
+    const parts = [record.r, record.g, record.b].filter((part) => part !== undefined);
+    if (parts.length === 3) {
+      return normalizeRgbComponents(parts);
+    }
+  }
+
+  return undefined;
+}
+
 function coerceUniversityData(id: string, data: unknown): University | null {
   const record = typeof data === 'object' && data !== null ? data : {};
   const nameCandidate =
@@ -52,6 +115,7 @@ function coerceUniversityData(id: string, data: unknown): University | null {
   const capacityCandidate = normalizeNumber((record as { capacity?: unknown }).capacity);
   const homepageCandidate = normalizeString((record as { homepageUrl?: unknown }).homepageUrl);
   const codeCandidate = normalizeString((record as { code?: unknown }).code);
+  const colorCandidate = normalizeColorRgb((record as { colorRgb?: unknown }).colorRgb);
 
   const candidate = {
     id,
@@ -61,6 +125,7 @@ function coerceUniversityData(id: string, data: unknown): University | null {
     capacity: capacityCandidate,
     homepageUrl: homepageCandidate || undefined,
     code: codeCandidate || undefined,
+    colorRgb: colorCandidate,
   } satisfies Partial<University> & { id: string };
 
   try {
@@ -69,6 +134,30 @@ function coerceUniversityData(id: string, data: unknown): University | null {
     console.error('大学ドキュメントのパースに失敗しました', error, candidate);
     return null;
   }
+}
+
+export type UniversityColorUpdate = {
+  universityId: string;
+  colorRgb: string;
+};
+
+export async function updateUniversityColors(updates: UniversityColorUpdate[]): Promise<void> {
+  if (updates.length === 0) {
+    return;
+  }
+
+  const batch = writeBatch(db);
+
+  updates.forEach(({ universityId, colorRgb }) => {
+    const normalized = normalizeColorRgb(colorRgb);
+    if (!normalized) {
+      throw new Error(`colorRgb の形式が不正です: ${colorRgb}`);
+    }
+    const ref = doc(db, 'universities', universityId);
+    batch.update(ref, { colorRgb: normalized });
+  });
+
+  await batch.commit();
 }
 
 function coerceCalendarData(
