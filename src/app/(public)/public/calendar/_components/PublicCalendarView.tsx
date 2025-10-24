@@ -245,11 +245,7 @@ function SingleMonthCalendarView({
   return (
     <div className="flex min-h-screen w-full flex-col items-center bg-neutral-100 px-4 py-8">
       <div className="flex w-full max-w-5xl flex-1 flex-col rounded-lg bg-white px-5 py-6 shadow">
-        <header className="flex h-16 w-full flex-col justify-center gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex h-full flex-col justify-center">
-            <h1 className="text-lg font-semibold text-neutral-900">公開学事カレンダー</h1>
-            <p className="text-xs text-neutral-600">{`年度: ${fiscalYear || "未指定"} / カレンダーID: ${calendarId || "未指定"}`}</p>
-          </div>
+        <header className="flex h-16 w-full items-end justify-end">
           <div className="flex h-full w-full max-w-xs flex-col justify-end">
             <label className="flex h-full w-full flex-col gap-1 text-sm text-neutral-700" htmlFor="public-calendar-month">
               月を選択
@@ -471,14 +467,6 @@ function GridCalendarView({
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex w-full flex-col rounded-lg bg-white px-5 py-6 shadow">
-        <header className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-col">
-            <h1 className="text-lg font-semibold text-neutral-900">公開学事カレンダー</h1>
-            <p className="text-xs text-neutral-600">{`年度: ${fiscalYear || "未指定"} / カレンダーID: ${calendarId || "未指定"}`}</p>
-          </div>
-          <span className="text-xs font-medium text-neutral-500">12ヶ月表示</span>
-        </header>
-
         {loading ? (
           <div className="mt-4 flex h-10 w-full items-center justify-center rounded border border-dashed border-neutral-200 text-sm text-neutral-600">
             読み込み中...
