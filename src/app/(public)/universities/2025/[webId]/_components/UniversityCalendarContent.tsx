@@ -51,14 +51,30 @@ export default function UniversityCalendarContent({ fiscalYear, calendars }: Uni
         ) : null}
       </div>
       {activeCalendar ? (
-        <div className="w-full">
-          <PublicCalendarView
-            fiscalYear={activeCalendar.fiscalYear || fiscalYear}
-            calendarId={activeCalendar.calendarId}
-            initialMonth={null}
-            hasSaturdayClasses={activeCalendar.hasSaturdayClasses ?? true}
-            displayMode="grid"
-          />
+        <div className="flex w-full flex-col gap-4">
+          <div className="w-full">
+            <PublicCalendarView
+              fiscalYear={activeCalendar.fiscalYear || fiscalYear}
+              calendarId={activeCalendar.calendarId}
+              initialMonth={null}
+              hasSaturdayClasses={activeCalendar.hasSaturdayClasses ?? true}
+              displayMode="grid"
+            />
+          </div>
+          <div className="flex w-full flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              className="h-12 w-full rounded-md border border-neutral-300 bg-white text-sm font-semibold text-neutral-800 transition hover:bg-neutral-100"
+            >
+              間違い報告
+            </button>
+            <button
+              type="button"
+              className="h-12 w-full rounded-md bg-blue-600 text-sm font-semibold text-white transition hover:bg-blue-700"
+            >
+              カレンダー追加依頼
+            </button>
+          </div>
         </div>
       ) : null}
     </div>
