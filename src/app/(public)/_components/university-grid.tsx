@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { University } from '@/lib/data/schema/university';
@@ -105,7 +104,6 @@ export function SearchableUniversityGrid({
           {filteredUniversities.map((university) => {
             const color = extractSchoolColor(university);
             const accent = createAccentStyles(color);
-            const homepageUrl = normalize(university.homepageUrl);
             const scheduleHref = `/universities/2025/${encodeURIComponent(university.webId)}`;
 
             return (
@@ -129,24 +127,6 @@ export function SearchableUniversityGrid({
 
                   <div className="flex w-full flex-col gap-3">
                     <h3 className="text-lg font-semibold leading-tight text-slate-900">{university.name}</h3>
-                    <div className="flex items-center justify-between text-sm text-slate-600">
-                      <span className="truncate">
-                        {normalize(university.prefecture) || '所在地未登録'}
-                      </span>
-                      {homepageUrl ? (
-                        <Link
-                          href={homepageUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sm font-medium text-blue-700 underline-offset-4 transition hover:text-blue-900 hover:underline"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          公式サイト
-                        </Link>
-                      ) : (
-                        <span className="text-sm text-slate-400">公式サイト</span>
-                      )}
-                    </div>
                   </div>
                 </article>
               </li>
