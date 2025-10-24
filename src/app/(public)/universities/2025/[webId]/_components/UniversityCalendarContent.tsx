@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import PublicCalendarView from "@/app/public/calendar/_components/PublicCalendarView";
+import PublicCalendarView from "@/app/(public)/public/calendar/_components/PublicCalendarView";
 import type { UniversityCalendar } from "@/lib/data/schema/university";
 
 type UniversityCalendarContentProps = {
