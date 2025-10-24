@@ -155,7 +155,11 @@ async function listCalendarsFromYearCollection(
 ): Promise<UniversityCalendar[]> {
   const collectionName = `calendars_${fiscalYear}`;
   const calendarsRef = collection(db, collectionName);
-  const calendarsQuery = query(calendarsRef, where('universityCode', '==', universityCode));
+  const calendarsQuery = query(
+    calendarsRef,
+    where('universityCode', '==', universityCode),
+    where('isPublishable', '==', true),
+  );
   const snapshot = await getDocs(calendarsQuery);
 
   const calendars = snapshot.docs
