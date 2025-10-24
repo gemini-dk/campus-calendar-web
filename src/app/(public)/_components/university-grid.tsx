@@ -46,23 +46,23 @@ function extractSchoolColor(university: UniversityWithColor): SchoolColor | null
 function createAccentStyles(color: SchoolColor | null) {
   if (!color) {
     return {
-      borderColor: 'rgba(51, 65, 85, 0.7)',
-      background: 'linear-gradient(135deg, rgba(30, 64, 175, 0.15), rgba(15, 23, 42, 0.92))',
-      boxShadow: '0 20px 44px rgba(15, 23, 42, 0.35)',
-      accentBar: 'linear-gradient(90deg, rgba(59, 130, 246, 0.85), rgba(37, 99, 235, 0.55))',
-      buttonSolid: 'linear-gradient(135deg, rgba(59, 130, 246, 0.92), rgba(37, 99, 235, 0.8))',
-      buttonOutline: 'rgba(148, 163, 184, 0.6)',
+      borderColor: 'rgba(148, 163, 184, 0.4)',
+      background: 'linear-gradient(135deg, rgba(240, 249, 255, 0.98), rgba(255, 255, 255, 0.94))',
+      boxShadow: '0 18px 42px rgba(148, 163, 184, 0.25)',
+      accentBar: 'linear-gradient(90deg, rgba(37, 99, 235, 0.55), rgba(96, 165, 250, 0.4))',
+      buttonSolid: 'linear-gradient(135deg, rgba(37, 99, 235, 0.92), rgba(59, 130, 246, 0.78))',
+      buttonOutline: 'rgba(148, 163, 184, 0.55)',
     } as const;
   }
   const { R, G, B } = color;
   const rgba = (alpha: number) => `rgba(${R}, ${G}, ${B}, ${alpha})`;
   return {
-    borderColor: rgba(0.55),
-    background: `linear-gradient(135deg, ${rgba(0.16)}, rgba(15, 23, 42, 0.95))`,
-    boxShadow: `0 24px 48px ${rgba(0.2)}`,
-    accentBar: `linear-gradient(90deg, ${rgba(0.9)}, ${rgba(0.45)})`,
-    buttonSolid: `linear-gradient(135deg, ${rgba(0.85)}, ${rgba(0.6)})`,
-    buttonOutline: rgba(0.35),
+    borderColor: rgba(0.45),
+    background: `linear-gradient(135deg, ${rgba(0.18)}, rgba(255, 255, 255, 0.94))`,
+    boxShadow: `0 22px 46px ${rgba(0.2)}`,
+    accentBar: `linear-gradient(90deg, ${rgba(0.65)}, ${rgba(0.32)})`,
+    buttonSolid: `linear-gradient(135deg, ${rgba(0.9)}, ${rgba(0.7)})`,
+    buttonOutline: rgba(0.4),
   } as const;
 }
 
@@ -95,11 +95,11 @@ export function SearchableUniversityGrid({
 
   return (
     <section className="flex w-full flex-col gap-10">
-      <div className="flex w-full flex-col gap-5 rounded-3xl border border-slate-800/70 bg-slate-900/85 p-8 shadow-[0_18px_48px_rgba(15,23,42,0.45)]">
+      <div className="flex w-full flex-col gap-5 rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_18px_48px_rgba(148,163,184,0.25)]">
         <div className="flex w-full flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-300">Search</span>
-          <h2 className="text-2xl font-semibold text-slate-100 sm:text-3xl">大学を検索する</h2>
-          <p className="text-sm text-slate-400">大学名・略称・所在地で絞り込めます。気になる大学の学事予定を素早く探しましょう。</p>
+          <span className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-500">Search</span>
+          <h2 className="text-2xl font-semibold text-slate-900 sm:text-3xl">大学を検索する</h2>
+          <p className="text-sm text-slate-600">大学名・略称・所在地で絞り込めます。気になる大学の学事予定を素早く探しましょう。</p>
         </div>
         <div className="relative flex h-16 w-full items-center">
           <input
@@ -107,7 +107,7 @@ export function SearchableUniversityGrid({
             onChange={(event) => setQuery(event.target.value)}
             placeholder="大学名・所在地などで検索"
             aria-label="大学名や所在地で検索"
-            className="h-14 w-full rounded-2xl border border-slate-700 bg-slate-950/80 px-6 text-base text-slate-100 shadow-inner transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 text-base text-slate-900 shadow-inner transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             type="search"
           />
         </div>
@@ -117,8 +117,8 @@ export function SearchableUniversityGrid({
       </div>
 
       {filteredUniversities.length === 0 ? (
-        <div className="flex h-52 w-full flex-col items-center justify-center rounded-3xl border border-dashed border-slate-800 bg-slate-900/70 text-center">
-          <p className="text-sm font-medium text-slate-300">条件に合致する大学が見つかりませんでした。</p>
+        <div className="flex h-52 w-full flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-center">
+          <p className="text-sm font-medium text-slate-700">条件に合致する大学が見つかりませんでした。</p>
           <p className="text-xs text-slate-500">検索条件を変更するか、大学名のスペルをご確認ください。</p>
         </div>
       ) : (
@@ -131,7 +131,7 @@ export function SearchableUniversityGrid({
             return (
               <li key={university.id} className="h-full w-full">
                 <article
-                  className="flex h-full w-full flex-col gap-6 rounded-3xl border bg-slate-900/85 p-8 text-slate-100 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(15,23,42,0.55)]"
+                  className="flex h-full w-full flex-col gap-6 rounded-3xl border bg-white p-8 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
                   style={{
                     borderColor: accent.borderColor,
                     background: accent.background,
@@ -146,9 +146,9 @@ export function SearchableUniversityGrid({
                       }}
                     />
                     <div className="flex w-full flex-col gap-2">
-                      <h3 className="text-xl font-semibold leading-tight text-white">{university.name}</h3>
+                      <h3 className="text-xl font-semibold leading-tight text-slate-900">{university.name}</h3>
                       {normalize(university.prefecture) ? (
-                        <span className="text-xs font-medium text-slate-400">
+                        <span className="text-xs font-medium text-slate-500">
                           {normalize(university.prefecture)}
                         </span>
                       ) : null}
@@ -158,7 +158,7 @@ export function SearchableUniversityGrid({
                         href={homepageUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="w-fit text-sm font-medium text-blue-200 underline-offset-4 transition hover:text-white hover:underline"
+                        className="w-fit text-sm font-medium text-blue-700 underline-offset-4 transition hover:text-blue-900 hover:underline"
                       >
                         公式サイトを開く
                       </Link>
@@ -172,14 +172,14 @@ export function SearchableUniversityGrid({
                       className="flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold text-white transition hover:brightness-110 sm:w-1/2"
                       style={{
                         background: accent.buttonSolid,
-                        boxShadow: color ? `0 18px 36px rgba(${color.R}, ${color.G}, ${color.B}, 0.25)` : '0 18px 36px rgba(37, 99, 235, 0.35)',
+                        boxShadow: color ? `0 18px 36px rgba(${color.R}, ${color.G}, ${color.B}, 0.25)` : '0 18px 36px rgba(37, 99, 235, 0.25)',
                       }}
                     >
                       学事予定を表示
                     </Link>
                     <button
                       type="button"
-                      className="flex h-12 w-full items-center justify-center rounded-2xl border text-sm font-semibold text-slate-100 transition hover:border-blue-400 hover:text-white sm:w-1/2"
+                      className="flex h-12 w-full items-center justify-center rounded-2xl border text-sm font-semibold text-slate-700 transition hover:border-blue-500 hover:text-blue-900 sm:w-1/2"
                       style={{ borderColor: accent.buttonOutline }}
                     >
                       リクエスト
