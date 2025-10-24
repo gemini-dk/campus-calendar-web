@@ -24,25 +24,25 @@ export default async function HomePage() {
               2025年度 全国大学別学事予定ポータル
             </h1>
             <p className="text-sm leading-relaxed text-slate-600 md:text-base">
-              Campus Calendar は全国の大学の学事予定・授業日程を整理し、学生生活に必要な情報を信頼できる形でお届けします。
-              最新の学事カレンダーに素早くアクセスし、履修登録やイベントの準備にご活用ください。
+              大学の授業日程は、祝日なのに講義があったり、木曜なのに月曜授業だったりと一般のカレンダーとは異なります。<br/>
+              このような特殊な日程もCampus Calendarならひと目でわかります。このカレンダーを活用して、きちんと授業に出席しましょう!
             </p>
           </div>
           <div className="grid w-full gap-4 text-xs text-slate-600 sm:grid-cols-3">
             <div className="flex h-full w-full flex-col gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-blue-500">Data</span>
               <span className="text-sm font-semibold text-slate-900">全国主要大学を掲載</span>
-              <span>学生数の多い順に並び替え、主要校の学事予定をすぐに確認できます。</span>
+              <span>学生数の多い大学を優先的に100校近い大学の学事予定を網羅しています。</span>
             </div>
             <div className="flex h-full w-full flex-col gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-blue-500">Access</span>
-              <span className="text-sm font-semibold text-slate-900">学事予定ページへ直通</span>
-              <span>各大学のページから公開カレンダーを閲覧し、予定を素早く把握できます。</span>
+              <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-blue-500">Mobile</span>
+              <span className="text-sm font-semibold text-slate-900">モバイルアプリを用意</span>
+              <span>このカレンダーをスマホにインストール可能です。ホーム画面からワンタッチで自分の大学の学事予定が表示できます。</span>
             </div>
             <div className="flex h-full w-full flex-col gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <span className="text-[0.7rem] font-semibold uppercase tracking-[0.2em] text-blue-500">Support</span>
-              <span className="text-sm font-semibold text-slate-900">リクエスト機能</span>
-              <span>情報が未整備の大学はリクエストを送信して整備を促進できます。</span>
+              <span className="text-sm font-semibold text-slate-900">時間割・カレンダー機能も便利</span>
+              <span>授業を登録すると、大学の学期・授業日程を踏まえた予定表示をしてくれます。</span>
             </div>
           </div>
         </section>

@@ -14,7 +14,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
             </span>
             <span className="flex flex-col">
               <span className="text-2xl font-semibold tracking-tight">Campus Calendar</span>
-              <span className="text-xs font-medium text-slate-500">全国の学事予定を、ひとつのダッシュボードで。</span>
+              <span className="text-xs font-medium text-slate-500">祝日授業も 曜日振替も もう迷わない</span>
             </span>
           </Link>
           <nav className="flex h-16 w-fit items-center justify-end">
