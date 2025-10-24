@@ -29,7 +29,7 @@ export default function UniversityCalendarContent({ fiscalYear, calendars }: Uni
   }
 
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col gap-6 pb-36 md:pb-32">
       <div className="flex w-full flex-col gap-2">
         <label className="text-sm font-semibold text-neutral-800" htmlFor="university-calendar-select">
           学事予定を選択
