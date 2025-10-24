@@ -6,38 +6,38 @@ import Link from 'next/link';
 import type { University } from '@/lib/data/schema/university';
 
 type UniversityWithColor = University & {
-  colorRGB?: {
-    R?: number;
-    G?: number;
-    B?: number;
+  colorRgb?: {
+    r?: number;
+    g?: number;
+    b?: number;
   };
 };
 
 type SchoolColor = {
-  R: number;
-  G: number;
-  B: number;
+  r: number;
+  g: number;
+  b: number;
 };
 
 function extractSchoolColor(university: UniversityWithColor): SchoolColor | null {
-  const raw = university.colorRGB;
+  const raw = university.colorRgb;
   if (typeof raw !== 'object' || raw === null) {
     return null;
   }
-  const { R, G, B } = raw;
+  const { r, g, b } = raw;
   if (
-    typeof R === 'number'
-    && Number.isFinite(R)
-    && typeof G === 'number'
-    && Number.isFinite(G)
-    && typeof B === 'number'
-    && Number.isFinite(B)
+    typeof r === 'number'
+    && Number.isFinite(r)
+    && typeof g === 'number'
+    && Number.isFinite(g)
+    && typeof b === 'number'
+    && Number.isFinite(b)
   ) {
     const clamp = (value: number) => Math.min(255, Math.max(0, Math.round(value)));
     return {
-      R: clamp(R),
-      G: clamp(G),
-      B: clamp(B),
+      r: clamp(r),
+      g: clamp(g),
+      b: clamp(b),
     };
   }
   return null;
@@ -54,8 +54,8 @@ function createAccentStyles(color: SchoolColor | null) {
       buttonOutline: 'rgba(148, 163, 184, 0.55)',
     } as const;
   }
-  const { R, G, B } = color;
-  const rgba = (alpha: number) => `rgba(${R}, ${G}, ${B}, ${alpha})`;
+  const { r, g, b } = color;
+  const rgba = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${alpha})`;
   return {
     borderColor: rgba(0.45),
     background: `linear-gradient(135deg, ${rgba(0.18)}, rgba(255, 255, 255, 0.94))`,
@@ -172,7 +172,9 @@ export function SearchableUniversityGrid({
                       className="flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold text-white transition hover:brightness-110 sm:w-1/2"
                       style={{
                         background: accent.buttonSolid,
-                        boxShadow: color ? `0 18px 36px rgba(${color.R}, ${color.G}, ${color.B}, 0.25)` : '0 18px 36px rgba(37, 99, 235, 0.25)',
+                        boxShadow: color
+                          ? `0 18px 36px rgba(${color.r}, ${color.g}, ${color.b}, 0.25)`
+                          : '0 18px 36px rgba(37, 99, 235, 0.25)',
                       }}
                     >
                       学事予定を表示
