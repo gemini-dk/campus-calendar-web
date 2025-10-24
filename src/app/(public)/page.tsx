@@ -17,7 +17,7 @@ export default async function HomePage() {
   return (
     <main className="flex min-h-[calc(100vh-5rem)] w-full justify-center bg-gradient-to-b from-sky-50 via-white to-white py-12">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4">
-        <section className="flex w-full flex-col gap-6 rounded-3xl border border-blue-200/60 bg-white p-10 text-slate-900 shadow-[0_24px_60px_rgba(148,163,184,0.25)]">
+        <section className="flex w-full flex-col gap-8 rounded-3xl border border-blue-200/60 bg-white p-10 text-slate-900 shadow-[0_24px_60px_rgba(148,163,184,0.25)]">
           <div className="flex w-full flex-col gap-3">
             <span className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-500">Academic Planning</span>
             <h1 className="text-3xl font-semibold leading-tight text-slate-900 md:text-4xl">
@@ -47,7 +47,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <SearchableUniversityGrid universities={universities} />
+        <SearchableUniversityGrid universities={universities} limit={50} />
       </div>
     </main>
   );

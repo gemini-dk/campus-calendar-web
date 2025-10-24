@@ -15,7 +15,6 @@ const STORAGE_KEY = `campusCalendar.universitySearch.${CACHE_VERSION}`;
 const API_ENDPOINT = '/api/university-search';
 
 export type UniversitySearchEntry = {
-  id: string;
   webId: string;
   name: string;
   furigana: string;
@@ -57,20 +56,27 @@ function coerceEntry(raw: unknown): UniversitySearchEntry | null {
   }
 
   const record = raw as Record<string, unknown>;
-  const id = ensureString(record.id ?? record.universityId);
   const name = ensureString(record.name);
-  if (!id || !name) {
+  if (!name) {
     return null;
   }
 
-  const webId = ensureString(record.webId ?? record.slug);
-  const furigana = ensureString(record.furigana ?? record.nameKana ?? record.kana);
+  const webId = ensureString(
+    record.webId
+      ?? (record as { webID?: unknown }).webID
+      ?? (record as { slug?: unknown }).slug,
+  );
+  if (!webId) {
+    return null;
+  }
+
+  const furigana =
+    ensureString(record.furigana ?? record.nameKana ?? record.kana) || name;
   const shortName = ensureString(record.shortName ?? record.alias);
   const prefecture = ensureString(record.prefecture ?? record.location);
   const code = ensureString(record.code ?? record.universityCode);
 
   return {
-    id,
     webId,
     name,
     furigana,

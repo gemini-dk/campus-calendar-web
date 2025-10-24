@@ -73,15 +73,21 @@ function normalize(value: unknown): string {
 
 export function SearchableUniversityGrid({
   universities,
+  limit,
 }: {
   universities: UniversityWithColor[];
+  limit?: number;
 }) {
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLowerCase();
   const router = useRouter();
 
   const filteredUniversities = useMemo(() => {
+    const normalizedLimit = typeof limit === 'number' && Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : null;
     if (!normalizedQuery) {
+      if (normalizedLimit !== null) {
+        return universities.slice(0, normalizedLimit);
+      }
       return universities;
     }
     return universities.filter((university) => {
@@ -93,7 +99,22 @@ export function SearchableUniversityGrid({
       ];
       return targets.some((target) => target.toLowerCase().includes(normalizedQuery));
     });
-  }, [universities, normalizedQuery]);
+  }, [universities, normalizedQuery, limit]);
+
+  const totalMatches = useMemo(() => {
+    if (!normalizedQuery) {
+      return typeof limit === 'number' ? Math.min(universities.length, Math.max(0, Math.floor(limit))) : universities.length;
+    }
+    return universities.filter((university) => {
+      const targets: string[] = [
+        normalize(university.name),
+        normalize(university.shortName),
+        normalize(university.prefecture),
+        normalize(university.code),
+      ];
+      return targets.some((target) => target.toLowerCase().includes(normalizedQuery));
+    }).length;
+  }, [universities, normalizedQuery, limit]);
 
   return (
     <section className="flex w-full flex-col gap-10">
@@ -114,7 +135,7 @@ export function SearchableUniversityGrid({
           />
         </div>
         <span className="text-xs font-medium text-slate-500">
-          該当大学 {filteredUniversities.length} 校 / 全 {universities.length} 校
+          該当大学 {totalMatches} 校 / 全 {universities.length} 校
         </span>
       </div>
 
