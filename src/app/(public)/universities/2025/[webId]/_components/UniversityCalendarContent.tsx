@@ -57,6 +57,7 @@ export default function UniversityCalendarContent({ fiscalYear, calendars }: Uni
             calendarId={activeCalendar.calendarId}
             initialMonth={null}
             hasSaturdayClasses={activeCalendar.hasSaturdayClasses ?? true}
+            displayMode="grid"
           />
         </div>
       ) : null}
