@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import UniversityCalendarContent from "./_components/UniversityCalendarContent";
+import AppInstallFooter from "./_components/AppInstallFooter";
 import { getUniversityByWebId, listUniversityCalendars } from "@/lib/data/service/university.service";
 import { extractSchoolColor } from "@/lib/university-color";
 
@@ -42,7 +43,7 @@ export default async function Page({ params }: PageProps) {
     : "#1d4ed8";
 
   return (
-    <main className="min-h-screen w-full bg-neutral-100">
+    <main className="relative min-h-screen w-full bg-neutral-100 pb-40">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12">
         <header className="flex w-full flex-col gap-4">
           <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
@@ -68,6 +69,7 @@ export default async function Page({ params }: PageProps) {
         </header>
         <UniversityCalendarContent fiscalYear={FISCAL_YEAR} calendars={calendars} />
       </div>
+      <AppInstallFooter />
     </main>
   );
 }
