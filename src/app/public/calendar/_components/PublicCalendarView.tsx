@@ -41,6 +41,7 @@ type PublicCalendarViewProps = {
   fiscalYear: string;
   calendarId: string;
   initialMonth: number | null;
+  hasSaturdayClasses?: boolean;
 };
 
 type MonthOption = {
@@ -118,7 +119,12 @@ function resolveInitialMonth(fiscalYear: string, providedMonth: number | null): 
   return FISCAL_MONTHS[0];
 }
 
-export default function PublicCalendarView({ fiscalYear, calendarId, initialMonth }: PublicCalendarViewProps) {
+export default function PublicCalendarView({
+  fiscalYear,
+  calendarId,
+  initialMonth,
+  hasSaturdayClasses = true,
+}: PublicCalendarViewProps) {
   const router = useRouter();
   const [selectedMonth, setSelectedMonth] = useState(() => resolveInitialMonth(fiscalYear, initialMonth));
   const [infoMap, setInfoMap] = useState<CalendarInfoMap>({});
@@ -167,7 +173,7 @@ export default function PublicCalendarView({ fiscalYear, calendarId, initialMont
       try {
         const results = await Promise.all(
           dateIds.map(async (dateId) => {
-            const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId, { hasSaturdayClasses: true });
+            const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId, { hasSaturdayClasses });
             return { dateId, info };
           }),
         );
@@ -196,7 +202,7 @@ export default function PublicCalendarView({ fiscalYear, calendarId, initialMont
     return () => {
       canceled = true;
     };
-  }, [calendarId, dateIds, fiscalYear, isConfigReady]);
+  }, [calendarId, dateIds, fiscalYear, hasSaturdayClasses, isConfigReady]);
 
   const handleChangeMonth = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
