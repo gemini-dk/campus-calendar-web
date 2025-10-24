@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import UniversityCalendarContent from "./_components/UniversityCalendarContent";
 import { getUniversityByWebId, listUniversityCalendars } from "@/lib/data/service/university.service";
+import { extractSchoolColor } from "@/lib/university-color";
 
 const FISCAL_YEAR = "2025";
 
@@ -35,18 +36,31 @@ export default async function Page({ params }: PageProps) {
   }
 
   const calendars = await listUniversityCalendars(university, FISCAL_YEAR);
+  const schoolColor = extractSchoolColor(university);
+  const accentColor = schoolColor
+    ? `rgb(${schoolColor.r}, ${schoolColor.g}, ${schoolColor.b})`
+    : "#1d4ed8";
 
   return (
     <main className="min-h-screen w-full bg-neutral-100">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12">
         <header className="flex w-full flex-col gap-4">
-          <h1 className="text-3xl font-bold text-neutral-900">{`${university.name} ${FISCAL_YEAR}年度 学事予定・授業日程`}</h1>
+          <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
+            {`${university.name} ${FISCAL_YEAR}年度 学事予定・授業日程`}
+            <span
+              className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
+              style={{
+                backgroundColor: accentColor,
+              }}
+              aria-hidden
+            />
+          </h1>
           {university.homepageUrl ? (
             <Link
               href={university.homepageUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-fit text-sm font-semibold text-blue-600 hover:underline"
+              className="w-fit text-sm font-semibold text-blue-600 underline-offset-4 transition hover:text-blue-700 hover:underline"
             >
               大学公式サイトを見る
             </Link>
