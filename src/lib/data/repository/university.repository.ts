@@ -15,6 +15,10 @@ import {
   type University,
   type UniversityCalendar,
 } from '../schema/university';
+import {
+  universitySearchEntrySchema,
+  type UniversitySearchEntry,
+} from '../schema/university-search';
 
 function normalizeString(value: unknown): string {
   if (typeof value !== 'string') {
@@ -69,6 +73,75 @@ function coerceUniversityData(id: string, data: unknown): University | null {
     console.error('大学ドキュメントのパースに失敗しました', error, candidate);
     return null;
   }
+}
+
+function resolveFurigana(record: unknown, fallback: string): string {
+  const candidateSources: unknown[] = [];
+  if (record && typeof record === 'object') {
+    const candidateRecord = record as Record<string, unknown>;
+    candidateSources.push(
+      candidateRecord.furigana,
+      candidateRecord.furi,
+      candidateRecord.nameFurigana,
+      candidateRecord.nameKana,
+      candidateRecord.nameRuby,
+      candidateRecord.yomi,
+      candidateRecord.reading,
+      candidateRecord.kana,
+      candidateRecord.kanaName,
+    );
+  }
+
+  for (const source of candidateSources) {
+    const normalized = normalizeString(source);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const normalizedFallback = normalizeString(fallback);
+  return normalizedFallback || '';
+}
+
+export async function listUniversitySearchEntries(): Promise<UniversitySearchEntry[]> {
+  const universitiesRef = collection(db, 'universities');
+  const snapshot = await getDocs(universitiesRef);
+
+  const entries: UniversitySearchEntry[] = [];
+
+  snapshot.docs.forEach((docSnap) => {
+    const base = coerceUniversityData(docSnap.id, docSnap.data());
+    if (!base) {
+      return;
+    }
+
+    const furigana = resolveFurigana(docSnap.data(), base.name);
+    const candidate = {
+      name: base.name,
+      webId: base.webId,
+      furigana: furigana || base.name,
+    } satisfies UniversitySearchEntry;
+
+    const parsed = universitySearchEntrySchema.safeParse(candidate);
+    if (!parsed.success) {
+      console.error('大学検索エントリのパースに失敗しました', parsed.error, candidate);
+      return;
+    }
+
+    entries.push(parsed.data);
+  });
+
+  entries.sort((a, b) => {
+    const furiganaA = a.furigana || a.name;
+    const furiganaB = b.furigana || b.name;
+    const compare = furiganaA.localeCompare(furiganaB, 'ja');
+    if (compare !== 0) {
+      return compare;
+    }
+    return a.name.localeCompare(b.name, 'ja');
+  });
+
+  return entries;
 }
 
 function coerceCalendarData(
