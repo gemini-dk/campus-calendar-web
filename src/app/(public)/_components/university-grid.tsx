@@ -134,7 +134,7 @@ export function SearchableUniversityGrid({
             return (
               <li key={university.id} className="h-full w-full">
                 <article
-                  className="flex h-full w-full cursor-pointer flex-col gap-3 rounded-3xl border bg-white p-6 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
+                  className="flex h-full w-full cursor-pointer flex-col gap-4 rounded-3xl border bg-white p-6 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
                   style={{
                     borderColor: accent.borderColor,
                     background: accent.background,
@@ -142,6 +142,14 @@ export function SearchableUniversityGrid({
                   }}
                   onClick={() => router.push(scheduleHref)}
                 >
+                  <div
+                    className="h-1.5 w-full rounded-full"
+                    style={{
+                      background: accent.accentBar,
+                    }}
+                    aria-hidden
+                  />
+
                   <div className="flex w-full flex-col gap-3">
                     <h3 className="text-lg font-semibold leading-tight text-slate-900">{university.name}</h3>
                     <div className="flex items-center justify-between text-sm text-slate-600">
