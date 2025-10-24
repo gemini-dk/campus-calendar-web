@@ -328,7 +328,7 @@ function SingleMonthCalendarView({
                       borderBottomWidth: showBottomBorder ? 1 : 0,
                       borderColor: "rgba(212, 212, 216, 1)",
                       borderStyle: "solid",
-                      boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #dc2626" : undefined,
+                      boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #1e3a8a" : undefined,
                     }}
                   >
                     <div className="flex flex-shrink-0 items-start justify-between">
@@ -552,7 +552,7 @@ function GridCalendarView({
                           borderBottomWidth: showBottomBorder ? 1 : 0,
                           borderColor: "rgba(212, 212, 216, 1)",
                           borderStyle: "solid",
-                          boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #dc2626" : undefined,
+                          boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #1e3a8a" : undefined,
                         }}
                       >
                         <div className="flex flex-shrink-0 items-start justify-between">

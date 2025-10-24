@@ -213,10 +213,8 @@ function computeAcademicDisplay(
   });
 
   const subLabel = computeAcademicSubLabel({
-    normalizedType,
     day,
-    actualWeekday,
-    weekdayNumber,
+    term,
   });
 
   return {
@@ -374,36 +372,17 @@ function shouldSuppressClassDetails(
 }
 
 function computeAcademicSubLabel({
-  normalizedType,
   day,
-  actualWeekday,
-  weekdayNumber,
+  term,
 }: {
-  normalizedType: NormalizedDayType;
   day: CalendarDay;
-  actualWeekday: number;
-  weekdayNumber: number | null;
+  term: CalendarTerm | null;
 }): string | null {
-  const description =
-    typeof day.description === 'string' && day.description.length > 0
-      ? day.description
-      : undefined;
+  const termName = term?.name ?? day.termName ?? null;
+  const shortName = term?.shortName ?? day.termShortName ?? termName;
 
-  if (normalizedType === 'class' && day.isHoliday) {
-    return description ?? '特別授業日';
-  }
-
-  if (normalizedType === 'holiday' && day.isHoliday === false) {
-    return description ?? '特別休講日';
-  }
-
-  if (
-    normalizedType === 'class' &&
-    typeof day.classWeekday === 'number' &&
-    weekdayNumber !== null &&
-    weekdayNumber !== clampWeekday(actualWeekday)
-  ) {
-    return description ?? '曜日振替授業日';
+  if (typeof shortName === 'string' && shortName.trim().length > 0) {
+    return shortName;
   }
 
   return null;
