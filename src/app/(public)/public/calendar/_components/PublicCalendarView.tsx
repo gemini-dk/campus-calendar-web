@@ -290,6 +290,9 @@ function SingleMonthCalendarView({
                   date.getFullYear() === activeMonthDate.getFullYear() &&
                   date.getMonth() === activeMonthDate.getMonth();
                 const isToday = dateId === todayId;
+                const hasNotificationAlert =
+                  Array.isArray(day?.notificationReasons) &&
+                  day.notificationReasons.some((reason) => reason === "1" || reason === "2" || reason === "3");
 
                 const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                 const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
@@ -325,6 +328,7 @@ function SingleMonthCalendarView({
                       borderBottomWidth: showBottomBorder ? 1 : 0,
                       borderColor: "rgba(212, 212, 216, 1)",
                       borderStyle: "solid",
+                      boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #dc2626" : undefined,
                     }}
                   >
                     <div className="flex flex-shrink-0 items-start justify-between">
@@ -514,6 +518,9 @@ function GridCalendarView({
                       date.getFullYear() === config.date.getFullYear() &&
                       date.getMonth() === config.date.getMonth();
                     const isToday = dateId === todayId;
+                    const hasNotificationAlert =
+                      Array.isArray(day?.notificationReasons) &&
+                      day.notificationReasons.some((reason) => reason === "1" || reason === "2" || reason === "3");
 
                     const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                     const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
@@ -545,6 +552,7 @@ function GridCalendarView({
                           borderBottomWidth: showBottomBorder ? 1 : 0,
                           borderColor: "rgba(212, 212, 216, 1)",
                           borderStyle: "solid",
+                          boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #dc2626" : undefined,
                         }}
                       >
                         <div className="flex flex-shrink-0 items-start justify-between">

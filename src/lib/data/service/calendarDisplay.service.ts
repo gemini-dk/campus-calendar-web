@@ -350,18 +350,7 @@ function computeAcademicLabel({
   }
 
   if (normalizedType === 'class') {
-    if (suppressClassDetails) {
-      return termName;
-    }
-    const parts = [shortName];
-    if (weekdayLabel) {
-      parts.push(`${weekdayLabel}曜`);
-    }
-    if (typeof classOrder === 'number') {
-      parts.push(`${classOrder}回目`);
-    }
-
-    return parts.filter(Boolean).join(' ');
+    return shortName;
   }
 
   return termName;
