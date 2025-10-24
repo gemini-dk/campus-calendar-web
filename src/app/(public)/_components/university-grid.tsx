@@ -2,42 +2,43 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import type { University } from '@/lib/data/schema/university';
 
 type UniversityWithColor = University & {
-  colorRGB?: {
-    R?: number;
-    G?: number;
-    B?: number;
+  colorRgb?: {
+    r?: number;
+    g?: number;
+    b?: number;
   };
 };
 
 type SchoolColor = {
-  R: number;
-  G: number;
-  B: number;
+  r: number;
+  g: number;
+  b: number;
 };
 
 function extractSchoolColor(university: UniversityWithColor): SchoolColor | null {
-  const raw = university.colorRGB;
+  const raw = university.colorRgb;
   if (typeof raw !== 'object' || raw === null) {
     return null;
   }
-  const { R, G, B } = raw;
+  const { r, g, b } = raw;
   if (
-    typeof R === 'number'
-    && Number.isFinite(R)
-    && typeof G === 'number'
-    && Number.isFinite(G)
-    && typeof B === 'number'
-    && Number.isFinite(B)
+    typeof r === 'number'
+    && Number.isFinite(r)
+    && typeof g === 'number'
+    && Number.isFinite(g)
+    && typeof b === 'number'
+    && Number.isFinite(b)
   ) {
     const clamp = (value: number) => Math.min(255, Math.max(0, Math.round(value)));
     return {
-      R: clamp(R),
-      G: clamp(G),
-      B: clamp(B),
+      r: clamp(r),
+      g: clamp(g),
+      b: clamp(b),
     };
   }
   return null;
@@ -54,8 +55,8 @@ function createAccentStyles(color: SchoolColor | null) {
       buttonOutline: 'rgba(148, 163, 184, 0.55)',
     } as const;
   }
-  const { R, G, B } = color;
-  const rgba = (alpha: number) => `rgba(${R}, ${G}, ${B}, ${alpha})`;
+  const { r, g, b } = color;
+  const rgba = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${alpha})`;
   return {
     borderColor: rgba(0.45),
     background: `linear-gradient(135deg, ${rgba(0.18)}, rgba(255, 255, 255, 0.94))`,
@@ -77,6 +78,7 @@ export function SearchableUniversityGrid({
 }) {
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLowerCase();
+  const router = useRouter();
 
   const filteredUniversities = useMemo(() => {
     if (!normalizedQuery) {
@@ -127,63 +129,47 @@ export function SearchableUniversityGrid({
             const color = extractSchoolColor(university);
             const accent = createAccentStyles(color);
             const homepageUrl = normalize(university.homepageUrl);
+            const scheduleHref = `/universities/2025/${encodeURIComponent(university.webId)}`;
 
             return (
               <li key={university.id} className="h-full w-full">
                 <article
-                  className="flex h-full w-full flex-col gap-6 rounded-3xl border bg-white p-8 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
+                  className="flex h-full w-full cursor-pointer flex-col gap-4 rounded-3xl border bg-white p-6 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
                   style={{
                     borderColor: accent.borderColor,
                     background: accent.background,
                     boxShadow: accent.boxShadow,
                   }}
+                  onClick={() => router.push(scheduleHref)}
                 >
-                  <div className="flex w-full flex-col gap-5">
-                    <div
-                      className="h-1 w-full rounded-full"
-                      style={{
-                        background: accent.accentBar,
-                      }}
-                    />
-                    <div className="flex w-full flex-col gap-2">
-                      <h3 className="text-xl font-semibold leading-tight text-slate-900">{university.name}</h3>
-                      {normalize(university.prefecture) ? (
-                        <span className="text-xs font-medium text-slate-500">
-                          {normalize(university.prefecture)}
-                        </span>
-                      ) : null}
+                  <div
+                    className="h-1.5 w-full rounded-full"
+                    style={{
+                      background: accent.accentBar,
+                    }}
+                    aria-hidden
+                  />
+
+                  <div className="flex w-full flex-col gap-3">
+                    <h3 className="text-lg font-semibold leading-tight text-slate-900">{university.name}</h3>
+                    <div className="flex items-center justify-between text-sm text-slate-600">
+                      <span className="truncate">
+                        {normalize(university.prefecture) || '所在地未登録'}
+                      </span>
+                      {homepageUrl ? (
+                        <Link
+                          href={homepageUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sm font-medium text-blue-700 underline-offset-4 transition hover:text-blue-900 hover:underline"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          公式サイト
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-slate-400">公式サイト</span>
+                      )}
                     </div>
-                    {homepageUrl ? (
-                      <Link
-                        href={homepageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-fit text-sm font-medium text-blue-700 underline-offset-4 transition hover:text-blue-900 hover:underline"
-                      >
-                        公式サイトを開く
-                      </Link>
-                    ) : (
-                      <span className="text-xs text-slate-500">公式サイト情報は現在整備中です。</span>
-                    )}
-                  </div>
-                  <div className="mt-auto flex w-full flex-col gap-3 sm:flex-row">
-                    <Link
-                      href={`/universities/2025/${encodeURIComponent(university.webId)}`}
-                      className="flex h-12 w-full items-center justify-center rounded-2xl text-sm font-semibold text-white transition hover:brightness-110 sm:w-1/2"
-                      style={{
-                        background: accent.buttonSolid,
-                        boxShadow: color ? `0 18px 36px rgba(${color.R}, ${color.G}, ${color.B}, 0.25)` : '0 18px 36px rgba(37, 99, 235, 0.25)',
-                      }}
-                    >
-                      学事予定を表示
-                    </Link>
-                    <button
-                      type="button"
-                      className="flex h-12 w-full items-center justify-center rounded-2xl border text-sm font-semibold text-slate-700 transition hover:border-blue-500 hover:text-blue-900 sm:w-1/2"
-                      style={{ borderColor: accent.buttonOutline }}
-                    >
-                      リクエスト
-                    </button>
                   </div>
                 </article>
               </li>
