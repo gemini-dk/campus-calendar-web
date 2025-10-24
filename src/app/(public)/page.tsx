@@ -1,7 +1,5 @@
 import type { Metadata } from 'next';
 
-import { UniversitySearchBox } from '@/components/university-search-box';
-
 import { SearchableUniversityGrid } from './_components/university-grid';
 import { listUniversities } from '@/lib/data/service/university.service';
 
@@ -29,9 +27,6 @@ export default async function HomePage() {
               大学の授業日程は、祝日なのに講義があったり、木曜なのに月曜授業だったりと一般のカレンダーとは異なります。<br/>
               このような特殊な日程もCampus Calendarならひと目でわかります。このカレンダーを活用して、きちんと授業に出席しましょう!
             </p>
-          </div>
-          <div className="flex h-auto w-full flex-col gap-4">
-            <UniversitySearchBox />
           </div>
           <div className="grid w-full gap-4 text-xs text-slate-600 sm:grid-cols-3">
             <div className="flex h-full w-full flex-col gap-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">

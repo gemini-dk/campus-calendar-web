@@ -23,7 +23,11 @@ function getMatchTargets(entry: UniversitySearchEntry): string[] {
   ];
 }
 
-export function UniversitySearchBox() {
+type UniversitySearchBoxProps = {
+  variant?: 'default' | 'header';
+};
+
+export function UniversitySearchBox({ variant = 'default' }: UniversitySearchBoxProps) {
   const { entries, loading, error, initialized } = useUniversitySearch();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -78,34 +82,45 @@ export function UniversitySearchBox() {
     }
   }, [normalizedQuery]);
 
+  const isHeaderVariant = variant === 'header';
+  const containerClassName = isHeaderVariant
+    ? 'relative flex h-auto w-[22ch] flex-col gap-1.5'
+    : 'relative flex h-auto w-full flex-col gap-3';
+  const labelClassName = isHeaderVariant
+    ? 'flex h-auto w-full flex-col gap-0'
+    : 'flex h-auto w-full flex-col gap-2';
+  const inputWrapperClassName = isHeaderVariant
+    ? 'flex h-12 w-full items-center'
+    : 'flex h-16 w-full items-center';
+  const inputClassName = isHeaderVariant
+    ? 'h-11 w-full rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-inner transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200'
+    : 'h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 text-base text-slate-900 shadow-inner transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200';
+
   const showResults = open && normalizedQuery.length > 0;
   const showEmptyState = showResults && totalMatchCount === 0 && initialized && !loading;
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex h-auto w-full flex-col gap-3"
-    >
-      <label className="flex h-auto w-full flex-col gap-2">
-        <span className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-500">
-          Quick Search
-        </span>
-        <div className="flex h-16 w-full items-center">
+    <div ref={containerRef} className={containerClassName}>
+      <label className={labelClassName}>
+        <div className={inputWrapperClassName}>
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onFocus={() => setOpen(true)}
-            placeholder="大学名・所在地などで検索"
-            aria-label="大学名や所在地で検索"
-            className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 text-base text-slate-900 shadow-inner transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            placeholder="大学名で検索"
+            aria-label="大学名で検索"
+            className={inputClassName}
             type="search"
           />
         </div>
       </label>
-      <div className="h-auto w-full text-xs text-slate-500">
-        {loading && <span>大学データを読み込み中です…</span>}
-        {!loading && error && <span className="text-red-500">{error}</span>}
-      </div>
+      {!initialized && loading && !error && null}
+      {!isHeaderVariant && !loading && error && (
+        <div className="h-auto w-full text-xs text-red-500">{error}</div>
+      )}
+      {isHeaderVariant && !loading && error && (
+        <div className="h-auto w-full text-[0.65rem] text-red-500">{error}</div>
+      )}
       {showResults && (
         <div className="absolute left-0 top-full z-20 mt-2 flex h-72 w-full flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_48px_rgba(148,163,184,0.25)]">
           <div className="flex h-auto w-full items-center justify-between px-1 pb-2 text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-400">
@@ -121,7 +136,7 @@ export function UniversitySearchBox() {
           ) : (
             <ul className="flex h-full w-full flex-col gap-1 overflow-y-auto">
               {matchingEntries.map((entry) => (
-                <li key={entry.id} className="w-full">
+                <li key={entry.webId} className="w-full">
                   <button
                     type="button"
                     className="flex h-14 w-full flex-col justify-center rounded-xl bg-slate-50 px-4 text-left text-sm text-slate-700 transition hover:bg-blue-50 hover:text-blue-700"
@@ -132,9 +147,6 @@ export function UniversitySearchBox() {
                     }}
                   >
                     <span className="truncate font-semibold text-slate-900">{entry.name}</span>
-                    <span className="truncate text-xs text-slate-500">
-                      {entry.prefecture || '所在地未登録'} / {entry.shortName || entry.furigana}
-                    </span>
                   </button>
                 </li>
               ))}
