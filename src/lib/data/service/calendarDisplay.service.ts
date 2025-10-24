@@ -333,38 +333,17 @@ function computeAcademicLabel({
 }): string {
   const termName = term?.name ?? day.termName ?? '-';
   const shortName = term?.shortName ?? day.termShortName ?? termName;
-  const termHolidayFlag = term?.holidayFlag ?? (term?.isHoliday ? 1 : undefined);
-
-  if (termHolidayFlag === 1) {
-    return termName;
+  const trimmedShortName = typeof shortName === 'string' ? shortName.trim() : '';
+  if (trimmedShortName.length > 0) {
+    return trimmedShortName;
   }
 
-  if (normalizedType === 'exam') {
-    return `${termName} 試験`;
-  }
-  if (normalizedType === 'holiday') {
-    return `${termName} 休講日`;
-  }
-  if (normalizedType === 'reserve') {
-    return `${termName} 予備日`;
+  const trimmedTermName = typeof termName === 'string' ? termName.trim() : '';
+  if (trimmedTermName.length > 0) {
+    return trimmedTermName;
   }
 
-  if (normalizedType === 'class') {
-    if (suppressClassDetails) {
-      return termName;
-    }
-    const parts = [shortName];
-    if (weekdayLabel) {
-      parts.push(`${weekdayLabel}曜`);
-    }
-    if (typeof classOrder === 'number') {
-      parts.push(`${classOrder}回目`);
-    }
-
-    return parts.filter(Boolean).join(' ');
-  }
-
-  return termName;
+  return '予定なし';
 }
 
 function shouldSuppressClassDetails(
@@ -417,5 +396,5 @@ function computeAcademicSubLabel({
     return description ?? '曜日振替授業日';
   }
 
-  return null;
+  return description ?? null;
 }
