@@ -122,7 +122,7 @@ export function UniversitySearchBox({ variant = 'default' }: UniversitySearchBox
         <div className="h-auto w-full text-[0.65rem] text-red-500">{error}</div>
       )}
       {showResults && (
-        <div className="absolute left-0 top-full z-50 mt-2 flex h-72 w-full flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_48px_rgba(148,163,184,0.25)]">
+        <div className="absolute left-0 top-full z-[80] mt-2 flex h-72 w-full flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_48px_rgba(148,163,184,0.25)]">
           <div className="flex h-auto w-full items-center justify-between px-1 pb-2 text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-400">
             <span>Search Results</span>
             <span>
