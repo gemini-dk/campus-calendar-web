@@ -345,6 +345,15 @@ function computeAcademicLabel({
 
   const fallbackName = shortName.length > 0 ? shortName : termName;
 
+  if (holidayFlag === 1) {
+    if (termName.length > 0) {
+      return termName;
+    }
+    if (fallbackName.length > 0) {
+      return fallbackName;
+    }
+  }
+
   const typeSuffix = (() => {
     switch (normalizedType) {
       case 'exam':
@@ -368,34 +377,31 @@ function computeAcademicLabel({
     return typeSuffix;
   }
 
-  if (holidayFlag === 1) {
-    if (termName.length > 0) {
-      return termName;
-    }
-    if (fallbackName.length > 0) {
-      return fallbackName;
-    }
-  }
-
   if (holidayFlag === 2) {
     if (!suppressClassDetails) {
-      const parts: string[] = [];
-      if (shortName.length > 0) {
-        parts.push(shortName);
-      } else if (termName.length > 0) {
-        parts.push(termName);
+      const segments: string[] = [];
+      const baseName = shortName.length > 0 ? shortName : termName;
+      if (baseName.length > 0) {
+        segments.push(baseName);
       }
 
-      if (trimmedWeekday.length > 0) {
-        const weekdayLabelWithOrder =
-          normalizedClassOrder !== null ? `${trimmedWeekday}${normalizedClassOrder}` : trimmedWeekday;
-        parts.push(weekdayLabelWithOrder);
-      } else if (normalizedClassOrder !== null) {
-        parts.push(String(normalizedClassOrder));
+      if (trimmedWeekday.length > 0 || normalizedClassOrder !== null) {
+        const weekdayParts: string[] = [];
+        if (trimmedWeekday.length > 0) {
+          if (normalizedClassOrder !== null) {
+            weekdayParts.push(`${trimmedWeekday}(${normalizedClassOrder})`);
+          } else {
+            weekdayParts.push(trimmedWeekday);
+          }
+        } else if (normalizedClassOrder !== null) {
+          weekdayParts.push(`(${normalizedClassOrder})`);
+        }
+
+        segments.push(...weekdayParts);
       }
 
-      const combined = parts.join('');
-      if (combined.trim().length > 0) {
+      const combined = segments.join(' ').trim();
+      if (combined.length > 0) {
         return combined;
       }
     }

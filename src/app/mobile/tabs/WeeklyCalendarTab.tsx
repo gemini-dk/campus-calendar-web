@@ -33,7 +33,6 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
   reserve: 'var(--color-my-secondary-container)',
 };
 
-const WEEKDAY_COLORS = ['#f87171', '#fb923c', '#facc15', '#4ade80', '#38bdf8', '#60a5fa', '#a855f7'];
 const WEEKDAY_LABEL_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
 const DRAG_DETECTION_THRESHOLD = 6;
@@ -731,7 +730,6 @@ function WeekSlide({
           const info = infoMap[dateId];
           const general = info?.calendar ?? null;
           const academic = info?.academic ?? null;
-          const day = info?.day ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
 
           const isToday = dateId === todayId;
@@ -741,12 +739,6 @@ function WeekSlide({
           const cellBackground = isToday
             ? 'var(--color-calendar-today-background)'
             : resolveBackgroundColor(academic?.backgroundColor);
-
-          const isClassDay = day?.type === '授業日';
-          const classOrder = typeof academic?.classOrder === 'number' ? academic.classOrder : null;
-          const classWeekday = typeof academic?.weekdayNumber === 'number' ? academic.weekdayNumber : null;
-          const weekdayColor =
-            typeof classWeekday === 'number' ? WEEKDAY_COLORS[classWeekday] ?? '#2563eb' : '#2563eb';
 
           const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;
           const showBottomBorder = index < totalCells - WEEK_COLUMN_COUNT;
@@ -761,27 +753,19 @@ function WeekSlide({
                 borderBottom: showBottomBorder ? `1px solid ${BORDER_COLOR}` : undefined,
               }}
             >
-              <div className="flex items-start justify-between gap-2 border-b border-neutral-200/80 bg-white/80 px-2 py-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-baseline gap-1">
+              <div className="flex h-[56px] items-end justify-between gap-2 border-b border-neutral-200/80 bg-white/80 px-2 pb-2 pt-1">
+                <div className="flex items-end gap-2">
+                  <div className="flex items-end gap-1 leading-none">
                     <span className={`text-lg font-semibold ${accentClass}`}>{dateNumber}</span>
                     <span className={`text-xs font-semibold ${accentClass}`}>{weekdayLabel}</span>
                   </div>
-                  {isClassDay && classOrder ? (
-                    <span
-                      className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full text-[11px] font-bold text-white"
-                      style={{ backgroundColor: weekdayColor }}
-                    >
-                      {classOrder}
-                    </span>
-                  ) : null}
                 </div>
-                <div className="flex min-w-0 flex-col items-end text-right">
-                  <span className="truncate text-[11px] font-semibold text-neutral-700">
+                <div className="flex min-w-0 flex-col items-end justify-end gap-[2px] text-right">
+                  <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-neutral-700">
                     {academic?.label ?? '-'}
                   </span>
                   {academic?.subLabel ? (
-                    <span className="truncate text-[10px] text-neutral-500">{academic.subLabel}</span>
+                    <span className="truncate text-[10px] leading-tight text-neutral-500">{academic.subLabel}</span>
                   ) : null}
                 </div>
               </div>
