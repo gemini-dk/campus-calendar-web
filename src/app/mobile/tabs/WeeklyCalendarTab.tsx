@@ -753,7 +753,7 @@ function WeekSlide({
                 borderBottom: showBottomBorder ? `1px solid ${BORDER_COLOR}` : undefined,
               }}
             >
-              <div className="flex h-[48px] items-end justify-between gap-2 overflow-hidden border-b border-neutral-200/80 bg-white/80 px-2 pb-2 pt-1">
+              <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-transparent px-2 pb-2 pt-1">
                 <div className="flex items-end gap-2">
                   <div className="flex items-end gap-1 leading-none">
                     <span className={`text-lg font-semibold ${accentClass}`}>{dateNumber}</span>
@@ -800,7 +800,7 @@ function WeekSlide({
           className="flex min-h-0 w-full flex-col bg-white"
           style={{ borderTop: `1px solid ${BORDER_COLOR}` }}
         >
-          <div className="flex h-[48px] items-end justify-between gap-2 overflow-hidden border-b border-neutral-200/80 bg-white/80 px-2 pb-2 pt-1">
+          <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-white px-2 pb-2 pt-1">
             <span className="text-sm font-semibold text-neutral-800">フルオンデマンド</span>
             <FontAwesomeIcon icon={faVideo} className="text-neutral-500" fontSize={14} />
           </div>
