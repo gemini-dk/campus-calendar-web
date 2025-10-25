@@ -753,7 +753,7 @@ function WeekSlide({
                 borderBottom: showBottomBorder ? `1px solid ${BORDER_COLOR}` : undefined,
               }}
             >
-              <div className="flex h-[48px] items-end justify-between gap-2 overflow-hidden border-b border-neutral-200/80 bg-white/80 px-2 pb-2 pt-1">
+              <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-transparent px-2 pb-2 pt-1">
                 <div className="flex items-end gap-2">
                   <div className="flex items-end gap-1 leading-none">
                     <span className={`text-lg font-semibold ${accentClass}`}>{dateNumber}</span>
@@ -770,27 +770,21 @@ function WeekSlide({
                 </div>
               </div>
               <div className="flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto px-2 py-2 touch-pan-y">
-                {classEntries.length > 0 ? (
-                  classEntries.map((entry) => {
-                    const { icon, className: iconClass } = resolveSessionIcon(
-                      entry.classType,
-                      entry.deliveryType,
-                    );
-                    return (
-                      <div
-                        key={entry.id}
-                        className="flex min-h-[18px] items-center gap-1 text-[11px] leading-tight text-neutral-800"
-                      >
-                        <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={11} />
-                        <span className="flex-1 truncate">{entry.className}</span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="flex flex-1 items-center justify-center text-center text-[11px] text-neutral-500">
-                    授業は登録されていません
-                  </div>
-                )}
+                {classEntries.map((entry) => {
+                  const { icon, className: iconClass } = resolveSessionIcon(
+                    entry.classType,
+                    entry.deliveryType,
+                  );
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex min-h-[18px] items-center gap-1 text-[12px] leading-[1.15] text-neutral-800"
+                    >
+                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
+                      <span className="flex-1 truncate">{entry.className}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -800,7 +794,7 @@ function WeekSlide({
           className="flex min-h-0 w-full flex-col bg-white"
           style={{ borderTop: `1px solid ${BORDER_COLOR}` }}
         >
-          <div className="flex h-[48px] items-end justify-between gap-2 overflow-hidden border-b border-neutral-200/80 bg-white/80 px-2 pb-2 pt-1">
+          <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-white px-2 pb-2 pt-1">
             <span className="text-sm font-semibold text-neutral-800">フルオンデマンド</span>
             <FontAwesomeIcon icon={faVideo} className="text-neutral-500" fontSize={14} />
           </div>
