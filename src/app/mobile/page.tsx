@@ -1,6 +1,8 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { signInAnonymously } from "firebase/auth";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -20,6 +22,9 @@ import TodoTab from "./tabs/TodoTab";
 import ClassesTab from "./tabs/ClassesTab";
 import CalendarOverlayIcon from "./components/CalendarOverlayIcon";
 import type { TabDefinition, TabId } from "./tabs/types";
+import { auth } from "@/lib/firebase/client";
+import { DEFAULT_CALENDAR_SETTINGS, useUserSettings } from "@/lib/settings/UserSettingsProvider";
+import { useAuth } from "@/lib/useAuth";
 
 const TAB_ICON_SIZE = 24;
 
@@ -56,6 +61,8 @@ function MobilePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { settings, saveCalendarSettings } = useUserSettings();
+  const { isAuthenticated, initializing } = useAuth();
 
   const tabFromParams = useMemo<TabId>(() => {
     const param = searchParams.get("tab");
@@ -74,6 +81,50 @@ function MobilePageContent() {
   const [activeTab, setActiveTab] = useState<TabId>(tabFromParams);
   const [calendarResetKey, setCalendarResetKey] = useState(0);
   const [weeklyResetKey, setWeeklyResetKey] = useState(0);
+  const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
+  const [calendarDialogError, setCalendarDialogError] = useState<string | null>(null);
+  const [isApplyingCalendar, setIsApplyingCalendar] = useState(false);
+
+  type CalendarSetupCandidate = {
+    fiscalYear: string;
+    calendarId: string;
+    calendarName: string;
+  };
+
+  const calendarCandidate = useMemo<CalendarSetupCandidate | null>(() => {
+    const fiscalYearParam =
+      searchParams.get("calendarFiscalYear") ??
+      searchParams.get("fiscalYear") ??
+      searchParams.get("year");
+    const calendarIdParam = searchParams.get("calendarId");
+    const calendarNameParam = searchParams.get("calendarName");
+
+    if (!fiscalYearParam || !calendarIdParam || !calendarNameParam) {
+      return null;
+    }
+
+    const fiscalYear = fiscalYearParam.trim();
+    const calendarId = calendarIdParam.trim();
+    const calendarName = calendarNameParam.trim();
+
+    if (!fiscalYear || !calendarId || !calendarName) {
+      return null;
+    }
+
+    return { fiscalYear, calendarId, calendarName } satisfies CalendarSetupCandidate;
+  }, [searchParams]);
+
+  const [pendingCalendar, setPendingCalendar] = useState<CalendarSetupCandidate | null>(
+    calendarCandidate,
+  );
+  const autoAppliedCalendarKeyRef = useRef<string | null>(null);
+
+  const calendarCandidateKey = useMemo(() => {
+    if (!calendarCandidate) {
+      return null;
+    }
+    return `${calendarCandidate.fiscalYear}:${calendarCandidate.calendarId}:${calendarCandidate.calendarName}`;
+  }, [calendarCandidate]);
 
   useEffect(() => {
     setActiveTab((prev) => (prev === tabFromParams ? prev : tabFromParams));
@@ -88,6 +139,133 @@ function MobilePageContent() {
     },
     [pathname, router, searchParams],
   );
+
+  const clearCalendarParams = useCallback(() => {
+    updateSearchParams((params) => {
+      params.delete("calendarFiscalYear");
+      params.delete("fiscalYear");
+      params.delete("year");
+      params.delete("calendarId");
+      params.delete("calendarName");
+    });
+  }, [updateSearchParams]);
+
+  const applyCalendarSettings = useCallback(
+    async (candidate: CalendarSetupCandidate) => {
+      const fallbackEntry = settings.calendar.entries[0] ?? DEFAULT_CALENDAR_SETTINGS.entries[0];
+      const lessonsPerDay = fallbackEntry?.lessonsPerDay ?? 6;
+      const hasSaturdayClasses = fallbackEntry?.hasSaturdayClasses ?? false;
+
+      const nextEntries = (() => {
+        const exists = settings.calendar.entries.some(
+          (entry) => entry.fiscalYear === candidate.fiscalYear && entry.calendarId === candidate.calendarId,
+        );
+        if (exists) {
+          return settings.calendar.entries;
+        }
+        return [
+          ...settings.calendar.entries,
+          {
+            fiscalYear: candidate.fiscalYear,
+            calendarId: candidate.calendarId,
+            lessonsPerDay,
+            hasSaturdayClasses,
+          },
+        ];
+      })();
+
+      saveCalendarSettings({
+        fiscalYear: candidate.fiscalYear,
+        calendarId: candidate.calendarId,
+        entries: nextEntries,
+      });
+    },
+    [saveCalendarSettings, settings.calendar.entries],
+  );
+
+  useEffect(() => {
+    if (initializing) {
+      return;
+    }
+
+    if (!calendarCandidate) {
+      setPendingCalendar(null);
+      setIsCalendarDialogOpen(false);
+      setCalendarDialogError(null);
+      setIsApplyingCalendar(false);
+      autoAppliedCalendarKeyRef.current = null;
+      return;
+    }
+
+    setPendingCalendar(calendarCandidate);
+    setCalendarDialogError(null);
+
+    const candidateKey = calendarCandidateKey;
+    if (!candidateKey) {
+      return;
+    }
+
+    const isLoggedIn = isAuthenticated || Boolean(auth.currentUser);
+
+    if (!isLoggedIn) {
+      autoAppliedCalendarKeyRef.current = candidateKey;
+      let canceled = false;
+
+      const autoApply = async () => {
+        setIsApplyingCalendar(true);
+
+        try {
+          if (!auth.currentUser) {
+            await signInAnonymously(auth);
+          }
+
+          if (canceled) {
+            return;
+          }
+
+          await applyCalendarSettings(calendarCandidate);
+
+          if (canceled) {
+            return;
+          }
+
+          clearCalendarParams();
+        } catch (error) {
+          console.error("Failed to auto apply calendar settings from query.", error);
+          if (!canceled) {
+            setCalendarDialogError(
+              "カレンダーの設定に失敗しました。時間をおいて再度お試しください。",
+            );
+          }
+        } finally {
+          if (!canceled) {
+            setIsApplyingCalendar(false);
+            setIsCalendarDialogOpen(false);
+          }
+        }
+      };
+
+      void autoApply();
+
+      return () => {
+        canceled = true;
+      };
+    }
+
+    if (autoAppliedCalendarKeyRef.current === candidateKey) {
+      return;
+    }
+
+    setIsApplyingCalendar(false);
+    setIsCalendarDialogOpen(true);
+  }, [
+    applyCalendarSettings,
+    calendarCandidate,
+    calendarCandidateKey,
+    clearCalendarParams,
+    initializing,
+    isAuthenticated,
+  ]);
 
   const formatDateId = useCallback((date: Date) => {
     const year = date.getFullYear();
@@ -132,11 +310,79 @@ function MobilePageContent() {
     [updateSearchParams],
   );
 
+  const handleConfirmCalendarSetup = useCallback(async () => {
+    if (!pendingCalendar) {
+      return;
+    }
+
+    setCalendarDialogError(null);
+    setIsApplyingCalendar(true);
+
+    try {
+      if (!auth.currentUser) {
+        await signInAnonymously(auth);
+      }
+
+      await applyCalendarSettings(pendingCalendar);
+      setIsCalendarDialogOpen(false);
+      setPendingCalendar(null);
+      clearCalendarParams();
+    } catch (error) {
+      console.error("Failed to apply calendar settings from query.", error);
+      setCalendarDialogError(
+        "カレンダーの設定に失敗しました。時間をおいて再度お試しください。",
+      );
+    } finally {
+      setIsApplyingCalendar(false);
+    }
+  }, [applyCalendarSettings, clearCalendarParams, pendingCalendar]);
+
+  const handleCancelCalendarSetup = useCallback(() => {
+    setIsCalendarDialogOpen(false);
+    setPendingCalendar(null);
+    setCalendarDialogError(null);
+    clearCalendarParams();
+  }, [clearCalendarParams]);
+
   const currentTab = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
   const ActiveComponent = currentTab.Component;
 
   return (
     <div className="flex h-full min-h-[100svh] w-full justify-center bg-neutral-100">
+      {isCalendarDialogOpen && pendingCalendar ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6 py-10">
+          <div className="w-full max-w-[360px] rounded-xl bg-white p-6 shadow-lg">
+            <h2 className="text-lg font-semibold text-neutral-900">このカレンダーを設定しますか？</h2>
+            <p className="mt-3 text-base font-medium text-neutral-800">
+              {pendingCalendar.fiscalYear}年度　{pendingCalendar.calendarName}
+            </p>
+            <p className="mt-2 text-xs text-neutral-500">
+              現在のカレンダー設定をこの内容に変更します。
+            </p>
+            {calendarDialogError ? (
+              <p className="mt-3 text-xs text-red-600">{calendarDialogError}</p>
+            ) : null}
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCancelCalendarSetup}
+                disabled={isApplyingCalendar}
+                className="rounded-full px-4 py-2 text-sm font-medium text-neutral-600 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-400"
+              >
+                いいえ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCalendarSetup}
+                disabled={isApplyingCalendar}
+                className="rounded-full bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+              >
+                {isApplyingCalendar ? "設定中..." : "はい"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
 
         <main className="flex flex-1 flex-col overflow-hidden pb-4">
