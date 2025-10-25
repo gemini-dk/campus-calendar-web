@@ -331,16 +331,88 @@ function computeAcademicLabel({
   classOrder: number | null;
   suppressClassDetails: boolean;
 }): string {
-  const termName = term?.name ?? day.termName ?? '-';
-  const shortName = term?.shortName ?? day.termShortName ?? termName;
-  const trimmedShortName = typeof shortName === 'string' ? shortName.trim() : '';
-  if (trimmedShortName.length > 0) {
-    return trimmedShortName;
+  const rawTermName = term?.name ?? day.termName ?? '';
+  const rawShortName = term?.shortName ?? day.termShortName ?? '';
+  const termName = typeof rawTermName === 'string' ? rawTermName.trim() : '';
+  const shortName = typeof rawShortName === 'string' ? rawShortName.trim() : '';
+  const holidayFlag = typeof term?.holidayFlag === 'number' ? term.holidayFlag : undefined;
+
+  const normalizedClassOrder =
+    typeof classOrder === 'number' && Number.isFinite(classOrder) && classOrder > 0
+      ? Math.trunc(classOrder)
+      : null;
+  const trimmedWeekday = typeof weekdayLabel === 'string' ? weekdayLabel.trim() : '';
+
+  const fallbackName = shortName.length > 0 ? shortName : termName;
+
+  const typeSuffix = (() => {
+    switch (normalizedType) {
+      case 'exam':
+        return '試験';
+      case 'holiday':
+        return '休講日';
+      case 'reserve':
+        return '予備日';
+      default:
+        return '';
+    }
+  })();
+
+  if (typeSuffix) {
+    if (termName.length > 0) {
+      return `${termName}${typeSuffix}`;
+    }
+    if (fallbackName.length > 0) {
+      return `${fallbackName}${typeSuffix}`;
+    }
+    return typeSuffix;
   }
 
-  const trimmedTermName = typeof termName === 'string' ? termName.trim() : '';
-  if (trimmedTermName.length > 0) {
-    return trimmedTermName;
+  if (holidayFlag === 1) {
+    if (termName.length > 0) {
+      return termName;
+    }
+    if (fallbackName.length > 0) {
+      return fallbackName;
+    }
+  }
+
+  if (holidayFlag === 2) {
+    if (!suppressClassDetails) {
+      const parts: string[] = [];
+      if (shortName.length > 0) {
+        parts.push(shortName);
+      } else if (termName.length > 0) {
+        parts.push(termName);
+      }
+
+      if (trimmedWeekday.length > 0) {
+        const weekdayLabelWithOrder =
+          normalizedClassOrder !== null ? `${trimmedWeekday}${normalizedClassOrder}` : trimmedWeekday;
+        parts.push(weekdayLabelWithOrder);
+      } else if (normalizedClassOrder !== null) {
+        parts.push(String(normalizedClassOrder));
+      }
+
+      const combined = parts.join('');
+      if (combined.trim().length > 0) {
+        return combined;
+      }
+    }
+
+    if (shortName.length > 0) {
+      return shortName;
+    }
+    if (termName.length > 0) {
+      return termName;
+    }
+  }
+
+  if (termName.length > 0) {
+    return termName;
+  }
+  if (shortName.length > 0) {
+    return shortName;
   }
 
   return '予定なし';
