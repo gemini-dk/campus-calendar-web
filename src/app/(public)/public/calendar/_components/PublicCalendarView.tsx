@@ -309,6 +309,15 @@ function SingleMonthCalendarView({
                     ? WEEKDAY_HEADERS[classWeekday]?.color ?? "#2563eb"
                     : "#2563eb";
 
+                const rawTermName = typeof info?.term?.name === "string" ? info.term.name.trim() : "";
+                const fallbackTermName =
+                  typeof day?.termName === "string" && day.termName ? day.termName.trim() : "";
+                const publicLabel = rawTermName
+                  ? rawTermName
+                  : fallbackTermName
+                    ? fallbackTermName
+                    : academic?.label ?? "予定なし";
+
                 const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
                 const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
 
@@ -345,7 +354,7 @@ function SingleMonthCalendarView({
 
                     <div className="mt-2 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
                       <span className="block w-full min-h-[18px] truncate text-center text-[11px] text-neutral-800">
-                        {academic?.label ?? "予定なし"}
+                        {publicLabel}
                       </span>
                       {academic?.subLabel ? (
                         <span className="mt-[2px] block w-full min-h-[16px] truncate text-center text-[11px] font-bold text-neutral-900">
@@ -537,6 +546,15 @@ function GridCalendarView({
                         ? WEEKDAY_HEADERS[classWeekday]?.color ?? "#2563eb"
                         : "#2563eb";
 
+                    const rawTermName = typeof info?.term?.name === "string" ? info.term.name.trim() : "";
+                    const fallbackTermName =
+                      typeof day?.termName === "string" && day.termName ? day.termName.trim() : "";
+                    const publicLabel = rawTermName
+                      ? rawTermName
+                      : fallbackTermName
+                        ? fallbackTermName
+                        : academic?.label ?? "予定なし";
+
                     const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
                     const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
 
@@ -568,7 +586,7 @@ function GridCalendarView({
                         </div>
                         <div className="mt-1.5 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
                           <span className="block w-full min-h-[16px] truncate text-center text-[10px] text-neutral-800">
-                            {academic?.label ?? "予定なし"}
+                            {publicLabel}
                           </span>
                           {academic?.subLabel ? (
                             <span className="mt-[2px] block w-full min-h-[14px] truncate text-center text-[10px] font-bold text-neutral-900">
