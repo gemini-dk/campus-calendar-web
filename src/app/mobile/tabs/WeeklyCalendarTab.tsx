@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent, TransitionEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronLeft, faChevronRight, faVideo } from '@fortawesome/free-solid-svg-icons';
+import { faVideo } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -15,6 +16,7 @@ import {
   CALENDAR_SETTINGS_ERROR_MESSAGE,
   resolveSessionIcon,
   useCalendarClassEntries,
+  type ClassEntriesByDateMap,
 } from './calendarShared';
 
 const WEEKDAY_ACCENT_CLASS: Record<string, string> = {
@@ -33,6 +35,9 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
 
 const WEEKDAY_COLORS = ['#f87171', '#fb923c', '#facc15', '#4ade80', '#38bdf8', '#60a5fa', '#a855f7'];
 const WEEKDAY_LABEL_JA = ['日', '月', '火', '水', '木', '金', '土'];
+
+const DRAG_DETECTION_THRESHOLD = 6;
+const WEEK_COLUMN_COUNT = 2;
 
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
@@ -54,6 +59,19 @@ function addDays(date: Date, amount: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
+}
+
+function addWeeks(date: Date, amount: number): Date {
+  return startOfWeek(addDays(date, amount * 7));
+}
+
+function generateWeekDates(weekStart: Date): Date[] {
+  const start = startOfWeek(weekStart);
+  return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+}
+
+function getWeekKey(weekStart: Date): string {
+  return formatDateId(startOfWeek(weekStart));
 }
 
 function extractDayNumber(label: string | null | undefined): string {
@@ -81,10 +99,31 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
+const BORDER_COLOR = 'var(--color-calendar-border, rgb(229 231 235))';
+
+type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
+
+type WeekState = {
+  dates: Date[];
+  dateIds: string[];
+  loading: boolean;
+  loaded: boolean;
+  errorMessage: string | null;
+};
+
+type WeekStateMap = Record<string, WeekState>;
+
 type WeeklyTermSummary = {
   id: string | null;
   name: string | null;
   shortName?: string | null;
+};
+
+type FullOnDemandClass = {
+  id: string;
+  className: string;
+  termIds: string[];
+  termNames: string[];
 };
 
 type OnDemandEntry = {
@@ -99,6 +138,10 @@ export default function WeeklyCalendarTab() {
   const { settings, initialized } = useUserSettings();
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
+  const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
+  const configKeyRef = useRef(configKey);
+
+  const { classEntriesByDate, classSummaries } = useCalendarClassEntries(fiscalYear);
 
   const activeCalendarEntry = useMemo(() => {
     if (!fiscalYear || !calendarId) {
@@ -113,124 +156,418 @@ export default function WeeklyCalendarTab() {
 
   const hasSaturdayClasses = activeCalendarEntry?.hasSaturdayClasses ?? true;
 
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
-  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
-  const weekDates = useMemo(() => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)), [weekStart]);
-  const weekDateIds = useMemo(() => weekDates.map((date) => formatDateId(date)), [weekDates]);
-  const todayId = useMemo(() => formatDateId(new Date()), []);
+  const [visibleWeekStart, setVisibleWeekStart] = useState(() => startOfWeek(new Date()));
+  const [infoMap, setInfoMap] = useState<CalendarInfoMap>({});
+  const [weekStates, setWeekStates] = useState<WeekStateMap>({});
+  const weekStatesRef = useRef<WeekStateMap>({});
 
-  const { classEntriesByDate, classSummaries } = useCalendarClassEntries(fiscalYear);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [translate, setTranslate] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [pendingDirection, setPendingDirection] = useState<'prev' | 'next' | null>(null);
 
-  const [infoMap, setInfoMap] = useState<Record<string, CalendarDisplayInfo>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const isCalendarConfigured = fiscalYear.length > 0 && calendarId.length > 0;
-  const calendarAvailable = initialized && isCalendarConfigured;
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
+  const dragStartRef = useRef(0);
+  const dragDeltaRef = useRef(0);
+  const isPointerDownRef = useRef(false);
 
   useEffect(() => {
-    if (!calendarAvailable) {
-      setInfoMap({});
-      if (initialized && !isCalendarConfigured) {
-        setError(CALENDAR_SETTINGS_ERROR_MESSAGE);
-      } else {
-        setError(null);
-      }
-      setLoading(false);
+    weekStatesRef.current = weekStates;
+  }, [weekStates]);
+
+  useEffect(() => {
+    const element = viewportRef.current;
+    if (!element) {
       return;
     }
-
-    let canceled = false;
-    setLoading(true);
-    setError(null);
-
-    async function loadWeekInfo() {
-      try {
-        const results = await Promise.all(
-          weekDateIds.map(async (dateId) => {
-            const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId, {
-              hasSaturdayClasses,
-            });
-            return { dateId, info } as const;
-          }),
-        );
-        if (canceled) {
-          return;
-        }
-        const next: Record<string, CalendarDisplayInfo> = {};
-        results.forEach(({ dateId, info }) => {
-          next[dateId] = info;
-        });
-        setInfoMap(next);
-      } catch (err) {
-        console.error('Failed to load weekly calendar information', err);
-        if (!canceled) {
-          setError('週カレンダーの読み込みに失敗しました。');
-        }
-      } finally {
-        if (!canceled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadWeekInfo();
-
-    return () => {
-      canceled = true;
-    };
-  }, [calendarAvailable, calendarId, fiscalYear, hasSaturdayClasses, initialized, weekDateIds]);
-
-  const weeklyTerms = useMemo<WeeklyTermSummary[]>(() => {
-    const map = new Map<string, WeeklyTermSummary>();
-    weekDateIds.forEach((dateId) => {
-      const term = infoMap[dateId]?.term;
-      if (!term) {
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
         return;
       }
-      const key = term.id ?? `name:${term.name ?? dateId}`;
-      if (!map.has(key)) {
-        map.set(key, {
-          id: term.id ?? null,
-          name: term.name ?? null,
-          shortName: term.shortName ?? null,
-        });
-      }
+      setContainerWidth(entry.contentRect.width);
     });
-    return Array.from(map.values());
-  }, [infoMap, weekDateIds]);
+    observer.observe(element);
 
-  const fullOnDemandClasses = useMemo(() => {
-    return Object.values(classSummaries).filter((item) => item.isFullyOnDemand);
-  }, [classSummaries]);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
-  const onDemandByTerm = useMemo<OnDemandEntry[]>(() => {
-    if (weeklyTerms.length === 0 || fullOnDemandClasses.length === 0) {
-      return [];
+  useEffect(() => {
+    if (configKeyRef.current === configKey) {
+      return;
     }
-    return weeklyTerms
-      .map((term) => {
-        const classes = fullOnDemandClasses
-          .filter((classItem) => {
-            const matchesId = term.id ? classItem.termIds.includes(term.id) : false;
-            const matchesName = term.name ? classItem.termNames.includes(term.name) : false;
-            if (term.id && term.name) {
-              return matchesId || matchesName;
+    configKeyRef.current = configKey;
+    setInfoMap({});
+    setWeekStates({});
+    weekStatesRef.current = {};
+  }, [configKey]);
+
+  const requestWeekData = useCallback(
+    (weekStartDate: Date, options?: { force?: boolean }) => {
+      if (!initialized) {
+        return undefined;
+      }
+
+      const normalizedStart = startOfWeek(weekStartDate);
+      const weekKey = getWeekKey(normalizedStart);
+      const existing = weekStatesRef.current[weekKey];
+
+      if (!options?.force) {
+        if (existing?.loading || existing?.loaded) {
+          return undefined;
+        }
+      } else if (existing?.loading) {
+        return undefined;
+      }
+
+      const dates = existing?.dates ?? generateWeekDates(normalizedStart);
+      const dateIds = existing?.dateIds ?? dates.map((date) => formatDateId(date));
+
+      if (!fiscalYear || !calendarId) {
+        if (
+          existing &&
+          existing.errorMessage === CALENDAR_SETTINGS_ERROR_MESSAGE &&
+          !existing.loading &&
+          !existing.loaded
+        ) {
+          return undefined;
+        }
+
+        const state: WeekState = {
+          dates,
+          dateIds,
+          loading: false,
+          loaded: false,
+          errorMessage: CALENDAR_SETTINGS_ERROR_MESSAGE,
+        };
+
+        setWeekStates((prev) => {
+          const next = { ...prev, [weekKey]: state };
+          weekStatesRef.current = next;
+          return next;
+        });
+
+        return undefined;
+      }
+
+      const loadingState: WeekState = {
+        dates,
+        dateIds,
+        loading: true,
+        loaded: false,
+        errorMessage: null,
+      };
+
+      setWeekStates((prev) => {
+        const next = { ...prev, [weekKey]: loadingState };
+        weekStatesRef.current = next;
+        return next;
+      });
+
+      let cancelled = false;
+      const requestKey = configKeyRef.current;
+
+      Promise.all(
+        dateIds.map(async (dateId) => {
+          const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId, {
+            hasSaturdayClasses,
+          });
+          return { dateId, info } as const;
+        }),
+      )
+        .then((entries) => {
+          if (cancelled || configKeyRef.current !== requestKey) {
+            return;
+          }
+          setInfoMap((prev) => {
+            const nextMap: CalendarInfoMap = { ...prev };
+            for (const entry of entries) {
+              nextMap[entry.dateId] = entry.info;
             }
-            if (term.id) {
-              return matchesId;
+            return nextMap;
+          });
+          setWeekStates((prev) => {
+            const current = prev[weekKey];
+            if (!current) {
+              return prev;
             }
-            if (term.name) {
-              return matchesName;
+            const next: WeekStateMap = {
+              ...prev,
+              [weekKey]: {
+                ...current,
+                loading: false,
+                loaded: true,
+                errorMessage: null,
+              },
+            };
+            weekStatesRef.current = next;
+            return next;
+          });
+        })
+        .catch(() => {
+          if (cancelled || configKeyRef.current !== requestKey) {
+            return;
+          }
+          setWeekStates((prev) => {
+            const current = prev[weekKey];
+            if (!current) {
+              return prev;
             }
-            return false;
-          })
-          .map((classItem) => ({ id: classItem.id, className: classItem.className }))
-          .sort((a, b) => a.className.localeCompare(b.className, 'ja'));
-        return { term, classes } satisfies OnDemandEntry;
-      })
-      .filter((entry) => entry.classes.length > 0);
-  }, [fullOnDemandClasses, weeklyTerms]);
+            const next: WeekStateMap = {
+              ...prev,
+              [weekKey]: {
+                ...current,
+                loading: false,
+                loaded: false,
+                errorMessage: '学事情報の取得に失敗しました。',
+              },
+            };
+            weekStatesRef.current = next;
+            return next;
+          });
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    },
+    [calendarId, fiscalYear, hasSaturdayClasses, initialized],
+  );
+
+  useEffect(() => {
+    const weeksToFetch = [addWeeks(visibleWeekStart, -1), visibleWeekStart, addWeeks(visibleWeekStart, 1)];
+    const cleanups = weeksToFetch
+      .map((week) => requestWeekData(week))
+      .filter((cleanup): cleanup is () => void => typeof cleanup === 'function');
+
+    return () => {
+      for (const cleanup of cleanups) {
+        cleanup();
+      }
+    };
+  }, [visibleWeekStart, requestWeekData]);
+
+  const startTransition = useCallback(
+    (direction: 'prev' | 'next') => {
+      if (isAnimating) {
+        return;
+      }
+
+      if (containerWidth === 0) {
+        setVisibleWeekStart((prev) => addWeeks(prev, direction === 'next' ? 1 : -1));
+        setPendingDirection(null);
+        setTranslate(0);
+        setIsAnimating(false);
+        return;
+      }
+
+      dragDeltaRef.current = direction === 'next' ? -containerWidth : containerWidth;
+      setPendingDirection(direction);
+      setIsAnimating(true);
+      setTranslate(direction === 'next' ? -containerWidth : containerWidth);
+    },
+    [containerWidth, isAnimating],
+  );
+
+  const handleTransitionEnd = useCallback(
+    (event: TransitionEvent<HTMLDivElement>) => {
+      if (event.target !== event.currentTarget) {
+        return;
+      }
+      if (!isAnimating) {
+        return;
+      }
+
+      if (pendingDirection) {
+        setVisibleWeekStart((prev) => addWeeks(prev, pendingDirection === 'next' ? 1 : -1));
+      }
+
+      setTranslate(0);
+      setIsAnimating(false);
+      setPendingDirection(null);
+      dragDeltaRef.current = 0;
+    },
+    [isAnimating, pendingDirection],
+  );
+
+  const releasePointerCapture = useCallback((pointerId: number | null) => {
+    if (pointerId == null) {
+      return;
+    }
+    const element = viewportRef.current;
+    if (!element) {
+      return;
+    }
+    try {
+      if (element.hasPointerCapture(pointerId)) {
+        element.releasePointerCapture(pointerId);
+      }
+    } catch {
+      // no-op
+    }
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+      if (isAnimating) {
+        return;
+      }
+
+      pointerIdRef.current = event.pointerId;
+      dragStartRef.current = event.clientX;
+      dragDeltaRef.current = 0;
+      isPointerDownRef.current = true;
+      setPendingDirection(null);
+      setIsAnimating(false);
+    },
+    [isAnimating],
+  );
+
+  const handlePointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!isPointerDownRef.current || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      const delta = event.clientX - dragStartRef.current;
+      let dragging = isDragging;
+
+      if (!dragging) {
+        if (Math.abs(delta) <= DRAG_DETECTION_THRESHOLD) {
+          return;
+        }
+        setIsDragging(true);
+        dragging = true;
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+
+      const maxOffset = containerWidth;
+      const clamped = Math.max(Math.min(delta, maxOffset), -maxOffset);
+      dragDeltaRef.current = clamped;
+      setTranslate(clamped);
+    },
+    [containerWidth, isDragging],
+  );
+
+  const resetDragState = useCallback(() => {
+    pointerIdRef.current = null;
+    dragStartRef.current = 0;
+    dragDeltaRef.current = 0;
+    isPointerDownRef.current = false;
+  }, []);
+
+  const finishDrag = useCallback(
+    (options?: { cancelled?: boolean }) => {
+      const delta = dragDeltaRef.current;
+      const threshold = containerWidth * 0.25;
+
+      setIsDragging(false);
+      setPendingDirection(null);
+
+      if (!options?.cancelled && containerWidth > 0 && Math.abs(delta) > threshold) {
+        const direction: 'prev' | 'next' = delta > 0 ? 'prev' : 'next';
+        startTransition(direction);
+      } else {
+        if (containerWidth > 0) {
+          setIsAnimating(true);
+        } else {
+          setIsAnimating(false);
+        }
+        setTranslate(0);
+      }
+
+      resetDragState();
+    },
+    [containerWidth, resetDragState, startTransition],
+  );
+
+  const handlePointerEnd = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+
+      releasePointerCapture(event.pointerId);
+      if (isDragging) {
+        finishDrag();
+      } else {
+        resetDragState();
+      }
+    },
+    [finishDrag, isDragging, releasePointerCapture, resetDragState],
+  );
+
+  const handlePointerCancel = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      releasePointerCapture(event.pointerId);
+      if (isDragging) {
+        finishDrag({ cancelled: true });
+      } else {
+        resetDragState();
+      }
+    },
+    [finishDrag, isDragging, releasePointerCapture, resetDragState],
+  );
+
+  useEffect(() => {
+    if (!isDragging) {
+      return;
+    }
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      releasePointerCapture(event.pointerId);
+      finishDrag();
+    };
+    const handleWindowPointerCancel = (event: PointerEvent) => {
+      if (!isDragging || pointerIdRef.current !== event.pointerId) {
+        return;
+      }
+      releasePointerCapture(event.pointerId);
+      finishDrag({ cancelled: true });
+    };
+
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerCancel);
+
+    return () => {
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerCancel);
+    };
+  }, [finishDrag, isDragging, releasePointerCapture]);
+
+  const todayId = useMemo(() => formatDateId(new Date()), []);
+  const weeks = useMemo(
+    () => [addWeeks(visibleWeekStart, -1), visibleWeekStart, addWeeks(visibleWeekStart, 1)],
+    [visibleWeekStart],
+  );
+
+  const trackStyle = useMemo(() => {
+    if (containerWidth === 0) {
+      return {
+        transform: undefined,
+        width: undefined,
+        transition: 'none',
+      } as const;
+    }
+    const baseOffset = -containerWidth;
+    return {
+      width: containerWidth * weeks.length,
+      transform: `translate3d(${baseOffset + translate}px, 0, 0)`,
+      transition: isAnimating ? 'transform 0.3s ease' : 'none',
+    } as const;
+  }, [containerWidth, isAnimating, translate, weeks.length]);
 
   const weekRangeLabel = useMemo(() => {
     const formatter = new Intl.DateTimeFormat('ja-JP', {
@@ -238,195 +575,286 @@ export default function WeeklyCalendarTab() {
       month: 'long',
       day: 'numeric',
     });
-    const startLabel = `${formatter.format(weekStart)}(${WEEKDAY_LABEL_JA[weekStart.getDay()] ?? ''})`;
-    const endLabel = `${formatter.format(weekEnd)}(${WEEKDAY_LABEL_JA[weekEnd.getDay()] ?? ''})`;
+    const start = visibleWeekStart;
+    const end = addDays(visibleWeekStart, 6);
+    const startLabel = `${formatter.format(start)}(${WEEKDAY_LABEL_JA[start.getDay()] ?? ''})`;
+    const endLabel = `${formatter.format(end)}(${WEEKDAY_LABEL_JA[end.getDay()] ?? ''})`;
     return `${startLabel} 〜 ${endLabel}`;
-  }, [weekEnd, weekStart]);
+  }, [visibleWeekStart]);
 
-  const handlePrevWeek = useCallback(() => {
-    setWeekStart((prev) => startOfWeek(addDays(prev, -7)));
-  }, []);
+  const isCalendarConfigured = Boolean(fiscalYear && calendarId);
+  const calendarAvailable = initialized && isCalendarConfigured;
 
-  const handleNextWeek = useCallback(() => {
-    setWeekStart((prev) => startOfWeek(addDays(prev, 7)));
-  }, []);
-
-  const handleResetWeek = useCallback(() => {
-    setWeekStart(startOfWeek(new Date()));
-  }, []);
+  const fullOnDemandClasses = useMemo<FullOnDemandClass[]>(() => {
+    return Object.values(classSummaries)
+      .filter((item) => item.isFullyOnDemand)
+      .map((item) => ({
+        id: item.id,
+        className: item.className,
+        termIds: item.termIds,
+        termNames: item.termNames,
+      }));
+  }, [classSummaries]);
 
   return (
     <div className="flex h-full w-full flex-col bg-neutral-50">
       <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-[var(--color-my-secondary-container)] px-4">
         <div className="flex w-full items-center justify-between gap-3">
-          <div className="text-lg font-semibold text-neutral-900">週カレンダー</div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-lg font-semibold text-neutral-900">{weekRangeLabel}</div>
+          </div>
           <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
         </div>
       </header>
 
-      <div className="flex h-full w-full flex-col">
-        <div className="flex w-full items-center justify-between border-b border-neutral-200 bg-white px-4 py-2">
-          <button
-            type="button"
-            onClick={handlePrevWeek}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-blue-300 hover:text-blue-600"
-            aria-label="前の週を表示"
-          >
-            <FontAwesomeIcon icon={faChevronLeft} />
-          </button>
-          <div className="flex min-w-0 flex-1 justify-center px-3 text-center text-sm font-semibold text-neutral-700">
-            <span className="truncate">{weekRangeLabel}</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleNextWeek}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-blue-300 hover:text-blue-600"
-            aria-label="次の週を表示"
-          >
-            <FontAwesomeIcon icon={faChevronRight} />
-          </button>
-        </div>
-        <div className="flex w-full justify-end border-b border-neutral-200 bg-white px-4 py-2">
-          <button
-            type="button"
-            onClick={handleResetWeek}
-            className="rounded-full border border-neutral-300 px-3 py-1 text-xs font-semibold text-neutral-600 transition hover:border-blue-300 hover:text-blue-600"
-          >
-            今週
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-auto px-4 py-3">
-          {calendarAvailable ? (
+      <div className="flex-1 overflow-hidden">
+        {calendarAvailable ? (
+          <div className="flex h-full w-full flex-col">
             <div
-              className="grid w-full gap-3"
-              style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gridTemplateRows: 'repeat(4, minmax(160px, auto))' }}
+              ref={viewportRef}
+              className="flex w-full flex-1 select-none overflow-hidden touch-pan-y"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerCancel}
             >
-              {weekDateIds.map((dateId, index) => {
-                const info = infoMap[dateId] ?? null;
-                const general = info?.calendar ?? null;
-                const academic = info?.academic ?? null;
-                const day = info?.day ?? null;
-                const classEntries = classEntriesByDate[dateId] ?? [];
+              <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
+                {weeks.map((weekStartDate) => {
+                  const weekKey = getWeekKey(weekStartDate);
+                  const state = weekStates[weekKey];
+                  const style = containerWidth ? { width: containerWidth } : { width: '100%' };
 
-                const isToday = dateId === todayId;
-                const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
-                const weekdayLabel = general?.weekdayLabel ?? '-';
-                const accentClass = resolveAccentColor(general?.dateTextColor);
-                const cellBackground = isToday
-                  ? 'var(--color-calendar-today-background)'
-                  : resolveBackgroundColor(academic?.backgroundColor);
-
-                const isClassDay = day?.type === '授業日';
-                const classOrder = typeof academic?.classOrder === 'number' ? academic.classOrder : null;
-                const classWeekday = typeof academic?.weekdayNumber === 'number' ? academic.weekdayNumber : null;
-                const weekdayColor =
-                  typeof classWeekday === 'number' ? WEEKDAY_COLORS[classWeekday] ?? '#2563eb' : '#2563eb';
-
-                return (
-                  <div
-                    key={dateId}
-                    className="flex h-full min-h-[160px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
-                    style={{ backgroundColor: cellBackground }}
-                  >
-                    <div className="flex items-start justify-between gap-3 border-b border-neutral-200 bg-white/70 px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-baseline gap-1">
-                          <span className={`text-lg font-semibold ${accentClass}`}>{dateNumber}</span>
-                          <span className={`text-xs font-semibold ${accentClass}`}>{weekdayLabel}</span>
-                        </div>
-                        {isClassDay && classOrder ? (
-                          <span
-                            className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full text-[11px] font-bold text-white"
-                            style={{ backgroundColor: weekdayColor }}
-                          >
-                            {classOrder}
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex min-w-0 flex-col items-end text-right">
-                        <span className="truncate text-[11px] font-semibold text-neutral-700">
-                          {academic?.label ?? '-'}
-                        </span>
-                        {academic?.subLabel ? (
-                          <span className="truncate text-[10px] text-neutral-500">{academic.subLabel}</span>
-                        ) : null}
-                      </div>
+                  return (
+                    <div key={weekKey} className="flex h-full w-full flex-shrink-0" style={style}>
+                      <WeekSlide
+                        weekStart={weekStartDate}
+                        weekState={state}
+                        infoMap={infoMap}
+                        classEntriesByDate={classEntriesByDate}
+                        fullOnDemandClasses={fullOnDemandClasses}
+                        todayId={todayId}
+                      />
                     </div>
-                    <div className="flex flex-1 flex-col gap-1 px-3 py-2">
-                      {classEntries.length > 0 ? (
-                        classEntries.map((entry) => {
-                          const { icon, className: iconClass } = resolveSessionIcon(
-                            entry.classType,
-                            entry.deliveryType,
-                          );
-                          return (
-                            <div
-                              key={entry.id}
-                              className="flex min-h-[18px] items-center gap-1 text-[11px] leading-tight text-neutral-800"
-                            >
-                              <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={11} />
-                              <span className="flex-1 truncate">{entry.className}</span>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="flex flex-1 items-center justify-center text-[11px] text-neutral-500">
-                          授業は登録されていません
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              <div className="flex h-full min-h-[160px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between gap-3 border-b border-neutral-200 bg-white/70 px-3 py-2">
-                  <div className="text-sm font-semibold text-neutral-800">フルオンデマンド</div>
-                  <FontAwesomeIcon icon={faVideo} className="text-neutral-500" fontSize={14} />
-                </div>
-                <div className="flex flex-1 flex-col gap-2 px-3 py-2">
-                  {onDemandByTerm.length > 0 ? (
-                    onDemandByTerm.map((entry) => {
-                      const termLabel = entry.term.shortName ?? entry.term.name ?? '学期情報なし';
-                      return (
-                        <div key={`${entry.term.id ?? 'term'}-${termLabel}`} className="flex flex-col gap-1">
-                          <span className="text-[11px] font-semibold text-neutral-600">{termLabel}</span>
-                          <ul className="flex flex-col gap-[2px]">
-                            {entry.classes.map((item) => (
-                              <li key={item.id} className="truncate text-[11px] text-neutral-800">
-                                {item.className}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="flex flex-1 items-center justify-center text-center text-[11px] text-neutral-500">
-                      {fullOnDemandClasses.length > 0
-                        ? '該当するオンデマンド授業はありません'
-                        : 'オンデマンド授業は登録されていません'}
-                    </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
             </div>
-          ) : (
-            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-white/60 px-4 py-6 text-center text-sm text-neutral-600">
-              {!initialized ? '学事カレンダー設定を読み込み中です...' : CALENDAR_SETTINGS_ERROR_MESSAGE}
+          </div>
+        ) : (
+          <div className="flex h-full items-center justify-center bg-neutral-50 px-6 text-center text-sm text-neutral-600">
+            {!initialized
+              ? '学事カレンダー設定を読み込み中です...'
+              : CALENDAR_SETTINGS_ERROR_MESSAGE}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type WeekSlideProps = {
+  weekStart: Date;
+  weekState: WeekState | undefined;
+  infoMap: CalendarInfoMap;
+  classEntriesByDate: ClassEntriesByDateMap;
+  fullOnDemandClasses: FullOnDemandClass[];
+  todayId: string;
+};
+
+function WeekSlide({
+  weekStart,
+  weekState,
+  infoMap,
+  classEntriesByDate,
+  fullOnDemandClasses,
+  todayId,
+}: WeekSlideProps) {
+  const rawDates = weekState?.dates ?? generateWeekDates(weekStart);
+  const rawDateIds = weekState?.dateIds ?? rawDates.map((date) => formatDateId(date));
+
+  const dates = rawDates.slice(0, 7);
+  const dateIds = rawDateIds.slice(0, dates.length);
+  const totalCells = dates.length;
+  const isLoading = Boolean(weekState?.loading && !weekState?.loaded);
+  const errorMessage = weekState?.errorMessage ?? null;
+  const isCalendarSettingsError = errorMessage === CALENDAR_SETTINGS_ERROR_MESSAGE;
+
+  const weeklyTerms: WeeklyTermSummary[] = [];
+  const termMap = new Map<string, WeeklyTermSummary>();
+  dateIds.forEach((dateId) => {
+    const term = infoMap[dateId]?.term;
+    if (!term) {
+      return;
+    }
+    const key = term.id ?? `name:${term.name ?? dateId}`;
+    if (termMap.has(key)) {
+      return;
+    }
+    termMap.set(key, {
+      id: term.id ?? null,
+      name: term.name ?? null,
+      shortName: term.shortName ?? null,
+    });
+  });
+  termMap.forEach((value) => {
+    weeklyTerms.push(value);
+  });
+
+  const onDemandByTerm: OnDemandEntry[] = weeklyTerms
+    .map((term) => {
+      const classes = fullOnDemandClasses
+        .filter((classItem) => {
+          const matchesId = term.id ? classItem.termIds.includes(term.id) : false;
+          const matchesName = term.name ? classItem.termNames.includes(term.name) : false;
+          if (term.id && term.name) {
+            return matchesId || matchesName;
+          }
+          if (term.id) {
+            return matchesId;
+          }
+          if (term.name) {
+            return matchesName;
+          }
+          return false;
+        })
+        .map((classItem) => ({ id: classItem.id, className: classItem.className }))
+        .sort((a, b) => a.className.localeCompare(b.className, 'ja'));
+      return { term, classes } satisfies OnDemandEntry;
+    })
+    .filter((entry) => entry.classes.length > 0);
+
+  return (
+    <div className="flex h-full w-full flex-col">
+      <div className="grid h-full w-full grid-cols-2 grid-rows-4" style={{ border: `1px solid ${BORDER_COLOR}` }}>
+        {dates.map((date, index) => {
+          const dateId = dateIds[index];
+          const info = infoMap[dateId];
+          const general = info?.calendar ?? null;
+          const academic = info?.academic ?? null;
+          const day = info?.day ?? null;
+          const classEntries = classEntriesByDate[dateId] ?? [];
+
+          const isToday = dateId === todayId;
+          const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
+          const weekdayLabel = general?.weekdayLabel ?? '-';
+          const accentClass = resolveAccentColor(general?.dateTextColor);
+          const cellBackground = isToday
+            ? 'var(--color-calendar-today-background)'
+            : resolveBackgroundColor(academic?.backgroundColor);
+
+          const isClassDay = day?.type === '授業日';
+          const classOrder = typeof academic?.classOrder === 'number' ? academic.classOrder : null;
+          const classWeekday = typeof academic?.weekdayNumber === 'number' ? academic.weekdayNumber : null;
+          const weekdayColor =
+            typeof classWeekday === 'number' ? WEEKDAY_COLORS[classWeekday] ?? '#2563eb' : '#2563eb';
+
+          const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;
+          const showBottomBorder = index < totalCells - WEEK_COLUMN_COUNT;
+
+          return (
+            <div
+              key={dateId}
+              className="flex min-h-0 w-full flex-col bg-white"
+              style={{
+                backgroundColor: cellBackground,
+                borderRight: showRightBorder ? `1px solid ${BORDER_COLOR}` : undefined,
+                borderBottom: showBottomBorder ? `1px solid ${BORDER_COLOR}` : undefined,
+              }}
+            >
+              <div className="flex items-start justify-between gap-2 border-b border-neutral-200/80 bg-white/80 px-2 py-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-lg font-semibold ${accentClass}`}>{dateNumber}</span>
+                    <span className={`text-xs font-semibold ${accentClass}`}>{weekdayLabel}</span>
+                  </div>
+                  {isClassDay && classOrder ? (
+                    <span
+                      className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      style={{ backgroundColor: weekdayColor }}
+                    >
+                      {classOrder}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="flex min-w-0 flex-col items-end text-right">
+                  <span className="truncate text-[11px] font-semibold text-neutral-700">
+                    {academic?.label ?? '-'}
+                  </span>
+                  {academic?.subLabel ? (
+                    <span className="truncate text-[10px] text-neutral-500">{academic.subLabel}</span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="flex flex-1 flex-col gap-1 px-2 py-2">
+                {classEntries.length > 0 ? (
+                  classEntries.map((entry) => {
+                    const { icon, className: iconClass } = resolveSessionIcon(
+                      entry.classType,
+                      entry.deliveryType,
+                    );
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex min-h-[18px] items-center gap-1 text-[11px] leading-tight text-neutral-800"
+                      >
+                        <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={11} />
+                        <span className="flex-1 truncate">{entry.className}</span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-[11px] text-neutral-500">
+                    授業は登録されていません
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+          );
+        })}
 
-          {loading ? (
-            <div className="mt-3 text-center text-xs text-neutral-500">読み込み中...</div>
-          ) : null}
-
-          {error && error !== CALENDAR_SETTINGS_ERROR_MESSAGE ? (
-            <div className="mt-3 text-center text-xs text-red-600">{error}</div>
-          ) : null}
+        <div
+          className="flex min-h-0 w-full flex-col bg-white"
+          style={{ borderTop: `1px solid ${BORDER_COLOR}` }}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-neutral-200/80 bg-white/80 px-2 py-2">
+            <span className="text-sm font-semibold text-neutral-800">フルオンデマンド</span>
+            <FontAwesomeIcon icon={faVideo} className="text-neutral-500" fontSize={14} />
+          </div>
+          <div className="flex flex-1 flex-col gap-2 px-2 py-2 text-[11px] text-neutral-800">
+            {onDemandByTerm.length > 0 ? (
+              onDemandByTerm.map((entry) => {
+                const termLabel = entry.term.shortName ?? entry.term.name ?? '学期情報なし';
+                return (
+                  <div key={`${entry.term.id ?? 'term'}-${termLabel}`} className="flex flex-col gap-1">
+                    <span className="text-[11px] font-semibold text-neutral-600">{termLabel}</span>
+                    <ul className="flex flex-col gap-[2px]">
+                      {entry.classes.map((item) => (
+                        <li key={item.id} className="truncate">
+                          {item.className}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="flex flex-1 items-center justify-center text-center text-[11px] text-neutral-500">
+                {fullOnDemandClasses.length > 0
+                  ? '該当するオンデマンド授業はありません'
+                  : 'オンデマンド授業は登録されていません'}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {isLoading ? (
+        <div className="px-3 py-2 text-center text-xs text-neutral-500">読み込み中...</div>
+      ) : null}
+
+      {errorMessage && !isCalendarSettingsError ? (
+        <div className="px-3 py-2 text-center text-xs text-red-600">{errorMessage}</div>
+      ) : null}
     </div>
   );
 }
