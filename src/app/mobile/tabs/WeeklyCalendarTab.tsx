@@ -770,27 +770,21 @@ function WeekSlide({
                 </div>
               </div>
               <div className="flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto px-2 py-2 touch-pan-y">
-                {classEntries.length > 0 ? (
-                  classEntries.map((entry) => {
-                    const { icon, className: iconClass } = resolveSessionIcon(
-                      entry.classType,
-                      entry.deliveryType,
-                    );
-                    return (
-                      <div
-                        key={entry.id}
-                        className="flex min-h-[18px] items-center gap-1 text-[11px] leading-tight text-neutral-800"
-                      >
-                        <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={11} />
-                        <span className="flex-1 truncate">{entry.className}</span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="flex flex-1 items-center justify-center text-center text-[11px] text-neutral-500">
-                    授業は登録されていません
-                  </div>
-                )}
+                {classEntries.map((entry) => {
+                  const { icon, className: iconClass } = resolveSessionIcon(
+                    entry.classType,
+                    entry.deliveryType,
+                  );
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex min-h-[18px] items-center gap-1 text-[12px] leading-[1.15] text-neutral-800"
+                    >
+                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
+                      <span className="flex-1 truncate">{entry.className}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
