@@ -290,6 +290,24 @@ function SingleMonthCalendarView({
                   date.getFullYear() === activeMonthDate.getFullYear() &&
                   date.getMonth() === activeMonthDate.getMonth();
                 const isToday = dateId === todayId;
+                const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
+                const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
+
+                if (!isCurrentMonth) {
+                  return (
+                    <div
+                      key={dateId}
+                      className="flex h-full min-h-0 w-full flex-col bg-white"
+                      style={{
+                        borderRightWidth: showRightBorder ? 1 : 0,
+                        borderBottomWidth: showBottomBorder ? 1 : 0,
+                        borderColor: "rgba(212, 212, 216, 1)",
+                        borderStyle: "solid",
+                      }}
+                    />
+                  );
+                }
+
                 const hasNotificationAlert =
                   Array.isArray(day?.notificationReasons) &&
                   day.notificationReasons.some((reason) => reason === "1" || reason === "2" || reason === "3");
@@ -318,15 +336,10 @@ function SingleMonthCalendarView({
                     ? fallbackTermName
                     : academic?.label ?? "予定なし";
 
-                const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
-                const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
-
                 return (
                   <div
                     key={dateId}
                     className={`flex h-full min-h-0 w-full flex-col overflow-hidden px-2 py-2 text-left text-[11px] leading-tight ${
-                      isCurrentMonth ? "" : "opacity-50"
-                    } ${
                       isToday
                         ? ""
                         : "hover:bg-neutral-200/60"
@@ -527,6 +540,24 @@ function GridCalendarView({
                       date.getFullYear() === config.date.getFullYear() &&
                       date.getMonth() === config.date.getMonth();
                     const isToday = dateId === todayId;
+                    const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
+                    const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
+
+                    if (!isCurrentMonth) {
+                      return (
+                        <div
+                          key={`${config.displayYear}-${config.month}-${dateId}`}
+                          className="flex h-full min-h-[60px] w-full flex-col bg-white"
+                          style={{
+                            borderRightWidth: showRightBorder ? 1 : 0,
+                            borderBottomWidth: showBottomBorder ? 1 : 0,
+                            borderColor: "rgba(212, 212, 216, 1)",
+                            borderStyle: "solid",
+                          }}
+                        />
+                      );
+                    }
+
                     const hasNotificationAlert =
                       Array.isArray(day?.notificationReasons) &&
                       day.notificationReasons.some((reason) => reason === "1" || reason === "2" || reason === "3");
@@ -555,15 +586,12 @@ function GridCalendarView({
                         ? fallbackTermName
                         : academic?.label ?? "予定なし";
 
-                    const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
-                    const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
-
                     return (
                       <div
                         key={`${config.displayYear}-${config.month}-${dateId}`}
                         className={`flex h-full min-h-[60px] w-full flex-col overflow-hidden px-2 py-1.5 text-left text-[10px] leading-tight ${
-                          isCurrentMonth ? "" : "opacity-50"
-                        } ${isToday ? "" : "hover:bg-neutral-200/60"}`}
+                          isToday ? "" : "hover:bg-neutral-200/60"
+                        }`}
                         style={{
                           backgroundColor: cellBackgroundColor,
                           borderRightWidth: showRightBorder ? 1 : 0,
