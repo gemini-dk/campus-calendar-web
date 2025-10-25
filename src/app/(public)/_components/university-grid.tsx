@@ -9,6 +9,7 @@ import {
   extractSchoolColor,
   type SchoolColor,
 } from '@/lib/university-color';
+import { getCalendarHref } from '@/lib/calendar-url';
 
 type UniversityWithColor = University & {
   colorRgb?: {
@@ -104,7 +105,7 @@ export function SearchableUniversityGrid({
           {filteredUniversities.map((university) => {
             const color = extractSchoolColor(university);
             const accent = createAccentStyles(color);
-            const scheduleHref = `/calendars/${encodeURIComponent(university.webId)}`;
+            const scheduleHref = getCalendarHref(university.webId);
 
             return (
               <li key={university.id} className="h-full w-full">
