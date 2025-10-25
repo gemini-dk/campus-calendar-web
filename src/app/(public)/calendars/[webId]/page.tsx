@@ -6,7 +6,8 @@ import UniversityCalendarContent from "./_components/UniversityCalendarContent";
 import { getUniversityByWebId, listUniversityCalendars } from "@/lib/data/service/university.service";
 import { extractSchoolColor } from "@/lib/university-color";
 
-const FISCAL_YEAR = "2025";
+const FISCAL_YEARS = ["2025", "2026"] as const;
+const DEFAULT_FISCAL_YEAR = FISCAL_YEARS[0];
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const university = await getUniversityByWebId(webId);
   if (!university) {
     return {
-      title: `${webId} | 2025年度 学事予定`,
+      title: `${webId} | ${DEFAULT_FISCAL_YEAR}年度 学事予定`,
     };
   }
   return {
-    title: `${university.name} ${FISCAL_YEAR}年度 学事予定・授業日程`,
-    description: `${university.name}の${FISCAL_YEAR}年度学事予定（授業開始日、試験期間、休業日など）を掲載しています。春学期・秋学期のスケジュールを確認できます。`,
+    title: `${university.name} ${DEFAULT_FISCAL_YEAR}年度 学事予定・授業日程`,
+    description: `${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定（授業開始日、試験期間、休業日など）を掲載しています。春学期・秋学期のスケジュールを確認できます。`,
   };
 }
 
@@ -35,7 +36,13 @@ export default async function Page({ params }: PageProps) {
     notFound();
   }
 
-  const calendars = await listUniversityCalendars(university, FISCAL_YEAR);
+  const calendarEntries = await Promise.all(
+    FISCAL_YEARS.map(async (fiscalYear) => {
+      const calendars = await listUniversityCalendars(university, fiscalYear);
+      return [fiscalYear, calendars] as const;
+    }),
+  );
+  const calendarsByFiscalYear = Object.fromEntries(calendarEntries);
   const schoolColor = extractSchoolColor(university);
   const accentColor = schoolColor
     ? `rgb(${schoolColor.r}, ${schoolColor.g}, ${schoolColor.b})`
@@ -46,7 +53,7 @@ export default async function Page({ params }: PageProps) {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12">
         <header className="flex w-full flex-col gap-4">
           <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
-            {`${university.name} ${FISCAL_YEAR}年度 学事予定・授業日程`}
+            {`${university.name} 学事予定・授業日程`}
             <span
               className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
               style={{
@@ -66,7 +73,11 @@ export default async function Page({ params }: PageProps) {
             </Link>
           ) : null}
         </header>
-        <UniversityCalendarContent fiscalYear={FISCAL_YEAR} calendars={calendars} />
+        <UniversityCalendarContent
+          fiscalYears={FISCAL_YEARS}
+          defaultFiscalYear={DEFAULT_FISCAL_YEAR}
+          calendarsByFiscalYear={calendarsByFiscalYear}
+        />
       </div>
     </main>
   );

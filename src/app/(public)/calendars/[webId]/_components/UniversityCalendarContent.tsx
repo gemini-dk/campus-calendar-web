@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import PublicCalendarView from "@/app/(public)/public/calendar/_components/PublicCalendarView";
 import type { UniversityCalendar } from "@/lib/data/schema/university";
@@ -8,12 +8,23 @@ import type { UniversityCalendar } from "@/lib/data/schema/university";
 import AppInstallFooter from "./AppInstallFooter";
 
 type UniversityCalendarContentProps = {
-  fiscalYear: string;
-  calendars: UniversityCalendar[];
+  fiscalYears: readonly string[];
+  defaultFiscalYear: string;
+  calendarsByFiscalYear: Record<string, UniversityCalendar[]>;
 };
 
-export default function UniversityCalendarContent({ fiscalYear, calendars }: UniversityCalendarContentProps) {
-  const [selectedCalendarId, setSelectedCalendarId] = useState(() => calendars[0]?.id ?? "");
+export default function UniversityCalendarContent({
+  fiscalYears,
+  defaultFiscalYear,
+  calendarsByFiscalYear,
+}: UniversityCalendarContentProps) {
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState(defaultFiscalYear);
+  const calendars = useMemo(() => calendarsByFiscalYear[selectedFiscalYear] ?? [], [calendarsByFiscalYear, selectedFiscalYear]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState(() => calendarsByFiscalYear[defaultFiscalYear]?.[0]?.id ?? "");
+
+  useEffect(() => {
+    setSelectedCalendarId(calendars[0]?.id ?? "");
+  }, [calendars, selectedFiscalYear]);
 
   const activeCalendar = useMemo(() => {
     if (!selectedCalendarId) {
@@ -25,6 +36,23 @@ export default function UniversityCalendarContent({ fiscalYear, calendars }: Uni
   return (
     <>
       <div className="flex w-full flex-col gap-6 pb-36 md:pb-32">
+        <div className="flex w-full flex-col gap-2">
+          <label className="text-sm font-semibold text-neutral-800" htmlFor="fiscal-year-select">
+            年度を選択
+          </label>
+          <select
+            id="fiscal-year-select"
+            value={selectedFiscalYear}
+            onChange={(event) => setSelectedFiscalYear(event.target.value)}
+            className="h-11 w-full rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          >
+            {fiscalYears.map((fiscalYear) => (
+              <option key={fiscalYear} value={fiscalYear}>
+                {fiscalYear}年度
+              </option>
+            ))}
+          </select>
+        </div>
         {calendars.length > 0 ? (
           <>
             <div className="flex w-full flex-col gap-2">
@@ -50,7 +78,7 @@ export default function UniversityCalendarContent({ fiscalYear, calendars }: Uni
             {activeCalendar ? (
               <div className="w-full">
                 <PublicCalendarView
-                  fiscalYear={activeCalendar.fiscalYear || fiscalYear}
+                  fiscalYear={activeCalendar.fiscalYear || selectedFiscalYear}
                   calendarId={activeCalendar.calendarId}
                   initialMonth={null}
                   hasSaturdayClasses={activeCalendar.hasSaturdayClasses ?? true}
@@ -61,7 +89,7 @@ export default function UniversityCalendarContent({ fiscalYear, calendars }: Uni
           </>
         ) : (
           <div className="flex w-full flex-col rounded-lg border border-neutral-200 bg-white px-4 py-6 text-sm text-neutral-600">
-            2025年度の公開学事カレンダーが登録されていません。
+            {selectedFiscalYear}年度の公開学事カレンダーが登録されていません。
           </div>
         )}
         <div className="flex w-full justify-end gap-2">
@@ -80,7 +108,7 @@ export default function UniversityCalendarContent({ fiscalYear, calendars }: Uni
         </div>
       </div>
       <AppInstallFooter
-        fiscalYear={fiscalYear}
+        fiscalYear={selectedFiscalYear}
         calendar={
           activeCalendar
             ? {

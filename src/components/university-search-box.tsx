@@ -143,7 +143,7 @@ export function UniversitySearchBox({ variant = 'default' }: UniversitySearchBox
                     onClick={() => {
                       setOpen(false);
                       setQuery('');
-                      router.push(`/universities/2025/${encodeURIComponent(entry.webId)}`);
+                      router.push(`/calendars/${encodeURIComponent(entry.webId)}`);
                     }}
                   >
                     <span className="truncate font-semibold text-slate-900">{entry.name}</span>
