@@ -8,6 +8,7 @@ import {
   useUniversitySearch,
   type UniversitySearchEntry,
 } from '@/lib/search/UniversitySearchContext';
+import { getCalendarHref } from '@/lib/calendar-url';
 
 function normalizeCandidate(value: string): string {
   return normalizeUniversitySearchQuery(value);
@@ -143,7 +144,7 @@ export function UniversitySearchBox({ variant = 'default' }: UniversitySearchBox
                     onClick={() => {
                       setOpen(false);
                       setQuery('');
-                      router.push(`/calendars/${encodeURIComponent(entry.webId)}`);
+                      router.push(getCalendarHref(entry.webId));
                     }}
                   >
                     <span className="truncate font-semibold text-slate-900">{entry.name}</span>
