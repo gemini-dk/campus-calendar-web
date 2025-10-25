@@ -34,8 +34,15 @@ type CalendarEntry = {
   hasSaturdayClasses: boolean;
 };
 
+type ScheduleCreateRequest = {
+  termId: string;
+  dayOfWeek: number;
+  periodKey: string;
+};
+
 type ClassScheduleViewProps = {
   calendar: CalendarEntry | null;
+  onRequestCreateClass?: (request: ScheduleCreateRequest) => void;
 };
 
 type LoadState = "idle" | "loading" | "success" | "error";
@@ -344,7 +351,7 @@ function assignDayEventColumns(events: DayScheduleEvent[]): void {
   }
 }
 
-export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) {
+export default function ClassScheduleView({ calendar, onRequestCreateClass }: ClassScheduleViewProps) {
   const { profile } = useAuth();
   const userId = profile?.uid ?? null;
 
@@ -1115,6 +1122,10 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
           >
             {pagerItems.map((item, index) => {
               const layoutForTerm = !item.isPlaceholder ? scheduleLayoutByTerm.get(item.id) ?? null : null;
+              const scheduleMap = !item.isPlaceholder ? scheduleByTerm.get(item.id) ?? null : null;
+              const termForItem = !item.isPlaceholder
+                ? terms.find((term) => term.id === item.id) ?? null
+                : null;
               const fullOnDemandEntries = !item.isPlaceholder
                 ? fullOnDemandByTerm.get(item.id) ?? []
                 : [];
@@ -1157,16 +1168,63 @@ export default function ClassScheduleView({ calendar }: ClassScheduleViewProps) 
                           >
                             <span className="block w-full truncate">{label}</span>
                           </div>
-                          {weekdayHeaders.map((weekday, weekdayIndex) => (
-                            <div
-                              key={`cell-${label}-${weekday.key}`}
-                              className="border-b border-r border-neutral-200 bg-white"
-                              style={{
-                                gridColumnStart: weekdayIndex + 2,
-                                gridRowStart: rowIndex + 2,
-                              }}
-                            />
-                          ))}
+                          {weekdayHeaders.map((weekday, weekdayIndex) => {
+                            const cellKey = `${weekday.key}-${label}`;
+                            const hasEntries = (scheduleMap?.get(cellKey)?.length ?? 0) > 0;
+                            const requestHandler = onRequestCreateClass ?? null;
+                            const canCreate =
+                              requestHandler !== null &&
+                              Boolean(termForItem) &&
+                              !hasEntries;
+
+                            if (canCreate && termForItem && requestHandler) {
+                              const numeric = Number.parseInt(label, 10);
+                              const normalizedPeriods: Array<number | "OD"> =
+                                label === "OD"
+                                  ? ["OD"]
+                                  : Number.isFinite(numeric)
+                                    ? [numeric]
+                                    : [];
+                              const periodLabel =
+                                normalizedPeriods.length > 0
+                                  ? formatPeriodLabel(normalizedPeriods)
+                                  : label;
+
+                              return (
+                                <button
+                                  key={`cell-${label}-${weekday.key}`}
+                                  type="button"
+                                  onClick={() =>
+                                    requestHandler({
+                                      termId: termForItem.id,
+                                      dayOfWeek: weekday.key,
+                                      periodKey: label,
+                                    })
+                                  }
+                                  className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-white transition hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+                                  style={{
+                                    gridColumnStart: weekdayIndex + 2,
+                                    gridRowStart: rowIndex + 2,
+                                  }}
+                                  aria-label={`${weekday.label}曜 ${periodLabel}に授業を追加`}
+                                  title={`${weekday.label}曜 ${periodLabel}に授業を追加`}
+                                >
+                                  <span className="sr-only">{`${weekday.label}曜 ${periodLabel}に授業を追加`}</span>
+                                </button>
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={`cell-${label}-${weekday.key}`}
+                                className="border-b border-r border-neutral-200 bg-white"
+                                style={{
+                                  gridColumnStart: weekdayIndex + 2,
+                                  gridRowStart: rowIndex + 2,
+                                }}
+                              />
+                            );
+                          })}
                         </Fragment>
                       ))}
 
