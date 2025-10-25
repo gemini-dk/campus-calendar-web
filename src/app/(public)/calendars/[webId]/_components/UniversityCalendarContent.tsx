@@ -33,29 +33,31 @@ export default function UniversityCalendarContent({
     return calendars.find((item) => item.id === selectedCalendarId) ?? calendars[0] ?? null;
   }, [calendars, selectedCalendarId]);
 
+  const hasCalendars = calendars.length > 0;
+
   return (
     <>
       <div className="flex w-full flex-col gap-6 pb-36 md:pb-32">
-        <div className="flex w-full flex-col gap-2">
-          <label className="text-sm font-semibold text-neutral-800" htmlFor="fiscal-year-select">
-            年度を選択
-          </label>
-          <select
-            id="fiscal-year-select"
-            value={selectedFiscalYear}
-            onChange={(event) => setSelectedFiscalYear(event.target.value)}
-            className="h-11 w-full rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-          >
-            {fiscalYears.map((fiscalYear) => (
-              <option key={fiscalYear} value={fiscalYear}>
-                {fiscalYear}年度
-              </option>
-            ))}
-          </select>
-        </div>
-        {calendars.length > 0 ? (
-          <>
-            <div className="flex w-full flex-col gap-2">
+        <div className={`flex w-full flex-col gap-6 ${hasCalendars ? "md:flex-row md:items-end md:gap-6" : ""}`}>
+          <div className="flex w-full flex-col gap-2 md:flex-1">
+            <label className="text-sm font-semibold text-neutral-800" htmlFor="fiscal-year-select">
+              年度を選択
+            </label>
+            <select
+              id="fiscal-year-select"
+              value={selectedFiscalYear}
+              onChange={(event) => setSelectedFiscalYear(event.target.value)}
+              className="h-11 w-full rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              {fiscalYears.map((fiscalYear) => (
+                <option key={fiscalYear} value={fiscalYear}>
+                  {fiscalYear}年度
+                </option>
+              ))}
+            </select>
+          </div>
+          {hasCalendars ? (
+            <div className="flex w-full flex-col gap-2 md:flex-1">
               <label className="text-sm font-semibold text-neutral-800" htmlFor="university-calendar-select">
                 学事予定を選択
               </label>
@@ -71,22 +73,22 @@ export default function UniversityCalendarContent({
                   </option>
                 ))}
               </select>
-              {activeCalendar?.note ? (
-                <p className="text-xs text-neutral-500">{activeCalendar.note}</p>
-              ) : null}
+              {activeCalendar?.note ? <p className="text-xs text-neutral-500">{activeCalendar.note}</p> : null}
             </div>
-            {activeCalendar ? (
-              <div className="w-full">
-                <PublicCalendarView
-                  fiscalYear={activeCalendar.fiscalYear || selectedFiscalYear}
-                  calendarId={activeCalendar.calendarId}
-                  initialMonth={null}
-                  hasSaturdayClasses={activeCalendar.hasSaturdayClasses ?? true}
-                  displayMode="grid"
-                />
-              </div>
-            ) : null}
-          </>
+          ) : null}
+        </div>
+        {hasCalendars ? (
+          activeCalendar ? (
+            <div className="w-full">
+              <PublicCalendarView
+                fiscalYear={activeCalendar.fiscalYear || selectedFiscalYear}
+                calendarId={activeCalendar.calendarId}
+                initialMonth={null}
+                hasSaturdayClasses={activeCalendar.hasSaturdayClasses ?? true}
+                displayMode="grid"
+              />
+            </div>
+          ) : null
         ) : (
           <div className="flex w-full flex-col rounded-lg border border-neutral-200 bg-white px-4 py-6 text-sm text-neutral-600">
             {selectedFiscalYear}年度の公開学事カレンダーが登録されていません。
