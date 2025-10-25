@@ -120,7 +120,14 @@ type EditModeProps = {
   onUpdated?: () => void;
 };
 
-type CreateClassDialogProps = BaseCreateClassDialogProps & (CreateModeProps | EditModeProps);
+type CreateDialogPresetProps = {
+  presetTermIds?: string[] | null;
+  presetWeeklySlots?: WeeklySlotSelection[] | null;
+};
+
+type CreateClassDialogProps = BaseCreateClassDialogProps &
+  (CreateModeProps | EditModeProps) &
+  CreateDialogPresetProps;
 
 function buildCalendarKey(option: CalendarOption): string {
   return `${option.fiscalYear}::${option.calendarId}`;
@@ -173,6 +180,8 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
     defaultFiscalYear,
     defaultCalendarId,
     userId,
+    presetTermIds,
+    presetWeeklySlots,
   } = props;
 
   const mode: ClassFormMode = props.mode ?? "create";
@@ -277,7 +286,25 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
       return;
     }
 
-    setFormState(INITIAL_FORM_STATE);
+    const normalizedPresetTerms = Array.isArray(presetTermIds)
+      ? presetTermIds.filter((termId) => typeof termId === "string" && termId.trim().length > 0)
+      : [];
+    const normalizedPresetSlots = Array.isArray(presetWeeklySlots)
+      ? presetWeeklySlots
+          .filter((slot): slot is WeeklySlotSelection =>
+            typeof slot === "object" &&
+            slot !== null &&
+            typeof slot.dayOfWeek === "number" &&
+            typeof slot.period === "number",
+          )
+          .map((slot) => ({ ...slot }))
+      : [];
+
+    setFormState({
+      ...INITIAL_FORM_STATE,
+      selectedTermIds: normalizedPresetTerms,
+      weeklySlots: normalizedPresetSlots,
+    });
     setScheduleLoadState("idle");
     setGeneratedClassDates([]);
 
@@ -297,6 +324,8 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
     editInitialData,
     isEditMode,
     isOpen,
+    presetTermIds,
+    presetWeeklySlots,
   ]);
 
   useEffect(() => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, ChangeEvent, useMemo, useState } from "react";
+import { useEffect, ChangeEvent, useMemo, useState, useCallback } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faListUl, faPlus, faTable } from "@fortawesome/free-solid-svg-icons";
@@ -13,8 +13,15 @@ import UserHamburgerMenu from "../components/UserHamburgerMenu";
 import ClassScheduleView from "./classes/ClassScheduleView";
 import ClassSubjectsListView from "./classes/ClassSubjectsListView";
 import { CreateClassDialog } from "./classes/CreateClassDialog";
+import type { WeeklySlotSelection } from "@/lib/data/service/class.service";
 
 type ClassesViewMode = "schedule" | "subjects";
+
+type CreateClassPreset = {
+  termId: string;
+  dayOfWeek: number;
+  periodKey: string;
+};
 
 type CalendarEntry = {
   fiscalYear: string;
@@ -31,6 +38,7 @@ export default function ClassesTab() {
   const { settings, saveCalendarSettings } = useUserSettings();
   const { profile, isAuthenticated } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogPreset, setDialogPreset] = useState<CreateClassPreset | null>(null);
   const [viewMode, setViewMode] = useState<ClassesViewMode>("schedule");
 
   const calendarEntries = settings.calendar.entries ?? [];
@@ -100,22 +108,45 @@ export default function ClassesTab() {
 
   const viewTitle = viewMode === "schedule" ? "時間割" : "授業科目一覧";
 
-  const handleOpenDialog = () => {
-    if (!isAuthenticated) {
-      return;
-    }
-    setIsDialogOpen(true);
-  };
+  const handleOpenDialog = useCallback(
+    (preset?: CreateClassPreset) => {
+      if (!isAuthenticated) {
+        return;
+      }
+      setDialogPreset(preset ?? null);
+      setIsDialogOpen(true);
+    },
+    [isAuthenticated],
+  );
 
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
+    setDialogPreset(null);
   };
 
   const handleCreated = () => {
     setIsDialogOpen(false);
+    setDialogPreset(null);
   };
 
   const userId = profile?.uid ?? null;
+
+  const presetTermIds = dialogPreset ? [dialogPreset.termId] : undefined;
+
+  let presetWeeklySlots: WeeklySlotSelection[] | undefined;
+  if (dialogPreset) {
+    const periodValue = dialogPreset.periodKey === "OD"
+      ? 0
+      : Number.parseInt(dialogPreset.periodKey, 10);
+    if (Number.isFinite(periodValue)) {
+      presetWeeklySlots = [
+        {
+          dayOfWeek: dialogPreset.dayOfWeek,
+          period: Number(periodValue),
+        },
+      ];
+    }
+  }
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-1 flex-col bg-neutral-50">
@@ -153,7 +184,10 @@ export default function ClassesTab() {
         }`}
       >
         {viewMode === "schedule" ? (
-          <ClassScheduleView calendar={selectedCalendarEntry} />
+          <ClassScheduleView
+            calendar={selectedCalendarEntry}
+            onRequestCreateClass={(preset) => handleOpenDialog(preset)}
+          />
         ) : (
           <ClassSubjectsListView fiscalYear={selectedCalendarEntry?.fiscalYear ?? null} />
         )}
@@ -176,7 +210,7 @@ export default function ClassesTab() {
         </div>
         <button
           type="button"
-          onClick={handleOpenDialog}
+          onClick={() => handleOpenDialog()}
           disabled={!isAuthenticated || isDialogOpen}
           className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-md transition hover:bg-blue-400 disabled:cursor-not-allowed disabled:bg-blue-300"
           aria-label="授業を追加"
@@ -194,6 +228,8 @@ export default function ClassesTab() {
           defaultCalendarId={settings.calendar.calendarId}
           userId={userId}
           onCreated={handleCreated}
+          presetTermIds={presetTermIds}
+          presetWeeklySlots={presetWeeklySlots}
         />
       ) : null}
     </div>
