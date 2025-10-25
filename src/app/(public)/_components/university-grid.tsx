@@ -104,7 +104,7 @@ export function SearchableUniversityGrid({
           {filteredUniversities.map((university) => {
             const color = extractSchoolColor(university);
             const accent = createAccentStyles(color);
-            const scheduleHref = `/universities/2025/${encodeURIComponent(university.webId)}`;
+            const scheduleHref = `/calendars/${encodeURIComponent(university.webId)}`;
 
             return (
               <li key={university.id} className="h-full w-full">
