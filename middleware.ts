@@ -26,6 +26,14 @@ export function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  if (pathname === '/') {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.hostname = TARGET_DOMAIN;
+    redirectUrl.port = '';
+
+    return NextResponse.redirect(redirectUrl, 308);
+  }
+
   if (pathname === '/calendars' || pathname === '/calendars/') {
     const rewriteUrl = request.nextUrl.clone();
     rewriteUrl.pathname = `/calendars/${subdomain}`;
@@ -37,5 +45,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/calendars', '/calendars/'],
+  matcher: ['/', '/calendars', '/calendars/'],
 };
