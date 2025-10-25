@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import UniversityCalendarContent from "./_components/UniversityCalendarContent";
@@ -62,16 +61,6 @@ export default async function Page({ params }: PageProps) {
               aria-hidden
             />
           </h1>
-          {university.homepageUrl ? (
-            <Link
-              href={university.homepageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-fit text-sm font-semibold text-blue-600 underline-offset-4 transition hover:text-blue-700 hover:underline"
-            >
-              大学公式サイトを見る
-            </Link>
-          ) : null}
         </header>
         <UniversityCalendarContent
           fiscalYears={FISCAL_YEARS}
