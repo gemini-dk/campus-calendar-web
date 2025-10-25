@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import UniversityCalendarContent from "./_components/UniversityCalendarContent";
-import AppInstallFooter from "./_components/AppInstallFooter";
 import { getUniversityByWebId, listUniversityCalendars } from "@/lib/data/service/university.service";
 import { extractSchoolColor } from "@/lib/university-color";
 
@@ -69,7 +68,6 @@ export default async function Page({ params }: PageProps) {
         </header>
         <UniversityCalendarContent fiscalYear={FISCAL_YEAR} calendars={calendars} />
       </div>
-      <AppInstallFooter />
     </main>
   );
 }

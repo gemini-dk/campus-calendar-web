@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const MOBILE_ROTATION_INTERVAL_MS = 30_000;
 
@@ -10,7 +10,16 @@ const MOBILE_MESSAGES = [
   "授業日程を考慮した時間割アプリを使いませんか？",
 ];
 
-export default function AppInstallFooter() {
+type AppInstallFooterProps = {
+  fiscalYear: string;
+  calendar: {
+    calendarId: string;
+    calendarName: string;
+    fiscalYear?: string | null;
+  } | null;
+};
+
+export default function AppInstallFooter({ fiscalYear, calendar }: AppInstallFooterProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -24,6 +33,38 @@ export default function AppInstallFooter() {
   }, []);
 
   const activeMessage = useMemo(() => MOBILE_MESSAGES[activeIndex], [activeIndex]);
+
+  const handleOpenMobileApp = useCallback(() => {
+    if (!calendar) {
+      return;
+    }
+
+    const normalizedFiscalYear = (calendar.fiscalYear ?? fiscalYear ?? "").trim();
+    const normalizedCalendarId = calendar.calendarId.trim();
+    const normalizedCalendarName = calendar.calendarName.trim();
+
+    if (!normalizedFiscalYear || !normalizedCalendarId || !normalizedCalendarName) {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      fiscalYear: normalizedFiscalYear,
+      calendarId: normalizedCalendarId,
+      calendarName: normalizedCalendarName,
+    });
+
+    const mobileUrl = new URL("/mobile", window.location.origin);
+    mobileUrl.search = params.toString();
+
+    window.location.href = mobileUrl.toString();
+  }, [calendar, fiscalYear]);
+
+  const isActionAvailable = Boolean(
+    calendar?.calendarId && calendar.calendarName && (calendar.fiscalYear || fiscalYear),
+  );
+
+  const mobileButtonClassName =
+    "flex h-12 w-full items-center justify-center rounded-full px-4 text-sm font-semibold text-white shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2";
 
   return (
     <footer className="fixed bottom-0 left-0 w-full bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.12)]">
@@ -40,7 +81,9 @@ export default function AppInstallFooter() {
           <div className="flex w-full md:hidden">
             <button
               type="button"
-              className="flex h-12 w-full items-center justify-center rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              className={`${mobileButtonClassName} bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500`}
+              onClick={handleOpenMobileApp}
+              disabled={!isActionAvailable}
             >
               {activeMessage}
             </button>
@@ -50,7 +93,9 @@ export default function AppInstallFooter() {
               <button
                 key={message}
                 type="button"
-                className="flex h-12 min-w-[220px] items-center justify-center rounded-full bg-blue-600 px-4 text-sm font-semibold text-white shadow transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                className={`${mobileButtonClassName} min-w-[220px] bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500`}
+                onClick={handleOpenMobileApp}
+                disabled={!isActionAvailable}
               >
                 {message}
               </button>
