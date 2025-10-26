@@ -93,8 +93,16 @@ export function useAuth(): UseAuthState {
       const currentUser = auth.currentUser;
 
       if (currentUser && currentUser.isAnonymous) {
-        await linkWithPopup(currentUser, googleProvider);
-        setSuccessMessage('Googleアカウントと連携しました。');
+        const credential = await linkWithPopup(currentUser, googleProvider);
+        const linkedUser = credential.user;
+        await linkedUser.reload();
+        const updatedUser = auth.currentUser ?? linkedUser;
+        const cookiePayload = await buildCookiePayload(updatedUser);
+        setAuthCookie(cookiePayload);
+        setProfile(extractProfile(cookiePayload));
+
+        const displayName = updatedUser.displayName ?? 'Googleアカウント';
+        setSuccessMessage(`${displayName} さんとしてサインインしました。`);
         return;
       }
 
