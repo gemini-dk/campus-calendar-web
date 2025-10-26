@@ -37,6 +37,8 @@ const firebaseConfig = {
   appId: env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+export const firebasePublicConfig = Object.freeze({ ...firebaseConfig });
+
 let cachedApp: FirebaseApp | null = null;
 
 export function getFirebaseApp(): FirebaseApp {

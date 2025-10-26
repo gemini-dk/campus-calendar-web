@@ -22,6 +22,7 @@ import TodoTab from "./tabs/TodoTab";
 import ClassesTab from "./tabs/ClassesTab";
 import CalendarOverlayIcon from "./components/CalendarOverlayIcon";
 import type { TabDefinition, TabId } from "./tabs/types";
+import { CalendarNotificationManagerProvider } from "./hooks/useCalendarNotificationManager";
 import { auth } from "@/lib/firebase/client";
 import { DEFAULT_CALENDAR_SETTINGS, useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
@@ -348,10 +349,11 @@ function MobilePageContent() {
   const ActiveComponent = currentTab.Component;
 
   return (
-    <div className="flex h-full min-h-[100svh] w-full justify-center bg-neutral-100">
-      {isCalendarDialogOpen && pendingCalendar ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6 py-10">
-          <div className="w-full max-w-[360px] rounded-xl bg-white p-6 shadow-lg">
+    <CalendarNotificationManagerProvider>
+      <div className="flex h-full min-h-[100svh] w-full justify-center bg-neutral-100">
+        {isCalendarDialogOpen && pendingCalendar ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6 py-10">
+            <div className="w-full max-w-[360px] rounded-xl bg-white p-6 shadow-lg">
             <h2 className="text-lg font-semibold text-neutral-900">このカレンダーを設定しますか？</h2>
             <p className="mt-3 text-base font-medium text-neutral-800">
               {pendingCalendar.fiscalYear}年度　{pendingCalendar.calendarName}
@@ -428,7 +430,8 @@ function MobilePageContent() {
           </div>
         </nav>
       </div>
-    </div>
+      </div>
+    </CalendarNotificationManagerProvider>
   );
 }
 
