@@ -17,6 +17,7 @@ type UniversityWithColor = University & {
     g?: number;
     b?: number;
   };
+  furigana?: string;
 };
 
 function createAccentStyles(color: SchoolColor | null) {
@@ -49,9 +50,7 @@ export function SearchableUniversityGrid({
     return universities.filter((university) => {
       const targets: string[] = [
         normalize(university.name),
-        normalize(university.shortName),
-        normalize(university.prefecture),
-        normalize(university.code),
+        normalize(university.furigana),
       ];
       return targets.some((target) => target.toLowerCase().includes(normalizedQuery));
     });
@@ -64,9 +63,7 @@ export function SearchableUniversityGrid({
     return universities.filter((university) => {
       const targets: string[] = [
         normalize(university.name),
-        normalize(university.shortName),
-        normalize(university.prefecture),
-        normalize(university.code),
+        normalize(university.furigana),
       ];
       return targets.some((target) => target.toLowerCase().includes(normalizedQuery));
     }).length;
@@ -78,14 +75,14 @@ export function SearchableUniversityGrid({
         <div className="flex w-full flex-col gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.28em] text-blue-500">Search</span>
           <h2 className="text-2xl font-semibold text-slate-900 sm:text-3xl">大学を検索する</h2>
-          <p className="text-sm text-slate-600">大学名・略称・所在地で絞り込めます。気になる大学の学事予定を素早く探しましょう。</p>
+          <p className="text-sm text-slate-600">大学名・ふりがなで絞り込めます。気になる大学の学事予定を素早く探しましょう。</p>
         </div>
         <div className="relative flex h-16 w-full items-center">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="大学名・所在地などで検索"
-            aria-label="大学名や所在地で検索"
+            placeholder="大学名で検索"
+            aria-label="大学名で検索"
             className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-6 text-base text-slate-900 shadow-inner transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             type="search"
           />
