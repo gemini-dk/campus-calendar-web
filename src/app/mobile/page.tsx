@@ -393,7 +393,10 @@ function MobilePageContent() {
                 onDateSelect={handleCalendarDateSelect}
               />
             ) : currentTab.id === "weekly" ? (
-              <WeeklyCalendarTab key={weeklyResetKey} />
+              <WeeklyCalendarTab
+                key={weeklyResetKey}
+                onDateSelect={handleCalendarDateSelect}
+              />
             ) : (
               <ActiveComponent />
             )}
