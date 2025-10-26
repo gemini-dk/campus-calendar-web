@@ -87,8 +87,10 @@ export function UniversitySearchBox({ variant = 'default' }: UniversitySearchBox
 
   const isHeaderVariant = variant === 'header';
   const containerClassName = isHeaderVariant
-    ? `relative flex h-auto flex-col gap-1.5 transition-[width] duration-200 ${
-        isMobileExpanded ? 'w-full sm:w-[22ch]' : 'w-11 sm:w-[22ch]'
+    ? `relative flex h-auto flex-col items-end gap-1.5 transition-[width] duration-200 ${
+        isMobileExpanded
+          ? 'w-full max-w-[300px] sm:w-[22ch] sm:max-w-none'
+          : 'w-11 sm:w-[22ch]'
       } ${isMobileExpanded ? 'z-[70] sm:z-auto' : ''}`
     : 'relative flex h-auto w-full flex-col gap-3';
   const labelClassName = isHeaderVariant
@@ -99,7 +101,7 @@ export function UniversitySearchBox({ variant = 'default' }: UniversitySearchBox
   const inputWrapperClassName = isHeaderVariant
     ? `${
         isMobileExpanded
-          ? 'absolute left-0 right-0 top-0 z-[90] flex h-12 w-full items-center sm:static sm:flex sm:h-12 sm:w-full sm:items-center'
+          ? 'absolute inset-y-0 right-0 z-[90] flex h-12 w-full max-w-[300px] items-center sm:static sm:flex sm:h-12 sm:w-full sm:max-w-none sm:items-center'
           : 'hidden sm:flex sm:h-12 sm:w-full sm:items-center'
       }`
     : 'flex h-16 w-full items-center';
@@ -163,7 +165,7 @@ export function UniversitySearchBox({ variant = 'default' }: UniversitySearchBox
         <div className="h-auto w-full text-[0.65rem] text-red-500">{error}</div>
       )}
       {showResults && (
-        <div className="absolute left-0 top-full z-[80] mt-2 flex h-72 w-full flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_48px_rgba(148,163,184,0.25)]">
+        <div className="absolute right-0 top-full z-[80] mt-2 flex h-72 w-full flex-col rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_48px_rgba(148,163,184,0.25)]">
           <div className="flex h-auto w-full items-center justify-between px-1 pb-2 text-[0.7rem] font-medium uppercase tracking-[0.2em] text-slate-400">
             <span>Search Results</span>
             <span>
