@@ -1,11 +1,22 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { DEFAULT_CALENDAR_SETTINGS, useUserSettings } from '@/lib/settings/UserSettingsProvider';
+import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 
 type UserMenuContentProps = {
   className?: string;
 };
+
+type EditableCalendarEntry = CalendarEntry & {
+  lessonsPerDayText: string;
+};
+
+function toEditableEntries(entries: CalendarEntry[]): EditableCalendarEntry[] {
+  return entries.map((entry) => ({
+    ...entry,
+    lessonsPerDayText: String(entry.lessonsPerDay ?? 6),
+  }));
+}
 
 export default function UserMenuContent({ className }: UserMenuContentProps) {
   const {
@@ -19,144 +30,29 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     signInWithGoogle,
     signOut,
   } = useAuth();
-  const { settings, saveCalendarSettings, resetCalendarSettings, initialized } = useUserSettings();
-  type EditableCalendarEntry = {
-    id: string;
-    fiscalYear: string;
-    calendarId: string;
-    lessonsPerDay: string;
-    hasSaturdayClasses: boolean;
-  };
+  const {
+    settings,
+    initialized,
+    updateCalendarEntry,
+    setActiveCalendar,
+  } = useUserSettings();
 
-  const defaultLessonsPerDayValue = DEFAULT_CALENDAR_SETTINGS.entries[0]?.lessonsPerDay ?? 6;
-  const defaultHasSaturdayClassesValue =
-    DEFAULT_CALENDAR_SETTINGS.entries[0]?.hasSaturdayClasses ?? false;
-
-  const toEditableEntries = (
-    entries: {
-      fiscalYear: string;
-      calendarId: string;
-      lessonsPerDay?: number;
-      hasSaturdayClasses?: boolean;
-    }[],
-  ): EditableCalendarEntry[] =>
-    entries.map((entry, index) => ({
-      id: `${entry.fiscalYear}-${entry.calendarId}-${index}`,
-      fiscalYear: entry.fiscalYear,
-      calendarId: entry.calendarId,
-      lessonsPerDay: String(
-        typeof entry.lessonsPerDay === 'number' ? entry.lessonsPerDay : defaultLessonsPerDayValue,
-      ),
-      hasSaturdayClasses:
-        typeof entry.hasSaturdayClasses === 'boolean'
-          ? entry.hasSaturdayClasses
-          : defaultHasSaturdayClassesValue,
-    }));
-
-  const [entries, setEntries] = useState<EditableCalendarEntry[]>(
-    toEditableEntries(settings.calendar.entries),
-  );
-  const [activeIndex, setActiveIndex] = useState(() => {
-    const initialIndex = settings.calendar.entries.findIndex(
-      (entry) =>
-        entry.fiscalYear === settings.calendar.fiscalYear &&
-        entry.calendarId === settings.calendar.calendarId,
-    );
-    return initialIndex >= 0 ? initialIndex : 0;
-  });
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [entries, setEntries] = useState<EditableCalendarEntry[]>([]);
+  const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
+  const [changingDefault, setChangingDefault] = useState(false);
+  const [calendarError, setCalendarError] = useState<string | null>(null);
 
   useEffect(() => {
     setEntries(toEditableEntries(settings.calendar.entries));
-    const nextIndex = settings.calendar.entries.findIndex(
-      (entry) =>
-        entry.fiscalYear === settings.calendar.fiscalYear &&
-        entry.calendarId === settings.calendar.calendarId,
-    );
-    setActiveIndex(nextIndex >= 0 ? nextIndex : 0);
-  }, [settings.calendar]);
+  }, [settings.calendar.entries]);
 
   useEffect(() => {
-    setStatusMessage(null);
-  }, [entries, activeIndex]);
+    setCalendarError(null);
+  }, [entries]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const sanitizedEntries = entries.map((entry) => ({
-      fiscalYear: entry.fiscalYear,
-      calendarId: entry.calendarId,
-      lessonsPerDay: Number(entry.lessonsPerDay),
-      hasSaturdayClasses: entry.hasSaturdayClasses,
-    }));
-    const target = sanitizedEntries[activeIndex] ?? sanitizedEntries[0] ?? {
-      fiscalYear: '',
-      calendarId: '',
-    };
-    saveCalendarSettings({
-      fiscalYear: target.fiscalYear,
-      calendarId: target.calendarId,
-      entries: sanitizedEntries,
-    });
-    setStatusMessage('保存しました。');
-  };
-
-  const handleReset = () => {
-    resetCalendarSettings();
-    setStatusMessage('初期設定に戻しました。');
-  };
-
-  const handleAddEntry = () => {
-    setEntries((prev) => [
-      ...prev,
-      {
-        id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        fiscalYear: '',
-        calendarId: '',
-        lessonsPerDay: String(defaultLessonsPerDayValue),
-        hasSaturdayClasses: defaultHasSaturdayClassesValue,
-      },
-    ]);
-    setActiveIndex((prevActive) => (prevActive === -1 ? 0 : prevActive));
-  };
-
-  const handleRemoveEntry = (id: string) => {
-    setEntries((prev) => {
-      if (prev.length <= 1) {
-        return prev;
-      }
-      const next = prev.filter((entry) => entry.id !== id);
-      if (next.length === prev.length) {
-        return prev;
-      }
-      setActiveIndex((prevActive) => {
-        if (prevActive >= next.length) {
-          return next.length - 1;
-        }
-        const removedIndex = prev.findIndex((entry) => entry.id === id);
-        if (removedIndex >= 0 && removedIndex === prevActive) {
-          return Math.max(0, prevActive - 1);
-        }
-        return prevActive;
-      });
-      return next;
-    });
-  };
-
-  const handleChangeEntry = (id: string, patch: Partial<EditableCalendarEntry>) => {
-    setEntries((prev) =>
-      prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)),
-    );
-  };
-
-  const activeEntryLabel = useMemo(() => {
-    const entry = entries[activeIndex];
-    if (!entry) {
-      return '未設定';
-    }
-    const lessonsLabel = entry.lessonsPerDay ? `${entry.lessonsPerDay}コマ/日` : '授業数未設定';
-    const saturdayLabel = entry.hasSaturdayClasses ? '土曜授業あり' : '土曜授業なし';
-    return `${entry.fiscalYear || '年度未設定'} / ${entry.calendarId || 'ID未設定'} / ${lessonsLabel} / ${saturdayLabel}`;
-  }, [activeIndex, entries]);
+  const activeEntry = useMemo(() => {
+    return entries.find((entry) => entry.defaultFlag) ?? entries[0] ?? null;
+  }, [entries]);
 
   const feedbackMessage = error
     ? { text: error, className: 'text-red-600' }
@@ -171,6 +67,193 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     .filter(Boolean)
     .join(' ');
 
+  const isEntryUpdating = useCallback(
+    (fiscalYear: string) => pendingState[fiscalYear] === true,
+    [pendingState],
+  );
+
+  const handleLessonsChange = useCallback(
+    (entry: EditableCalendarEntry, value: string) => {
+      setEntries((prev) =>
+        prev.map((item) =>
+          item.fiscalYear === entry.fiscalYear
+            ? { ...item, lessonsPerDayText: value }
+            : item,
+        ),
+      );
+
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return;
+      }
+
+      setPendingState((prev) => ({ ...prev, [entry.fiscalYear]: true }));
+
+      void updateCalendarEntry({
+        fiscalYear: entry.fiscalYear,
+        calendarId: entry.calendarId,
+        lessonsPerDay: parsed,
+      })
+        .then(() => {
+          setCalendarError(null);
+        })
+        .catch((updateError) => {
+          console.error('Failed to update lessonsPerDay', updateError);
+          setCalendarError('設定の保存に失敗しました。時間をおいて再度お試しください。');
+        })
+        .finally(() => {
+          setPendingState((prev) => ({ ...prev, [entry.fiscalYear]: false }));
+        });
+    },
+    [updateCalendarEntry],
+  );
+
+  const handleSaturdayToggle = useCallback(
+    (entry: EditableCalendarEntry, checked: boolean) => {
+      setEntries((prev) =>
+        prev.map((item) =>
+          item.fiscalYear === entry.fiscalYear
+            ? { ...item, hasSaturdayClasses: checked }
+            : item,
+        ),
+      );
+
+      setPendingState((prev) => ({ ...prev, [entry.fiscalYear]: true }));
+
+      void updateCalendarEntry({
+        fiscalYear: entry.fiscalYear,
+        calendarId: entry.calendarId,
+        hasSaturdayClasses: checked,
+      })
+        .then(() => {
+          setCalendarError(null);
+        })
+        .catch((updateError) => {
+          console.error('Failed to update hasSaturdayClasses', updateError);
+          setCalendarError('設定の保存に失敗しました。時間をおいて再度お試しください。');
+        })
+        .finally(() => {
+          setPendingState((prev) => ({ ...prev, [entry.fiscalYear]: false }));
+        });
+    },
+    [updateCalendarEntry],
+  );
+
+  const handleChangeDefault = useCallback(
+    (entry: EditableCalendarEntry) => {
+      if (entry.defaultFlag) {
+        return;
+      }
+
+      setEntries((prev) =>
+        prev.map((item) => ({
+          ...item,
+          defaultFlag: item.fiscalYear === entry.fiscalYear,
+        })),
+      );
+
+      setChangingDefault(true);
+
+      void setActiveCalendar(entry.fiscalYear, entry.calendarId)
+        .then(() => {
+          setCalendarError(null);
+        })
+        .catch((updateError) => {
+          console.error('Failed to set active calendar', updateError);
+          setCalendarError('利用中のカレンダーを更新できませんでした。時間をおいて再度お試しください。');
+        })
+        .finally(() => {
+          setChangingDefault(false);
+        });
+    },
+    [setActiveCalendar],
+  );
+
+  const renderCalendarEntries = () => {
+    if (!initialized) {
+      return <p className="mt-4 text-sm text-neutral-600">設定を読み込み中です...</p>;
+    }
+
+    if (entries.length === 0) {
+      return <p className="mt-4 text-sm text-neutral-600">登録されている学事カレンダーはありません。</p>;
+    }
+
+    return (
+      <div className="mt-4 flex flex-col gap-4">
+        {entries.map((entry) => {
+          const fiscalYearLabel = `${entry.fiscalYear}年度`;
+          const lessonsDisabled = isProcessing || isEntryUpdating(entry.fiscalYear);
+          const saturdayDisabled = lessonsDisabled;
+          const radioDisabled = isProcessing || changingDefault || isEntryUpdating(entry.fiscalYear);
+
+          const calendarLink = entry.webId ? `/${encodeURIComponent(entry.webId)}/calendar` : null;
+
+          return (
+            <div
+              key={`${entry.fiscalYear}-${entry.calendarId}`}
+              className="flex flex-col gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-neutral-700">{fiscalYearLabel}</span>
+                <label className="flex items-center gap-2 text-xs font-medium text-neutral-600">
+                  <input
+                    type="radio"
+                    name="activeCalendarFiscalYear"
+                    checked={entry.defaultFlag}
+                    onChange={() => handleChangeDefault(entry)}
+                    disabled={radioDisabled}
+                    className="h-4 w-4"
+                  />
+                  利用中
+                </label>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-neutral-500">大学名</span>
+                <p className="text-sm text-neutral-800">{entry.universityName || '未登録'}</p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-neutral-500">カレンダー名</span>
+                {calendarLink ? (
+                  <a
+                    href={calendarLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600 underline-offset-2 hover:underline"
+                  >
+                    {entry.calendarName || '未登録'}
+                  </a>
+                ) : (
+                  <p className="text-sm text-neutral-800">{entry.calendarName || '未登録'}</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-neutral-500">1日の授業数</label>
+                <input
+                  type="number"
+                  value={entry.lessonsPerDayText}
+                  onChange={(event) => handleLessonsChange(entry, event.target.value)}
+                  disabled={lessonsDisabled}
+                  className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-neutral-100"
+                  min={1}
+                />
+              </div>
+              <label className="flex items-center justify-between gap-2 rounded border border-neutral-200 bg-neutral-50 px-3 py-2">
+                <span className="text-sm font-medium text-neutral-700">土曜日授業あり</span>
+                <input
+                  type="checkbox"
+                  checked={entry.hasSaturdayClasses}
+                  onChange={(event) => handleSaturdayToggle(entry, event.target.checked)}
+                  disabled={saturdayDisabled}
+                  className="h-4 w-4"
+                />
+              </label>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className={containerClassName}>
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
@@ -179,9 +262,7 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
         ) : isAuthenticated ? (
           <div className="flex flex-col items-start gap-4">
             <div>
-              <p className="text-base font-medium text-neutral-900">
-                {profile?.displayName ?? 'ユーザ'} さんでログイン中
-              </p>
+              <p className="text-base font-medium text-neutral-900">{profile?.displayName ?? 'ユーザ'} さんでログイン中</p>
               <p className="mt-1 text-sm text-neutral-600">アカウント設定や学事情報の閲覧が可能です。</p>
             </div>
             <button
@@ -248,125 +329,34 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
       </section>
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-        <div>
+        <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-neutral-900">学事カレンダー設定</h2>
-          <p className="mt-1 text-sm text-neutral-600">
-            利用する年度と学事カレンダーIDを保存すると、ホームやカレンダーで表示する情報が切り替わります。
+          <p className="text-sm text-neutral-600">
+            登録した学事カレンダーの授業数や土曜日授業の有無を変更すると、直ちにFirestoreへ保存されます。
           </p>
         </div>
-        {initialized ? (
-          <form className="mt-4 flex flex-col gap-4" onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
-              <span className="text-xs font-medium text-neutral-600">利用中の設定</span>
-              <span className="text-sm text-neutral-800">{activeEntryLabel}</span>
-              <span className="text-xs text-neutral-500">
-                下の一覧から年度を追加し、利用中に設定してください。
-              </span>
-            </div>
-            <div className="flex flex-col gap-4">
-              {entries.map((entry, index) => (
-                <div
-                  key={entry.id}
-                  className="flex flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
-                >
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 text-sm font-medium text-neutral-700">
-                      <input
-                        type="radio"
-                        name="activeCalendarEntry"
-                        checked={activeIndex === index}
-                        onChange={() => setActiveIndex(index)}
-                        className="h-4 w-4"
-                      />
-                      利用中に設定
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveEntry(entry.id)}
-                      disabled={entries.length <= 1}
-                      className="text-xs font-semibold text-red-500 transition hover:text-red-600 disabled:cursor-not-allowed disabled:text-neutral-300"
-                    >
-                      削除
-                    </button>
-                  </div>
-                  <label className="flex flex-col gap-2">
-                    <span className="text-sm font-medium text-neutral-700">年度 (YYYY)</span>
-                    <input
-                      type="text"
-                      value={entry.fiscalYear}
-                      onChange={(event) =>
-                        handleChangeEntry(entry.id, { fiscalYear: event.target.value })
-                      }
-                      className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                      placeholder="2025"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    <span className="text-sm font-medium text-neutral-700">学事カレンダーID</span>
-                    <input
-                      type="text"
-                      value={entry.calendarId}
-                      onChange={(event) =>
-                        handleChangeEntry(entry.id, { calendarId: event.target.value })
-                      }
-                      className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                      placeholder="学務カレンダーIDを入力"
-                    />
-                  </label>
-                  <label className="flex flex-col gap-2">
-                    <span className="text-sm font-medium text-neutral-700">1日の授業数</span>
-                    <input
-                      type="number"
-                      value={entry.lessonsPerDay}
-                      onChange={(event) =>
-                        handleChangeEntry(entry.id, { lessonsPerDay: event.target.value })
-                      }
-                      className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                      placeholder="6"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between gap-2 rounded border border-neutral-200 bg-neutral-50 px-3 py-2">
-                    <span className="text-sm font-medium text-neutral-700">土曜日授業あり</span>
-                    <input
-                      type="checkbox"
-                      checked={entry.hasSaturdayClasses}
-                      onChange={(event) =>
-                        handleChangeEntry(entry.id, { hasSaturdayClasses: event.target.checked })
-                      }
-                      className="h-4 w-4"
-                    />
-                  </label>
-                </div>
-              ))}
-              <button
-                type="button"
-                onClick={handleAddEntry}
-                className="w-full rounded border border-dashed border-neutral-300 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:border-blue-400 hover:bg-blue-50"
-              >
-                年度を追加
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-              >
-                保存する
-              </button>
-              <button
-                type="button"
-                onClick={handleReset}
-                className="rounded border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100"
-              >
-                初期設定に戻す
-              </button>
-            </div>
-            {statusMessage ? <p className="text-xs text-green-600">{statusMessage}</p> : null}
-          </form>
-        ) : (
-          <p className="mt-4 text-sm text-neutral-600">設定を読み込み中です...</p>
-        )}
-        <p className="mt-4 text-xs text-neutral-500">保存した設定はブラウザに記録されます。</p>
+        {activeEntry ? (
+          <div className="mt-4 flex flex-col gap-1 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+            <span className="text-xs font-medium text-neutral-600">利用中のカレンダー</span>
+            <span className="text-sm text-neutral-800">
+              {`${activeEntry.universityName || '未登録'} / ${activeEntry.calendarName || '未登録'} / ${activeEntry.fiscalYear}年度`}
+            </span>
+          </div>
+        ) : null}
+        {renderCalendarEntries()}
+        {calendarError ? (
+          <p className="mt-3 text-xs text-red-600">{calendarError}</p>
+        ) : null}
+        <div className="mt-6">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center rounded border border-dashed border-neutral-300 px-4 py-2 text-sm font-semibold text-blue-600 transition hover:border-blue-400 hover:bg-blue-50"
+          >
+            カレンダーを追加
+          </a>
+        </div>
       </section>
 
       <div className="mt-auto border-t border-neutral-200 pt-3 text-center text-xs text-neutral-500">

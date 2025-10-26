@@ -1,12 +1,46 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { doc, onSnapshot, runTransaction } from 'firebase/firestore';
 
-type CalendarEntry = {
+import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/lib/useAuth';
+
+const DEFAULT_LESSONS_PER_DAY = 6;
+
+function sanitizeLessonsPerDay(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.floor(value);
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.floor(parsed);
+    }
+  }
+  return DEFAULT_LESSONS_PER_DAY;
+}
+
+function normalizeString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  return '';
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  return value === true;
+}
+
+export type CalendarEntry = {
   fiscalYear: string;
   calendarId: string;
+  calendarName: string;
+  universityName: string;
+  webId: string;
   lessonsPerDay: number;
   hasSaturdayClasses: boolean;
+  defaultFlag: boolean;
 };
 
 type CalendarSettings = {
@@ -19,262 +53,337 @@ type UserSettings = {
   calendar: CalendarSettings;
 };
 
+const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
+  fiscalYear: '',
+  calendarId: '',
+  entries: [],
+};
+
+export type InstallCalendarInput = {
+  fiscalYear: string;
+  calendarId: string;
+  calendarName: string;
+  universityName: string;
+  webId: string;
+  hasSaturdayClasses: boolean;
+  lessonsPerDay?: number;
+};
+
+type UpdateCalendarEntryInput = {
+  fiscalYear: string;
+  calendarId: string;
+  lessonsPerDay?: number;
+  hasSaturdayClasses?: boolean;
+};
+
+export class CalendarConflictError extends Error {
+  fiscalYear: string;
+
+  constructor(message: string, fiscalYear: string) {
+    super(message);
+    this.name = 'CalendarConflictError';
+    this.fiscalYear = fiscalYear;
+  }
+}
+
 type UserSettingsContextValue = {
   settings: UserSettings;
-  saveCalendarSettings: (next: CalendarSettings) => void;
-  resetCalendarSettings: () => void;
   initialized: boolean;
+  installCalendar: (
+    input: InstallCalendarInput,
+    options?: { replaceExisting?: boolean },
+  ) => Promise<void>;
+  updateCalendarEntry: (input: UpdateCalendarEntryInput) => Promise<void>;
+  setActiveCalendar: (fiscalYear: string, calendarId: string) => Promise<void>;
 };
 
-const STORAGE_KEY = 'campusCalendar.userSettings';
-
-const DEFAULT_LESSONS_PER_DAY = 6;
-const DEFAULT_HAS_SATURDAY_CLASSES = false;
-
-const DEFAULT_CALENDAR_ENTRY: CalendarEntry = {
-  fiscalYear: '2025',
-  calendarId: 'jd70dxbqvevcf5kj43cbaf4rjn7rs93e',
-  lessonsPerDay: DEFAULT_LESSONS_PER_DAY,
-  hasSaturdayClasses: DEFAULT_HAS_SATURDAY_CLASSES,
-};
-
-const DEFAULT_CALENDAR_SETTINGS: CalendarSettings = {
-  fiscalYear: DEFAULT_CALENDAR_ENTRY.fiscalYear,
-  calendarId: DEFAULT_CALENDAR_ENTRY.calendarId,
-  entries: [DEFAULT_CALENDAR_ENTRY],
-};
-
-function cloneCalendarSettings(settings: CalendarSettings): CalendarSettings {
-  return {
-    fiscalYear: settings.fiscalYear,
-    calendarId: settings.calendarId,
-    entries: settings.entries.map((entry) => ({ ...entry })),
-  };
-}
-
-const createDefaultSettings = (): UserSettings => ({
-  calendar: cloneCalendarSettings(DEFAULT_CALENDAR_SETTINGS),
-});
-
-function parseLessonsPerDay(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return Math.floor(value);
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return DEFAULT_LESSONS_PER_DAY;
-    }
-    const parsed = Number(trimmed);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      return Math.floor(parsed);
-    }
-  }
-  return DEFAULT_LESSONS_PER_DAY;
-}
-
-function parseHasSaturdayClasses(value: unknown): boolean {
-  if (typeof value === 'boolean') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === 'true') {
-      return true;
-    }
-    if (normalized === 'false') {
-      return false;
-    }
-  }
-  return DEFAULT_HAS_SATURDAY_CLASSES;
-}
-
-function normalizeCalendarEntries(entries: unknown): CalendarEntry[] {
-  if (!Array.isArray(entries)) {
-    return DEFAULT_CALENDAR_SETTINGS.entries.map((entry) => ({ ...entry }));
+function parseCalendarEntries(calendarsField: unknown): CalendarEntry[] {
+  if (!calendarsField || typeof calendarsField !== 'object') {
+    return [];
   }
 
-  const normalized: CalendarEntry[] = [];
+  const entries: CalendarEntry[] = [];
+  const records = calendarsField as Record<string, unknown>;
 
-  for (const entry of entries) {
-    if (!entry || typeof entry !== 'object') {
+  for (const [fiscalYearKey, rawValue] of Object.entries(records)) {
+    if (!rawValue || typeof rawValue !== 'object') {
       continue;
     }
-    const fiscalYear = typeof (entry as { fiscalYear?: unknown }).fiscalYear === 'string'
-      ? (entry as { fiscalYear: string }).fiscalYear.trim()
-      : '';
-    const calendarId = typeof (entry as { calendarId?: unknown }).calendarId === 'string'
-      ? (entry as { calendarId: string }).calendarId.trim()
-      : '';
 
+    const fiscalYear = fiscalYearKey.trim();
+    const calendarId = normalizeString((rawValue as { calendarId?: unknown }).calendarId);
     if (!fiscalYear || !calendarId) {
       continue;
     }
 
-    if (normalized.some((item) => item.fiscalYear === fiscalYear && item.calendarId === calendarId)) {
-      continue;
-    }
-
-    const lessonsPerDay = parseLessonsPerDay(
-      (entry as { lessonsPerDay?: unknown }).lessonsPerDay,
+    const calendarName = normalizeString((rawValue as { calendarName?: unknown }).calendarName);
+    const universityName = normalizeString(
+      (rawValue as { universityName?: unknown }).universityName,
     );
-    const hasSaturdayClasses = parseHasSaturdayClasses(
-      (entry as { hasSaturdayClasses?: unknown }).hasSaturdayClasses,
+    const webId = normalizeString((rawValue as { webId?: unknown }).webId);
+    const lessonsPerDay = sanitizeLessonsPerDay(
+      (rawValue as { lessonsPerDay?: unknown }).lessonsPerDay,
     );
+    const hasSaturdayClasses = normalizeBoolean(
+      (rawValue as { hasSaturdayClasses?: unknown }).hasSaturdayClasses,
+    );
+    const defaultFlag = normalizeBoolean((rawValue as { defaultFlag?: unknown }).defaultFlag);
 
-    normalized.push({ fiscalYear, calendarId, lessonsPerDay, hasSaturdayClasses });
+    entries.push({
+      fiscalYear,
+      calendarId,
+      calendarName,
+      universityName,
+      webId,
+      lessonsPerDay,
+      hasSaturdayClasses,
+      defaultFlag,
+    });
   }
 
-  if (normalized.length === 0) {
-    return DEFAULT_CALENDAR_SETTINGS.entries.map((entry) => ({ ...entry }));
-  }
+  entries.sort((a, b) => b.fiscalYear.localeCompare(a.fiscalYear));
 
-  return normalized;
+  return entries;
 }
 
-function ensureActiveEntryExists(settings: CalendarSettings): CalendarSettings {
-  const { fiscalYear, calendarId, entries } = settings;
-  const exists = entries.some(
-    (entry) => entry.fiscalYear === fiscalYear && entry.calendarId === calendarId,
-  );
-  if (exists) {
-    return settings;
+function toUserSettings(entries: CalendarEntry[]): UserSettings {
+  const activeEntry = entries.find((entry) => entry.defaultFlag) ?? entries[0] ?? null;
+
+  if (!activeEntry) {
+    return { calendar: { ...DEFAULT_CALENDAR_SETTINGS } } satisfies UserSettings;
   }
-  const trimmedFiscalYear = fiscalYear.trim();
-  const trimmedCalendarId = calendarId.trim();
-  if (!trimmedFiscalYear || !trimmedCalendarId) {
-    return {
-      ...settings,
-      fiscalYear: entries[0]?.fiscalYear ?? DEFAULT_CALENDAR_ENTRY.fiscalYear,
-      calendarId: entries[0]?.calendarId ?? DEFAULT_CALENDAR_ENTRY.calendarId,
-    };
-  }
+
   return {
-    ...settings,
-    entries: [
-      ...entries,
-      {
-        fiscalYear: trimmedFiscalYear,
-        calendarId: trimmedCalendarId,
-        lessonsPerDay: DEFAULT_LESSONS_PER_DAY,
-        hasSaturdayClasses: DEFAULT_HAS_SATURDAY_CLASSES,
-      },
-    ],
-  };
+    calendar: {
+      fiscalYear: activeEntry.fiscalYear,
+      calendarId: activeEntry.calendarId,
+      entries,
+    },
+  } satisfies UserSettings;
 }
 
 const UserSettingsContext = createContext<UserSettingsContextValue | undefined>(undefined);
 
 export function UserSettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<UserSettings>(createDefaultSettings);
+  const { profile, initializing: authInitializing } = useAuth();
+  const userId = profile?.uid ?? null;
+
+  const [settings, setSettings] = useState<UserSettings>({ calendar: DEFAULT_CALENDAR_SETTINGS });
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (authInitializing) {
       return;
     }
 
-    try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as Partial<UserSettings>;
-        setSettings((prev) => {
-          const nextFiscalYear =
-            typeof parsed?.calendar?.fiscalYear === 'string'
-              ? parsed.calendar.fiscalYear.trim()
-              : prev.calendar.fiscalYear;
-          const nextCalendarId =
-            typeof parsed?.calendar?.calendarId === 'string'
-              ? parsed.calendar.calendarId.trim()
-              : prev.calendar.calendarId;
-          const parsedEntries = normalizeCalendarEntries(parsed?.calendar?.entries);
-
-          const mergedEntries = (() => {
-            const existing = parsedEntries.length > 0 ? parsedEntries : prev.calendar.entries;
-            const deduped = existing.filter((entry, index, array) =>
-              array.findIndex(
-                (target) =>
-                  target.fiscalYear === entry.fiscalYear && target.calendarId === entry.calendarId,
-              ) === index,
-            );
-            return deduped.length > 0 ? deduped : [...DEFAULT_CALENDAR_SETTINGS.entries];
-          })();
-
-          const nextSettings = ensureActiveEntryExists({
-            fiscalYear: nextFiscalYear,
-            calendarId: nextCalendarId,
-            entries: mergedEntries,
-          });
-
-          return {
-            calendar: nextSettings,
-          };
-        });
-      }
-    } catch (error) {
-      console.error('ユーザー設定の読み込みに失敗しました。', error);
-    } finally {
+    if (!userId) {
+      setSettings({ calendar: DEFAULT_CALENDAR_SETTINGS });
       setInitialized(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!initialized || typeof window === 'undefined') {
       return;
     }
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    } catch (error) {
-      console.error('ユーザー設定の保存に失敗しました。', error);
+
+    const userDocRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (snapshot) => {
+        const data = snapshot.data();
+        const entries = parseCalendarEntries((data as { calendars?: unknown })?.calendars);
+        setSettings(toUserSettings(entries));
+        setInitialized(true);
+      },
+      (error) => {
+        console.error('ユーザー設定の取得に失敗しました。', error);
+        setSettings({ calendar: DEFAULT_CALENDAR_SETTINGS });
+        setInitialized(true);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [authInitializing, userId]);
+
+  const contextValue = useMemo<UserSettingsContextValue>(() => {
+    async function ensureUserId(): Promise<string> {
+      if (!userId) {
+        throw new Error('ユーザーが認証されていません。');
+      }
+      return userId;
     }
-  }, [initialized, settings]);
 
-  const value = useMemo<UserSettingsContextValue>(
-    () => ({
-      settings,
-      saveCalendarSettings: (next) => {
-        const trimmedFiscalYear = next.fiscalYear.trim();
-        const trimmedCalendarId = next.calendarId.trim();
-        const normalizedEntries = next.entries
-          .map((entry) => ({
-            fiscalYear: entry.fiscalYear.trim(),
-            calendarId: entry.calendarId.trim(),
-            lessonsPerDay: parseLessonsPerDay(entry.lessonsPerDay),
-            hasSaturdayClasses: parseHasSaturdayClasses(entry.hasSaturdayClasses),
-          }))
-          .filter((entry) => entry.fiscalYear.length > 0 && entry.calendarId.length > 0);
+    async function installCalendar(
+      input: InstallCalendarInput,
+      options?: { replaceExisting?: boolean },
+    ): Promise<void> {
+      const uid = await ensureUserId();
+      const fiscalYear = input.fiscalYear.trim();
+      const calendarId = input.calendarId.trim();
+      const calendarName = input.calendarName.trim();
+      const universityName = input.universityName.trim();
+      const webId = input.webId.trim();
 
-        const uniqueEntries = normalizedEntries.filter((entry, index, array) =>
-          array.findIndex(
-            (target) =>
-              target.fiscalYear === entry.fiscalYear && target.calendarId === entry.calendarId,
-          ) === index,
+      if (!fiscalYear || !calendarId || !calendarName || !universityName || !webId) {
+        throw new Error('カレンダー情報が不足しています。');
+      }
+
+      const lessonsPerDay = sanitizeLessonsPerDay(input.lessonsPerDay);
+      const hasSaturdayClasses = Boolean(input.hasSaturdayClasses);
+      const userDocRef = doc(db, 'users', uid);
+
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(userDocRef);
+        const rawCalendars = snapshot.data()?.calendars;
+        const existingCalendars =
+          rawCalendars && typeof rawCalendars === 'object' ? { ...rawCalendars } : {};
+
+        const currentEntry = existingCalendars[fiscalYear];
+        if (currentEntry && !options?.replaceExisting) {
+          throw new CalendarConflictError(
+            `${fiscalYear}年度のカレンダーが既に設定されています。`,
+            fiscalYear,
+          );
+        }
+
+        const updatedCalendars: Record<string, unknown> = {};
+        for (const [year, value] of Object.entries(existingCalendars)) {
+          if (!value || typeof value !== 'object') {
+            continue;
+          }
+          if (year === fiscalYear) {
+            continue;
+          }
+          updatedCalendars[year] = {
+            ...value,
+            defaultFlag: false,
+          };
+        }
+
+        updatedCalendars[fiscalYear] = {
+          calendarId,
+          calendarName,
+          universityName,
+          webId,
+          lessonsPerDay,
+          hasSaturdayClasses,
+          defaultFlag: true,
+        };
+
+        transaction.set(
+          userDocRef,
+          {
+            calendars: updatedCalendars,
+          },
+          { merge: true },
         );
+      });
+    }
 
-        const entries = uniqueEntries.length > 0 ? uniqueEntries : [...DEFAULT_CALENDAR_SETTINGS.entries];
-        const fallback = entries[0];
-        const fiscalYear = trimmedFiscalYear || fallback.fiscalYear;
-        const calendarId = trimmedCalendarId || fallback.calendarId;
+    async function updateCalendarEntry(input: UpdateCalendarEntryInput): Promise<void> {
+      const uid = await ensureUserId();
+      const fiscalYear = input.fiscalYear.trim();
+      const calendarId = input.calendarId.trim();
+      if (!fiscalYear || !calendarId) {
+        return;
+      }
 
-        const nextSettings = ensureActiveEntryExists({ fiscalYear, calendarId, entries });
+      const userDocRef = doc(db, 'users', uid);
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(userDocRef);
+        const rawCalendars = snapshot.data()?.calendars;
+        if (!rawCalendars || typeof rawCalendars !== 'object') {
+          return;
+        }
 
-        setSettings((prev) => ({
-          ...prev,
-          calendar: nextSettings,
-        }));
-      },
-      resetCalendarSettings: () => {
-        setSettings((prev) => ({
-          ...prev,
-          calendar: cloneCalendarSettings(DEFAULT_CALENDAR_SETTINGS),
-        }));
-      },
+        const existingEntry = rawCalendars[fiscalYear];
+        if (!existingEntry || typeof existingEntry !== 'object') {
+          return;
+        }
+
+        const storedCalendarId = normalizeString(
+          (existingEntry as { calendarId?: unknown }).calendarId,
+        );
+        if (storedCalendarId !== calendarId) {
+          return;
+        }
+
+        const nextEntry = {
+          ...existingEntry,
+          ...(input.lessonsPerDay !== undefined
+            ? { lessonsPerDay: sanitizeLessonsPerDay(input.lessonsPerDay) }
+            : {}),
+          ...(input.hasSaturdayClasses !== undefined
+            ? { hasSaturdayClasses: Boolean(input.hasSaturdayClasses) }
+            : {}),
+        };
+
+        const updatedCalendars: Record<string, unknown> = {
+          ...rawCalendars,
+          [fiscalYear]: nextEntry,
+        };
+
+        transaction.set(
+          userDocRef,
+          {
+            calendars: updatedCalendars,
+          },
+          { merge: true },
+        );
+      });
+    }
+
+    async function setActiveCalendar(
+      fiscalYearInput: string,
+      calendarIdInput: string,
+    ): Promise<void> {
+      const uid = await ensureUserId();
+      const fiscalYear = fiscalYearInput.trim();
+      const calendarId = calendarIdInput.trim();
+      if (!fiscalYear || !calendarId) {
+        return;
+      }
+
+      const userDocRef = doc(db, 'users', uid);
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(userDocRef);
+        const rawCalendars = snapshot.data()?.calendars;
+        if (!rawCalendars || typeof rawCalendars !== 'object') {
+          return;
+        }
+
+        const updatedCalendars: Record<string, unknown> = {};
+
+        for (const [year, value] of Object.entries(rawCalendars)) {
+          if (!value || typeof value !== 'object') {
+            continue;
+          }
+
+          const storedCalendarId = normalizeString((value as { calendarId?: unknown }).calendarId);
+          updatedCalendars[year] = {
+            ...value,
+            defaultFlag: year === fiscalYear && storedCalendarId === calendarId,
+          };
+        }
+
+        transaction.set(
+          userDocRef,
+          {
+            calendars: updatedCalendars,
+          },
+          { merge: true },
+        );
+      });
+    }
+
+    return {
+      settings,
       initialized,
-    }),
-    [initialized, settings],
-  );
+      installCalendar,
+      updateCalendarEntry,
+      setActiveCalendar,
+    } satisfies UserSettingsContextValue;
+  }, [initialized, settings, userId]);
 
-  return <UserSettingsContext.Provider value={value}>{children}</UserSettingsContext.Provider>;
+  return <UserSettingsContext.Provider value={contextValue}>{children}</UserSettingsContext.Provider>;
 }
 
 export function useUserSettings() {
@@ -285,4 +394,4 @@ export function useUserSettings() {
   return context;
 }
 
-export { DEFAULT_CALENDAR_SETTINGS, createDefaultSettings as createDefaultUserSettings };
+export { DEFAULT_CALENDAR_SETTINGS };

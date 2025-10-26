@@ -190,6 +190,8 @@ export default async function Page({ params }: PageProps) {
                 fiscalYears={FISCAL_YEARS}
                 defaultFiscalYear={DEFAULT_FISCAL_YEAR}
                 calendarsByFiscalYear={calendarsByFiscalYear}
+                webId={webId}
+                universityName={university.name}
               />
             </div>
           </div>

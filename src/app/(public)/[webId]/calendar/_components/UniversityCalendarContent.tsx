@@ -11,12 +11,16 @@ type UniversityCalendarContentProps = {
   fiscalYears: readonly string[];
   defaultFiscalYear: string;
   calendarsByFiscalYear: Record<string, UniversityCalendar[]>;
+  webId: string;
+  universityName: string;
 };
 
 export default function UniversityCalendarContent({
   fiscalYears,
   defaultFiscalYear,
   calendarsByFiscalYear,
+  webId,
+  universityName,
 }: UniversityCalendarContentProps) {
   const [selectedFiscalYear, setSelectedFiscalYear] = useState(defaultFiscalYear);
   const calendars = useMemo(() => calendarsByFiscalYear[selectedFiscalYear] ?? [], [calendarsByFiscalYear, selectedFiscalYear]);
@@ -107,12 +111,15 @@ export default function UniversityCalendarContent({
       </div>
       <AppInstallFooter
         fiscalYear={selectedFiscalYear}
+        webId={webId}
+        universityName={universityName}
         calendar={
           activeCalendar
             ? {
                 calendarId: activeCalendar.calendarId,
                 calendarName: activeCalendar.name,
                 fiscalYear: activeCalendar.fiscalYear,
+                hasSaturdayClasses: activeCalendar.hasSaturdayClasses ?? null,
               }
             : null
         }
