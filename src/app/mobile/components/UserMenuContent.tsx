@@ -214,6 +214,14 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
             >
               {isProcessing ? '処理中...' : 'Googleログイン'}
             </button>
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={isProcessing}
+              className="w-full rounded border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400"
+            >
+              {isProcessing ? '処理中...' : 'ログアウト'}
+            </button>
             {feedbackMessage ? (
               <p className={`text-xs ${feedbackMessage.className}`}>{feedbackMessage.text}</p>
             ) : null}
