@@ -11,6 +11,8 @@ export const universitySchema = z
     shortName: z.string().optional(),
     prefecture: z.string().optional(),
     type: z.string().optional(),
+    faculties: z.array(z.string()).optional(),
+    campuses: z.array(z.string()).optional(),
   })
   .passthrough();
 

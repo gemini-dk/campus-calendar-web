@@ -8,12 +8,39 @@ import { extractSchoolColor } from "@/lib/university-color";
 
 const FISCAL_YEARS = ["2025", "2026"] as const;
 const DEFAULT_FISCAL_YEAR = FISCAL_YEARS[0];
+const KEYWORD_VARIANTS = [
+  "学事予定",
+  "授業日程",
+  "学年暦",
+  "年間スケジュール",
+  "授業計画",
+  "講義カレンダー",
+] as const;
 
 export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ webId: string }>;
 };
+
+function normalizeUniversityTextList(values: string[] | undefined): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+  return values
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter((value): value is string => value.length > 0);
+}
+
+function summarizeList(values: string[]): string | undefined {
+  if (values.length === 0) {
+    return undefined;
+  }
+  if (values.length <= 3) {
+    return values.join("・");
+  }
+  return `${values.slice(0, 3).join("・")} など`;
+}
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { webId } = await params;
@@ -30,14 +57,40 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       },
     };
   }
+  const faculties = normalizeUniversityTextList(university.faculties);
+  const campuses = normalizeUniversityTextList(university.campuses);
+  const facultiesSummary = summarizeList(faculties);
+  const campusesSummary = summarizeList(campuses);
+  const descriptionSegments = [
+    `${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定（授業開始日、試験期間、休業日など）を掲載しています。春学期・秋学期のスケジュールを確認できます。`,
+  ];
+  if (facultiesSummary) {
+    descriptionSegments.push(`${university.name}の${facultiesSummary}学部の授業日程にも対応しています。`);
+  }
+  if (campusesSummary) {
+    descriptionSegments.push(`${campusesSummary}キャンパスの学事予定を確認できます。`);
+  }
+  const keywordsSet = new Set<string>([
+    ...KEYWORD_VARIANTS.map((variant) => `${university.name} ${variant}`),
+    ...KEYWORD_VARIANTS,
+    ...faculties.map((faculty) => `${university.name} ${faculty}`),
+    ...faculties,
+    ...campuses.map((campus) => `${university.name} ${campus}`),
+    ...campuses,
+  ]);
+  const description = descriptionSegments.join(" ");
+
   return {
     title: `${university.name} ${DEFAULT_FISCAL_YEAR}年度 授業日程`,
-    description: `${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定（授業開始日、試験期間、休業日など）を掲載しています。春学期・秋学期のスケジュールを確認できます。`,
+    description,
+    keywords: Array.from(keywordsSet),
     alternates: {
       canonical: canonicalUrl,
     },
     openGraph: {
       url: canonicalUrl,
+      title: `${university.name} ${DEFAULT_FISCAL_YEAR}年度 授業日程`,
+      description,
     },
   };
 }
@@ -49,6 +102,9 @@ export default async function Page({ params }: PageProps) {
     notFound();
   }
 
+  const canonicalUrl = buildUniversityCalendarCanonicalUrl(webId);
+  const faculties = normalizeUniversityTextList(university.faculties);
+  const campuses = normalizeUniversityTextList(university.campuses);
   const calendarEntries = await Promise.all(
     FISCAL_YEARS.map(async (fiscalYear) => {
       const calendars = await listUniversityCalendars(university, fiscalYear);
@@ -61,6 +117,39 @@ export default async function Page({ params }: PageProps) {
   const accentColor = schoolColor
     ? `rgb(${schoolColor.r}, ${schoolColor.g}, ${schoolColor.b})`
     : "#1d4ed8";
+  const structuredDataKeywords = Array.from(
+    new Set([
+      ...KEYWORD_VARIANTS.map((variant) => `${university.name} ${variant}`),
+      ...KEYWORD_VARIANTS,
+      ...faculties,
+      ...campuses,
+    ]),
+  );
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "CollegeOrUniversity",
+    name: university.name,
+    url: canonicalUrl,
+    ...(homepageUrl ? { sameAs: [homepageUrl] } : {}),
+    ...(faculties.length > 0
+      ? {
+          department: faculties.map((faculty) => ({
+            "@type": "EducationalOrganization",
+            name: faculty,
+          })),
+        }
+      : {}),
+    ...(campuses.length > 0
+      ? {
+          hasPart: campuses.map((campus) => ({
+            "@type": "Campus",
+            name: campus,
+          })),
+        }
+      : {}),
+    keywords: structuredDataKeywords.join(", "),
+  } as const;
+  const structuredDataJson = JSON.stringify(structuredData).replace(/</g, "\\u003c");
 
   return (
     <main className="relative flex min-h-screen w-full flex-1 flex-col bg-neutral-100 pb-40">
@@ -69,6 +158,7 @@ export default async function Page({ params }: PageProps) {
           <div className="w-full max-w-[724px] min-[1280px]:max-w-[980px] 2xl:max-w-[1236px]">
             <div className="flex w-full flex-col gap-8">
               <header className="flex w-full flex-col gap-4">
+                <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
                 <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
                   {`${university.name} 学事予定・授業日程`}
                   <span

@@ -40,6 +40,23 @@ function normalizeNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function normalizeStringArray(value: unknown): string[] | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    const normalized = value
+      .map((item) => normalizeString(item))
+      .filter((item): item is string => Boolean(item));
+    return normalized.length > 0 ? normalized : undefined;
+  }
+  const normalized = normalizeString(value);
+  if (normalized) {
+    return [normalized];
+  }
+  return undefined;
+}
+
 function coerceUniversityData(id: string, data: unknown): University | null {
   const record = typeof data === 'object' && data !== null ? data : {};
   const nameCandidate =
@@ -56,6 +73,8 @@ function coerceUniversityData(id: string, data: unknown): University | null {
   const capacityCandidate = normalizeNumber((record as { capacity?: unknown }).capacity);
   const homepageCandidate = normalizeString((record as { homepageUrl?: unknown }).homepageUrl);
   const codeCandidate = normalizeString((record as { code?: unknown }).code);
+  const facultiesCandidate = normalizeStringArray((record as { faculties?: unknown }).faculties);
+  const campusesCandidate = normalizeStringArray((record as { campuses?: unknown }).campuses);
 
   const candidate = {
     id,
@@ -65,6 +84,8 @@ function coerceUniversityData(id: string, data: unknown): University | null {
     capacity: capacityCandidate,
     homepageUrl: homepageCandidate || undefined,
     code: codeCandidate || undefined,
+    faculties: facultiesCandidate,
+    campuses: campusesCandidate,
   } satisfies Partial<University> & { id: string };
 
   try {
