@@ -505,7 +505,7 @@ function GridCalendarView({
           </div>
         ) : null}
 
-        <div className="mt-4 grid w-full grid-cols-1 justify-items-center gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid w-full grid-cols-1 justify-items-center gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {monthConfigs.map((config) => (
             <section
               key={`${config.displayYear}-${config.month}`}
