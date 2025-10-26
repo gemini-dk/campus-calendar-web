@@ -1,7 +1,30 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async redirects() {
+    return [
+      {
+        source: "/calendars/:webId",
+        destination: "/:webId/calendar/",
+        permanent: true,
+      },
+      {
+        source: "/calendars/:webId/",
+        destination: "/:webId/calendar/",
+        permanent: true,
+      },
+      {
+        source: "/calendars",
+        destination: "/",
+        permanent: true,
+      },
+      {
+        source: "/calendars/",
+        destination: "/",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
