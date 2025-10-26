@@ -55,7 +55,7 @@ export default async function Page({ params }: PageProps) {
             <div className="flex w-full flex-col gap-8">
               <header className="flex w-full flex-col gap-4">
                 <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
-                  {`${university.name} 授業日程`}
+                  {`${university.name} 学事予定・授業日程`}
                   <span
                     className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
                     style={{
@@ -64,6 +64,10 @@ export default async function Page({ params }: PageProps) {
                     aria-hidden
                   />
                 </h1>
+                <p className="mt-2 text-base leading-relaxed text-neutral-700">
+                  {`${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定では、春学期と秋学期の区分、授業日程、オリエンテーションや定期試験の目安となる期間を整理しています。`}
+                  {` 掲載する各年度のカレンダーから授業開始日や休業期間を確認でき、履修計画や課外活動の準備にも役立ちます。`}
+                </p>
               </header>
               <UniversityCalendarContent
                 fiscalYears={FISCAL_YEARS}
