@@ -339,7 +339,7 @@ function SingleMonthCalendarView({
                 return (
                   <div
                     key={dateId}
-                    className={`flex h-full min-h-0 w-full flex-col overflow-hidden px-2 py-2 text-left text-[11px] leading-tight ${
+                    className={`flex h-full min-h-0 w-full flex-col overflow-hidden px-1.5 py-1.5 text-left text-[11px] leading-tight ${
                       isToday
                         ? ""
                         : "hover:bg-neutral-200/60"
@@ -365,7 +365,7 @@ function SingleMonthCalendarView({
                       ) : null}
                     </div>
 
-                    <div className="mt-2 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
+                    <div className="mt-1.5 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
                       <span className="block w-full min-h-[18px] truncate text-center text-[11px] text-neutral-800">
                         {publicLabel}
                       </span>
@@ -505,11 +505,11 @@ function GridCalendarView({
           </div>
         ) : null}
 
-        <div className="mt-4 grid w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid w-full grid-cols-1 justify-items-center gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {monthConfigs.map((config) => (
             <section
               key={`${config.displayYear}-${config.month}`}
-              className="flex h-full min-h-[360px] w-full flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm"
+              className="flex h-full min-h-[340px] w-full max-w-[320px] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm"
             >
               <div className="flex h-12 w-full items-center justify-between border-b border-neutral-200 bg-neutral-50 px-3">
                 <div className="flex flex-col">
@@ -589,7 +589,7 @@ function GridCalendarView({
                     return (
                       <div
                         key={`${config.displayYear}-${config.month}-${dateId}`}
-                        className={`flex h-full min-h-[60px] w-full flex-col overflow-hidden px-2 py-1.5 text-left text-[10px] leading-tight ${
+                        className={`flex h-full min-h-[56px] w-full flex-col overflow-hidden px-1.5 py-1 text-left text-[10px] leading-tight ${
                           isToday ? "" : "hover:bg-neutral-200/60"
                         }`}
                         style={{
@@ -612,7 +612,7 @@ function GridCalendarView({
                             </span>
                           ) : null}
                         </div>
-                        <div className="mt-1.5 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
+                        <div className="mt-1 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
                           <span className="block w-full min-h-[16px] truncate text-center text-[10px] text-neutral-800">
                             {publicLabel}
                           </span>
