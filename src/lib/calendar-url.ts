@@ -16,7 +16,7 @@ export function getCalendarHref(webId: string): string {
   if (typeof window !== 'undefined') {
     const hostname = window.location?.hostname ?? null;
     if (isCampusCalendarDomain(hostname)) {
-      return `https://${normalizedWebId}.${CAMPUS_CALENDAR_DOMAIN_SUFFIX}/calendar`;
+      return `https://${normalizedWebId}.${CAMPUS_CALENDAR_DOMAIN_SUFFIX}/calendars`;
     }
   }
 
