@@ -36,7 +36,7 @@ export function middleware(request: NextRequest) {
 
   if (pathname === '/calendars' || pathname === '/calendars/') {
     const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/calendars/${subdomain}`;
+    rewriteUrl.pathname = `/${subdomain}/calendar/`;
 
     return NextResponse.rewrite(rewriteUrl);
   }
