@@ -1,7 +1,7 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 import type { University } from '@/lib/data/schema/university';
 import {
@@ -37,7 +37,6 @@ export function SearchableUniversityGrid({
 }) {
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLowerCase();
-  const router = useRouter();
 
   const filteredUniversities = useMemo(() => {
     const normalizedLimit = typeof limit === 'number' && Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : null;
@@ -106,27 +105,32 @@ export function SearchableUniversityGrid({
 
             return (
               <li key={university.id} className="h-full w-full">
-                <article
-                  className="flex h-full w-full cursor-pointer flex-col gap-4 rounded-3xl border bg-white p-6 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
-                  style={{
-                    borderColor: accent.borderColor,
-                    background: accent.background,
-                    boxShadow: accent.boxShadow,
-                  }}
-                  onClick={() => router.push(scheduleHref)}
+                <Link
+                  href={scheduleHref}
+                  className="block h-full w-full"
+                  aria-label={`${university.name}の学事予定ページへ移動`}
                 >
-                  <div
-                    className="h-1.5 w-full rounded-full"
+                  <article
+                    className="flex h-full w-full cursor-pointer flex-col gap-4 rounded-3xl border bg-white p-6 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
                     style={{
-                      background: accent.accentBar,
+                      borderColor: accent.borderColor,
+                      background: accent.background,
+                      boxShadow: accent.boxShadow,
                     }}
-                    aria-hidden
-                  />
+                  >
+                    <div
+                      className="h-1.5 w-full rounded-full"
+                      style={{
+                        background: accent.accentBar,
+                      }}
+                      aria-hidden
+                    />
 
-                  <div className="flex w-full flex-col gap-3">
-                    <h3 className="text-lg font-semibold leading-tight text-slate-900">{university.name}</h3>
-                  </div>
-                </article>
+                    <div className="flex w-full flex-col gap-3">
+                      <h3 className="text-lg font-semibold leading-tight text-slate-900">{university.name}</h3>
+                    </div>
+                  </article>
+                </Link>
               </li>
             );
           })}
