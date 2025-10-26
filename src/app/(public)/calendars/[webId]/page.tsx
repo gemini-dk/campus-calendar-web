@@ -8,6 +8,14 @@ import { extractSchoolColor } from "@/lib/university-color";
 
 const FISCAL_YEARS = ["2025", "2026"] as const;
 const DEFAULT_FISCAL_YEAR = FISCAL_YEARS[0];
+const KEYWORD_VARIANTS = [
+  "学事予定",
+  "授業日程",
+  "学年暦",
+  "年間スケジュール",
+  "授業計画",
+  "講義カレンダー",
+] as const;
 
 export const dynamic = "force-dynamic";
 
@@ -63,8 +71,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     descriptionSegments.push(`${campusesSummary}キャンパスの学事予定を確認できます。`);
   }
   const keywordsSet = new Set<string>([
-    `${university.name} 学事予定`,
-    `${university.name} 授業日程`,
+    ...KEYWORD_VARIANTS.map((variant) => `${university.name} ${variant}`),
+    ...KEYWORD_VARIANTS,
     ...faculties.map((faculty) => `${university.name} ${faculty}`),
     ...faculties,
     ...campuses.map((campus) => `${university.name} ${campus}`),
@@ -111,8 +119,8 @@ export default async function Page({ params }: PageProps) {
     : "#1d4ed8";
   const structuredDataKeywords = Array.from(
     new Set([
-      `${university.name} 学事予定`,
-      `${university.name} 授業日程`,
+      ...KEYWORD_VARIANTS.map((variant) => `${university.name} ${variant}`),
+      ...KEYWORD_VARIANTS,
       ...faculties,
       ...campuses,
     ]),
