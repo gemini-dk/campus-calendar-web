@@ -15,9 +15,8 @@ export default async function HomePage() {
   const universities = await listUniversities();
 
   return (
-    <main className="flex min-h-full w-full flex-1 justify-center bg-gradient-to-b from-sky-50 via-white to-white py-12">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-12 px-4">
-        <section className="flex w-full flex-col gap-8 rounded-3xl border border-blue-200/60 bg-white p-10 text-slate-900 shadow-[0_24px_60px_rgba(148,163,184,0.25)]">
+    <main className="flex min-h-full w-full flex-1 flex-col items-center bg-gradient-to-b from-sky-50 via-white to-white px-4 py-12">
+      <section className="flex w-full max-w-6xl flex-col gap-8 rounded-3xl border border-blue-200/60 bg-white p-10 text-slate-900 shadow-[0_24px_60px_rgba(148,163,184,0.25)]">
           <div className="flex w-full flex-col gap-3">
             <span className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-500">Academic Planning</span>
             <h1 className="text-3xl font-semibold leading-tight text-slate-900 md:text-4xl">
@@ -45,8 +44,9 @@ export default async function HomePage() {
               <span>授業を登録すると、大学の学期・授業日程を踏まえた予定表示をしてくれます。</span>
             </div>
           </div>
-        </section>
+      </section>
 
+      <div className="mt-12 w-full max-w-6xl">
         <SearchableUniversityGrid universities={universities} limit={50} />
       </div>
     </main>
