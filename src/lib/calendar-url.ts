@@ -1,22 +1,24 @@
-const CAMPUS_CALENDAR_DOMAIN_SUFFIX = 'campus-calendar.jp';
+import { getCalendarDomainSuffix } from "./site-url";
 
 function isCampusCalendarDomain(hostname: string | null | undefined): boolean {
   if (!hostname) {
     return false;
   }
-  return hostname.toLowerCase().endsWith(CAMPUS_CALENDAR_DOMAIN_SUFFIX);
+  const domainSuffix = getCalendarDomainSuffix();
+  return hostname.toLowerCase().endsWith(domainSuffix.toLowerCase());
 }
 
 export function getCalendarHref(webId: string): string {
-  const normalizedWebId = typeof webId === 'string' ? webId.trim() : '';
+  const normalizedWebId = typeof webId === "string" ? webId.trim() : "";
   if (!normalizedWebId) {
-    return '/calendars/';
+    return "/calendars/";
   }
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== "undefined") {
     const hostname = window.location?.hostname ?? null;
     if (isCampusCalendarDomain(hostname)) {
-      return `https://${normalizedWebId}.${CAMPUS_CALENDAR_DOMAIN_SUFFIX}/calendars`;
+      const domainSuffix = getCalendarDomainSuffix();
+      return `https://${normalizedWebId}.${domainSuffix}/calendars`;
     }
   }
 

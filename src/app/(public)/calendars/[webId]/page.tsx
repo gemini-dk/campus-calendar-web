@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import UniversityCalendarContent from "./_components/UniversityCalendarContent";
+import { buildUniversityCalendarCanonicalUrl } from "@/lib/site-url";
 import { getUniversityByWebId, listUniversityCalendars } from "@/lib/data/service/university.service";
 import { extractSchoolColor } from "@/lib/university-color";
 
@@ -16,15 +17,28 @@ type PageProps = {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { webId } = await params;
+  const canonicalUrl = buildUniversityCalendarCanonicalUrl(webId);
   const university = await getUniversityByWebId(webId);
   if (!university) {
     return {
       title: `${webId} | ${DEFAULT_FISCAL_YEAR}年度 学事予定`,
+      alternates: {
+        canonical: canonicalUrl,
+      },
+      openGraph: {
+        url: canonicalUrl,
+      },
     };
   }
   return {
     title: `${university.name} ${DEFAULT_FISCAL_YEAR}年度 授業日程`,
     description: `${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定（授業開始日、試験期間、休業日など）を掲載しています。春学期・秋学期のスケジュールを確認できます。`,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+    openGraph: {
+      url: canonicalUrl,
+    },
   };
 }
 
