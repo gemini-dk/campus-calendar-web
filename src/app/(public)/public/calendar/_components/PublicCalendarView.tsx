@@ -491,7 +491,7 @@ function GridCalendarView({
   }, [calendarId, fiscalYear, hasSaturdayClasses, isConfigReady, uniqueDateIds]);
 
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col gap-6 bg-neutral-100">
       <div className="flex w-full flex-col rounded-lg bg-white px-5 py-6 shadow">
         {loading ? (
           <div className="mt-4 flex h-10 w-full items-center justify-center rounded border border-dashed border-neutral-200 text-sm text-neutral-600">

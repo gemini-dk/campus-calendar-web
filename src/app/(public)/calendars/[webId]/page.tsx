@@ -48,36 +48,36 @@ export default async function Page({ params }: PageProps) {
     : "#1d4ed8";
 
   return (
-    <main className="relative flex min-h-full w-full flex-1 flex-col bg-neutral-100 pb-40">
-      <div className="flex w-full justify-center px-4 py-12 min-[1000px]:px-8">
-        <div
-          className="grid w-full max-w-[700px] grid-cols-1 items-start justify-items-center gap-0 min-[1000px]:max-w-[1000px] min-[1000px]:grid-cols-[minmax(0,700px)_300px] min-[1000px]:justify-items-start min-[1324px]:max-w-[1324px] min-[1324px]:grid-cols-[minmax(0,1024px)_300px]"
-        >
-          <div className="flex w-full flex-col gap-8">
-            <header className="flex w-full flex-col gap-4">
-              <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
-                {`${university.name} 授業日程`}
-                <span
-                  className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
-                  style={{
-                    backgroundColor: accentColor,
-                  }}
-                  aria-hidden
-                />
-              </h1>
-            </header>
-            <UniversityCalendarContent
-              fiscalYears={FISCAL_YEARS}
-              defaultFiscalYear={DEFAULT_FISCAL_YEAR}
-              calendarsByFiscalYear={calendarsByFiscalYear}
-            />
-          </div>
-          <aside className="hidden w-[300px] flex-col min-[1000px]:flex">
-            <div className="flex h-full min-h-[400px] w-full items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-white text-sm text-neutral-500">
-              広告枠
+    <main className="relative flex min-h-screen w-full flex-1 flex-col bg-neutral-100 pb-40">
+      <div className="flex w-full min-[1000px]:pr-0">
+        <div className="flex w-full justify-center py-12 min-[1000px]:pr-[300px]">
+          <div className="w-full max-w-[700px] min-[1324px]:max-w-[1024px]">
+            <div className="flex w-full flex-col gap-8">
+              <header className="flex w-full flex-col gap-4">
+                <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
+                  {`${university.name} 授業日程`}
+                  <span
+                    className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
+                    style={{
+                      backgroundColor: accentColor,
+                    }}
+                    aria-hidden
+                  />
+                </h1>
+              </header>
+              <UniversityCalendarContent
+                fiscalYears={FISCAL_YEARS}
+                defaultFiscalYear={DEFAULT_FISCAL_YEAR}
+                calendarsByFiscalYear={calendarsByFiscalYear}
+              />
             </div>
-          </aside>
+          </div>
         </div>
+        <aside className="hidden fixed right-0 top-0 w-[300px] h-full flex-col min-[1000px]:flex z-10 overflow-y-auto">
+          <div className="flex h-full w-full items-center justify-center border-l border-neutral-300 bg-white text-sm text-neutral-500">
+            広告枠
+          </div>
+        </aside>
       </div>
     </main>
   );
