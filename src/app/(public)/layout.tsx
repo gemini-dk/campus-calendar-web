@@ -15,14 +15,14 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
               CC
             </span>
             <span className="flex flex-col">
-              <span className="text-2xl font-semibold tracking-tight">Campus Calendar</span>
+              <span className="text-2xl font-semibold tracking-tight whitespace-nowrap">
+                Campus Calendar
+              </span>
               <span className="text-xs font-medium text-slate-500">祝日授業も 曜日振替も もう迷わない</span>
             </span>
           </Link>
-          <div className="ml-auto flex h-16 w-full max-w-xs items-center justify-end">
-            <div className="flex h-full items-center justify-end">
-              <UniversitySearchBox variant="header" />
-            </div>
+          <div className="ml-auto flex h-16 items-center">
+            <UniversitySearchBox variant="header" />
           </div>
         </div>
       </header>
