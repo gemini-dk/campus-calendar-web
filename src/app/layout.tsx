@@ -13,7 +13,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="h-full w-full">
       <head>
         <meta name="theme-color" content="#f5f9ff" />
         <link
@@ -24,7 +24,7 @@ export default function RootLayout({
           referrerPolicy="no-referrer"
         />
       </head>
-      <body className="antialiased">
+      <body className="flex h-full min-h-dvh w-full flex-col overflow-hidden bg-slate-50 antialiased">
         <AppProviders>{children}</AppProviders>
       </body>
     </html>
