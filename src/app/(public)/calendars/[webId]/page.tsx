@@ -49,9 +49,11 @@ export default async function Page({ params }: PageProps) {
 
   return (
     <main className="relative flex min-h-full w-full flex-1 flex-col bg-neutral-100 pb-40">
-      <div className="flex w-full flex-col gap-8 px-4 py-12 xl:flex-row xl:items-start xl:justify-center xl:gap-10 xl:px-8">
-        <div className="flex w-full flex-1 justify-center xl:justify-center">
-          <div className="flex w-full max-w-5xl flex-col gap-8">
+      <div className="flex w-full justify-center px-4 py-12 min-[1000px]:px-8">
+        <div
+          className="grid w-full max-w-[700px] grid-cols-1 items-start justify-items-center gap-0 min-[1000px]:max-w-[1000px] min-[1000px]:grid-cols-[minmax(0,700px)_300px] min-[1000px]:justify-items-start min-[1324px]:max-w-[1324px] min-[1324px]:grid-cols-[minmax(0,1024px)_300px]"
+        >
+          <div className="flex w-full flex-col gap-8">
             <header className="flex w-full flex-col gap-4">
               <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
                 {`${university.name} 授業日程`}
@@ -70,12 +72,12 @@ export default async function Page({ params }: PageProps) {
               calendarsByFiscalYear={calendarsByFiscalYear}
             />
           </div>
+          <aside className="hidden w-[300px] flex-col min-[1000px]:flex">
+            <div className="flex h-full min-h-[400px] w-full items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-white text-sm text-neutral-500">
+              広告枠
+            </div>
+          </aside>
         </div>
-        <aside className="hidden w-[300px] flex-shrink-0 xl:block">
-          <div className="flex h-full min-h-[400px] w-full items-center justify-center rounded-lg border border-dashed border-neutral-300 bg-white text-sm text-neutral-500">
-            広告枠
-          </div>
-        </aside>
       </div>
     </main>
   );
