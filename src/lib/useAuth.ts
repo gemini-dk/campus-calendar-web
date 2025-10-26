@@ -9,8 +9,9 @@ import {
 } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
 import { FirebaseError } from 'firebase/app';
+import { doc, setDoc } from 'firebase/firestore';
 
-import { auth, googleProvider } from '@/lib/firebase/client';
+import { auth, db, googleProvider } from '@/lib/firebase/client';
 
 const AUTH_COOKIE_NAME = 'campus-calendar-auth';
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -97,6 +98,7 @@ export function useAuth(): UseAuthState {
         const linkedUser = credential.user;
         await linkedUser.reload();
         const updatedUser = auth.currentUser ?? linkedUser;
+        await updateUserDocumentProfile(updatedUser);
         const cookiePayload = await buildCookiePayload(updatedUser);
         setAuthCookie(cookiePayload);
         setProfile(extractProfile(cookiePayload));
@@ -107,6 +109,7 @@ export function useAuth(): UseAuthState {
       }
 
       const result = await signInWithPopup(auth, googleProvider);
+      await updateUserDocumentProfile(result.user);
       const displayName = result.user.displayName ?? 'ゲスト';
       setSuccessMessage(`${displayName} さんとしてサインインしました。`);
     } catch (err) {
@@ -178,6 +181,19 @@ async function buildCookiePayload(user: User): Promise<AuthCookiePayload> {
     token: tokenResult.token,
     expiresAt,
   } satisfies AuthCookiePayload;
+}
+
+async function updateUserDocumentProfile(user: User): Promise<void> {
+  const nickname = user.displayName?.trim() ?? '';
+  const iconUrl = user.photoURL ?? '';
+  const userDocRef = doc(db, 'users', user.uid);
+
+  const payload: Record<string, string | null> = {
+    nickname: nickname || null,
+    iconUrl: iconUrl || null,
+  };
+
+  await setDoc(userDocRef, payload, { merge: true });
 }
 
 function setAuthCookie(payload: AuthCookiePayload) {
