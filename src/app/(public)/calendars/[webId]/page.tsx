@@ -43,6 +43,7 @@ export default async function Page({ params }: PageProps) {
   );
   const calendarsByFiscalYear = Object.fromEntries(calendarEntries);
   const schoolColor = extractSchoolColor(university);
+  const homepageUrl = university.homepageUrl;
   const accentColor = schoolColor
     ? `rgb(${schoolColor.r}, ${schoolColor.g}, ${schoolColor.b})`
     : "#1d4ed8";
@@ -65,8 +66,20 @@ export default async function Page({ params }: PageProps) {
                   />
                 </h1>
                 <p className="mt-2 text-base leading-relaxed text-neutral-700">
-                  {`${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定では、春学期と秋学期の区分、授業日程、オリエンテーションや定期試験の目安となる期間を整理しています。`}
-                  {` 掲載する各年度のカレンダーから授業開始日や休業期間を確認でき、履修計画や課外活動の準備にも役立ちます。`}
+                  {`${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定では、`}
+                  {homepageUrl ? (
+                    <a
+                      href={homepageUrl}
+                      className="text-blue-600 underline underline-offset-2"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      公式ページ
+                    </a>
+                  ) : (
+                    "公式ページ"
+                  )}
+                  {`の情報を元に授業日程をわかりやすく整理しています。最も重要視しているのは授業の有無です。学期や長期休暇の日程だけではなく、祝日なのに授業が行われる特別授業日、平日なのに休講となる特別休講日、実際の曜日とは異なる曜日の授業が行われる振替授業日を一目で分かるカレンダー形式にまとめています。`}
                 </p>
               </header>
               <UniversityCalendarContent
