@@ -40,13 +40,11 @@ export default function UniversityCalendarContent({
       <div className="flex w-full flex-col gap-6 pb-36 md:pb-32">
         <div className={`flex w-full flex-col gap-6 ${hasCalendars ? "md:flex-row md:items-end md:gap-6" : ""}`}>
           <div className="flex w-full flex-col gap-2 md:flex-1">
-            <label className="text-sm font-semibold text-neutral-800" htmlFor="fiscal-year-select">
-              年度を選択
-            </label>
             <select
               id="fiscal-year-select"
               value={selectedFiscalYear}
               onChange={(event) => setSelectedFiscalYear(event.target.value)}
+              aria-label="年度を選択"
               className="h-11 w-full rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             >
               {fiscalYears.map((fiscalYear) => (
@@ -58,13 +56,11 @@ export default function UniversityCalendarContent({
           </div>
           {hasCalendars ? (
             <div className="flex w-full flex-col gap-2 md:flex-1">
-              <label className="text-sm font-semibold text-neutral-800" htmlFor="university-calendar-select">
-                学事予定を選択
-              </label>
               <select
                 id="university-calendar-select"
                 value={activeCalendar?.id ?? ""}
                 onChange={(event) => setSelectedCalendarId(event.target.value)}
+                aria-label="学事予定を選択"
                 className="h-11 w-full rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               >
                 {calendars.map((calendar) => (
