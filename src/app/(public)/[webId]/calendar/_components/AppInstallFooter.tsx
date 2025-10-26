@@ -79,7 +79,7 @@ export default function AppInstallFooter({
             アプリで更に便利に
           </span>
           <p className="text-base font-bold text-neutral-900 md:text-lg">
-            インストールしていつでも簡単に閲覧できます！
+            スマホに最適化したアプリでもっと便利に！
           </p>
         </div>
         <div className="flex w-full flex-col gap-3 md:w-2/5 md:flex-row md:justify-end">
@@ -89,7 +89,7 @@ export default function AppInstallFooter({
             onClick={handleOpenMobileApp}
             disabled={!isActionAvailable}
           >
-            インストール
+            スマホアプリ表示
           </button>
         </div>
       </div>
