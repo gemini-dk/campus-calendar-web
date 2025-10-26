@@ -26,6 +26,7 @@ export default function AppInstallFooter({ fiscalYear, calendar }: AppInstallFoo
     }
 
     const params = new URLSearchParams({
+      tab: "calendar",
       fiscalYear: normalizedFiscalYear,
       calendarId: normalizedCalendarId,
       calendarName: normalizedCalendarName,
