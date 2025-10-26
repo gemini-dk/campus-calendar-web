@@ -184,8 +184,12 @@ async function buildCookiePayload(user: User): Promise<AuthCookiePayload> {
 }
 
 async function updateUserDocumentProfile(user: User): Promise<void> {
-  const nickname = user.displayName?.trim() ?? '';
-  const iconUrl = user.photoURL ?? '';
+  const providerProfile = user.providerData.find((profile) => profile.providerId === 'google.com')
+    ?? user.providerData[0]
+    ?? null;
+
+  const nickname = (user.displayName ?? providerProfile?.displayName ?? '').trim();
+  const iconUrl = user.photoURL ?? providerProfile?.photoURL ?? '';
   const userDocRef = doc(db, 'users', user.uid);
 
   const payload: Record<string, string | null> = {
