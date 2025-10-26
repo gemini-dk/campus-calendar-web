@@ -1,12 +1,14 @@
 'use client';
 
 import {
+  linkWithPopup,
   onIdTokenChanged,
   signInWithPopup,
   signOut,
   type User,
 } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
+import { FirebaseError } from 'firebase/app';
 
 import { auth, googleProvider } from '@/lib/firebase/client';
 
@@ -18,15 +20,23 @@ type AuthCookiePayload = {
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
+  isAnonymous: boolean;
   token: string;
   expiresAt: number;
 };
 
-export type AuthUserProfile = Omit<AuthCookiePayload, 'token' | 'expiresAt'>;
+export type AuthUserProfile = {
+  uid: string;
+  displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
+  isAnonymous: boolean;
+};
 
 type UseAuthState = {
   profile: AuthUserProfile | null;
   isAuthenticated: boolean;
+  isAnonymous: boolean;
   initializing: boolean;
   isProcessing: boolean;
   error: string | null;
@@ -80,11 +90,25 @@ export function useAuth(): UseAuthState {
     setIsProcessing(true);
 
     try {
+      const currentUser = auth.currentUser;
+
+      if (currentUser && currentUser.isAnonymous) {
+        await linkWithPopup(currentUser, googleProvider);
+        setSuccessMessage('Googleアカウントと連携しました。');
+        return;
+      }
+
       const result = await signInWithPopup(auth, googleProvider);
       const displayName = result.user.displayName ?? 'ゲスト';
       setSuccessMessage(`${displayName} さんとしてサインインしました。`);
     } catch (err) {
-      if (err instanceof Error) {
+      if (err instanceof FirebaseError) {
+        if (err.code === 'auth/credential-already-in-use') {
+          setError('このGoogleアカウントは既に別のユーザにリンクされています。別のアカウントをご利用ください。');
+        } else if (err.code !== 'auth/popup-closed-by-user') {
+          setError(err.message);
+        }
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError('予期せぬエラーが発生しました。しばらく待ってから再度お試しください。');
@@ -115,9 +139,13 @@ export function useAuth(): UseAuthState {
     }
   }, []);
 
+  const isAnonymous = profile?.isAnonymous ?? false;
+  const isAuthenticated = Boolean(profile && !profile.isAnonymous);
+
   return {
     profile,
-    isAuthenticated: Boolean(profile),
+    isAuthenticated,
+    isAnonymous,
     initializing,
     isProcessing,
     error,
@@ -138,6 +166,7 @@ async function buildCookiePayload(user: User): Promise<AuthCookiePayload> {
     displayName: user.displayName ?? null,
     email: user.email ?? null,
     photoURL: user.photoURL ?? null,
+    isAnonymous: user.isAnonymous,
     token: tokenResult.token,
     expiresAt,
   } satisfies AuthCookiePayload;
@@ -166,7 +195,27 @@ function readAuthCookie(): AuthCookiePayload | null {
   const value = target.substring(target.indexOf('=') + 1);
 
   try {
-    return JSON.parse(decodeURIComponent(value)) as AuthCookiePayload;
+    const parsed = JSON.parse(decodeURIComponent(value)) as Partial<AuthCookiePayload>;
+
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+
+    if (typeof parsed.uid !== 'string' || typeof parsed.token !== 'string') {
+      return null;
+    }
+
+    const expiresAt = typeof parsed.expiresAt === 'number' ? parsed.expiresAt : Date.now();
+
+    return {
+      uid: parsed.uid,
+      displayName: typeof parsed.displayName === 'string' ? parsed.displayName : null,
+      email: typeof parsed.email === 'string' ? parsed.email : null,
+      photoURL: typeof parsed.photoURL === 'string' ? parsed.photoURL : null,
+      isAnonymous: Boolean(parsed.isAnonymous),
+      token: parsed.token,
+      expiresAt,
+    } satisfies AuthCookiePayload;
   } catch (err) {
     console.error('Failed to parse auth cookie', err);
     return null;
@@ -182,6 +231,6 @@ function clearAuthCookie() {
 }
 
 function extractProfile(payload: AuthCookiePayload): AuthUserProfile {
-  const { uid, displayName, email, photoURL } = payload;
-  return { uid, displayName, email, photoURL };
+  const { uid, displayName, email, photoURL, isAnonymous } = payload;
+  return { uid, displayName, email, photoURL, isAnonymous };
 }

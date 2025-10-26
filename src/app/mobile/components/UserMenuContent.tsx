@@ -11,6 +11,7 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
   const {
     profile,
     isAuthenticated,
+    isAnonymous,
     initializing,
     isProcessing,
     error,
@@ -190,6 +191,28 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
               className="w-full rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-400"
             >
               {isProcessing ? '処理中...' : 'ログアウト'}
+            </button>
+            {feedbackMessage ? (
+              <p className={`text-xs ${feedbackMessage.className}`}>{feedbackMessage.text}</p>
+            ) : null}
+          </div>
+        ) : isAnonymous ? (
+          <div className="flex flex-col items-start gap-4">
+            <div>
+              <p className="text-base font-medium text-neutral-900">ゲストとして利用中</p>
+              <p className="mt-1 text-sm text-neutral-600">
+                今はゲストとして利用中です。ブラウザを閉じたりキャッシュを消すと、保存したデータがなくなる可能性があります。
+                <br />
+                安心して使い続けるために、Googleアカウントとの連携をお願いします。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              disabled={isProcessing}
+              className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+            >
+              {isProcessing ? '処理中...' : 'Googleログイン'}
             </button>
             {feedbackMessage ? (
               <p className={`text-xs ${feedbackMessage.className}`}>{feedbackMessage.text}</p>
