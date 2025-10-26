@@ -394,7 +394,10 @@ export default function ClassScheduleView({ calendar, onRequestCreateClass }: Cl
     if (terms.length === 0) {
       return [{ id: "__placeholder__", name: "学期未設定", isPlaceholder: true }];
     }
-    return terms.map((term) => ({ id: term.id, name: term.name }));
+    return terms.map((term) => ({
+      id: term.id,
+      name: term.shortName && term.shortName.length > 0 ? term.shortName : term.name,
+    }));
   }, [terms]);
 
   const clampedTermIndex = useMemo(() => {
