@@ -1,6 +1,10 @@
 'use client';
 
-import type { PointerEvent as ReactPointerEvent, TransitionEvent } from 'react';
+import type {
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+  TransitionEvent,
+} from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -133,7 +137,11 @@ type OnDemandEntry = {
   }[];
 };
 
-export default function WeeklyCalendarTab() {
+type WeeklyCalendarTabProps = {
+  onDateSelect?: (dateId: string) => void;
+};
+
+export default function WeeklyCalendarTab({ onDateSelect }: WeeklyCalendarTabProps) {
   const { settings, initialized } = useUserSettings();
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
@@ -632,6 +640,7 @@ export default function WeeklyCalendarTab() {
                         classEntriesByDate={classEntriesByDate}
                         fullOnDemandClasses={fullOnDemandClasses}
                         todayId={todayId}
+                        onDateSelect={onDateSelect}
                       />
                     </div>
                   );
@@ -658,6 +667,7 @@ type WeekSlideProps = {
   classEntriesByDate: ClassEntriesByDateMap;
   fullOnDemandClasses: FullOnDemandClass[];
   todayId: string;
+  onDateSelect?: (dateId: string) => void;
 };
 
 function WeekSlide({
@@ -667,6 +677,7 @@ function WeekSlide({
   classEntriesByDate,
   fullOnDemandClasses,
   todayId,
+  onDateSelect,
 }: WeekSlideProps) {
   const rawDates = weekState?.dates ?? generateWeekDates(weekStart);
   const rawDateIds = weekState?.dateIds ?? rawDates.map((date) => formatDateId(date));
@@ -743,14 +754,29 @@ function WeekSlide({
           const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;
           const showBottomBorder = index < totalCells - WEEK_COLUMN_COUNT;
 
+          const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onDateSelect?.(dateId);
+            }
+          };
+
+          const accessibleLabel = general?.dateLabel ?? dateId;
+
           return (
             <div
               key={dateId}
-              className="flex min-h-0 w-full flex-col bg-white"
+              role="button"
+              tabIndex={0}
+              aria-label={accessibleLabel}
+              onClick={() => onDateSelect?.(dateId)}
+              onKeyDown={handleKeyDown}
+              className="flex min-h-0 w-full flex-col bg-white outline-none transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
               style={{
                 backgroundColor: cellBackground,
                 borderRight: showRightBorder ? `1px solid ${BORDER_COLOR}` : undefined,
                 borderBottom: showBottomBorder ? `1px solid ${BORDER_COLOR}` : undefined,
+                cursor: onDateSelect ? 'pointer' : undefined,
               }}
             >
               <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-transparent px-2 pb-2 pt-1">
