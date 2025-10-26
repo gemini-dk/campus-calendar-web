@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { doc, onSnapshot, runTransaction } from 'firebase/firestore';
 
-import { db } from '@/lib/firebase/client';
+import { auth, db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/useAuth';
 
 const DEFAULT_LESSONS_PER_DAY = 6;
@@ -205,10 +205,19 @@ export function UserSettingsProvider({ children }: { children: React.ReactNode }
 
   const contextValue = useMemo<UserSettingsContextValue>(() => {
     async function ensureUserId(): Promise<string> {
-      if (!userId) {
-        throw new Error('ユーザーが認証されていません。');
+      const resolvedUserId = userId ?? auth.currentUser?.uid ?? null;
+      if (resolvedUserId) {
+        return resolvedUserId;
       }
-      return userId;
+
+      if (typeof auth.authStateReady === 'function') {
+        await auth.authStateReady();
+        if (auth.currentUser?.uid) {
+          return auth.currentUser.uid;
+        }
+      }
+
+      throw new Error('ユーザーが認証されていません。');
     }
 
     async function installCalendar(
