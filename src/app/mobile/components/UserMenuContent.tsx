@@ -3,6 +3,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_CALENDAR_SETTINGS, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 
+import { useCalendarNotificationManager } from '../hooks/useCalendarNotificationManager';
+
 type UserMenuContentProps = {
   className?: string;
 };
@@ -19,6 +21,7 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
     signOut,
   } = useAuth();
   const { settings, saveCalendarSettings, resetCalendarSettings, initialized } = useUserSettings();
+  const notificationManager = useCalendarNotificationManager();
   type EditableCalendarEntry = {
     id: string;
     fiscalYear: string;
@@ -78,6 +81,42 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
   useEffect(() => {
     setStatusMessage(null);
   }, [entries, activeIndex]);
+
+  const {
+    supported: notificationsSupported,
+    permission: notificationPermission,
+    syncState: notificationSyncState,
+    isRequesting: notificationIsRequesting,
+    requestError: notificationRequestError,
+    syncError: notificationSyncError,
+    subscribe: subscribeNotifications,
+  } = notificationManager;
+
+  const notificationSupportMessage = useMemo(() => {
+    if (!notificationsSupported || notificationPermission === 'unsupported') {
+      return 'このブラウザはプッシュ通知に対応していません。対応ブラウザでの利用をご検討ください。';
+    }
+    if (notificationPermission === 'denied') {
+      return '通知がブラウザで拒否されています。ブラウザの設定から許可に変更してください。';
+    }
+    if (notificationPermission === 'granted') {
+      return '通知はブラウザで許可されています。';
+    }
+    return '「通知を有効にする」を押すとブラウザに許可を求めます。';
+  }, [notificationsSupported, notificationPermission]);
+
+  const notificationButtonLabel = useMemo(() => {
+    if (notificationIsRequesting) {
+      return '設定中...';
+    }
+    if (!notificationsSupported || notificationPermission === 'unsupported') {
+      return '通知に対応していません';
+    }
+    if (notificationPermission === 'granted') {
+      return '通知設定を同期する';
+    }
+    return '通知を有効にする';
+  }, [notificationIsRequesting, notificationsSupported, notificationPermission]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -336,6 +375,54 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
           <p className="mt-4 text-sm text-neutral-600">設定を読み込み中です...</p>
         )}
         <p className="mt-4 text-xs text-neutral-500">保存した設定はブラウザに記録されます。</p>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        <div>
+          <h2 className="text-lg font-semibold text-neutral-900">通知設定</h2>
+          <p className="mt-1 text-sm text-neutral-600">
+            選択中の学事カレンダーに合わせたプッシュ通知を受け取ります。
+          </p>
+        </div>
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+            <p className="text-sm font-medium text-neutral-700">
+              {notificationsSupported && notificationPermission !== 'unsupported'
+                ? 'プッシュ通知は利用できます。'
+                : 'プッシュ通知は利用できません。'}
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">{notificationSupportMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void subscribeNotifications();
+            }}
+            disabled={
+              notificationIsRequesting ||
+              !notificationsSupported ||
+              notificationPermission === 'unsupported'
+            }
+            className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-neutral-400"
+          >
+            {notificationButtonLabel}
+          </button>
+          {notificationIsRequesting ? (
+            <p className="text-xs text-neutral-500">ブラウザに通知許可をリクエストしています...</p>
+          ) : null}
+          {notificationSyncState === 'syncing' ? (
+            <p className="text-xs text-neutral-500">通知設定を同期しています...</p>
+          ) : null}
+          {notificationPermission === 'granted' && notificationSyncState === 'idle' ? (
+            <p className="text-xs text-green-600">最新の学事カレンダーに基づいて通知を受け取ります。</p>
+          ) : null}
+          {notificationRequestError ? (
+            <p className="text-xs text-red-600">{notificationRequestError}</p>
+          ) : null}
+          {notificationSyncError ? (
+            <p className="text-xs text-red-600">{notificationSyncError}</p>
+          ) : null}
+        </div>
       </section>
 
       <div className="mt-auto border-t border-neutral-200 pt-3 text-center text-xs text-neutral-500">

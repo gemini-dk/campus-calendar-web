@@ -20,6 +20,16 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Firebase 設定
+
+Push 通知を利用する場合は `.env.local` に以下の公開キーを追加してください。
+
+```
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=取得したVAPID公開鍵
+```
+
+上記に加えて `NEXT_PUBLIC_FIREBASE_API_KEY` など既存の Firebase 設定値も必須です。
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
