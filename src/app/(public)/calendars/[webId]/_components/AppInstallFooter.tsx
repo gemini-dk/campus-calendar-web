@@ -45,8 +45,8 @@ export default function AppInstallFooter({ fiscalYear, calendar }: AppInstallFoo
     "flex h-12 w-full items-center justify-center rounded-full px-4 text-sm font-semibold text-white shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2";
 
   return (
-    <footer className="fixed bottom-0 left-0 w-full bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.12)]">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-5 md:flex-row md:items-center md:justify-between">
+    <footer className="fixed bottom-0 left-0 flex min-h-[6.5rem] w-full items-center bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.12)]">
+      <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 px-4 py-5 md:flex-row md:items-center md:justify-between">
         <div className="flex w-full flex-col gap-1 md:w-3/5">
           <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
             アプリで更に便利に

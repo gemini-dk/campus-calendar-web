@@ -48,7 +48,7 @@ export default async function Page({ params }: PageProps) {
     : "#1d4ed8";
 
   return (
-    <main className="relative min-h-screen w-full bg-neutral-100 pb-40">
+    <main className="relative flex min-h-full w-full flex-1 flex-col bg-neutral-100 pb-40">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12">
         <header className="flex w-full flex-col gap-4">
           <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
