@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
 import { FirebaseError } from 'firebase/app';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 import { auth, db, googleProvider } from '@/lib/firebase/client';
 
@@ -84,6 +84,70 @@ export function useAuth(): UseAuthState {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!profile?.uid) {
+      return;
+    }
+
+    const userDocRef = doc(db, 'users', profile.uid);
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          return;
+        }
+
+        const data = snapshot.data() as { nickname?: unknown; iconUrl?: unknown };
+
+        const rawNickname = data.nickname;
+        let normalizedNickname: string | null | undefined;
+        if (typeof rawNickname === 'string') {
+          const trimmed = rawNickname.trim();
+          normalizedNickname = trimmed ? trimmed : null;
+        } else if (rawNickname === null) {
+          normalizedNickname = null;
+        }
+
+        const rawIconUrl = data.iconUrl;
+        let normalizedIconUrl: string | null | undefined;
+        if (typeof rawIconUrl === 'string') {
+          const trimmed = rawIconUrl.trim();
+          normalizedIconUrl = trimmed ? trimmed : null;
+        } else if (rawIconUrl === null) {
+          normalizedIconUrl = null;
+        }
+
+        setProfile((previous) => {
+          if (!previous) {
+            return previous;
+          }
+
+          const nextDisplayName =
+            normalizedNickname !== undefined ? normalizedNickname : previous.displayName;
+          const nextPhotoURL =
+            normalizedIconUrl !== undefined ? normalizedIconUrl : previous.photoURL;
+
+          if (nextDisplayName === previous.displayName && nextPhotoURL === previous.photoURL) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            displayName: nextDisplayName,
+            photoURL: nextPhotoURL,
+          } satisfies AuthUserProfile;
+        });
+      },
+      (error) => {
+        console.error('Failed to subscribe user profile document', error);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [profile?.uid]);
 
   const signInWithGoogle = useCallback(async () => {
     setError(null);
