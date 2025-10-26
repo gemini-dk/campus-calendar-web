@@ -140,7 +140,7 @@ export function useAuth(): UseAuthState {
   }, []);
 
   const isAnonymous = profile?.isAnonymous ?? false;
-  const isAuthenticated = Boolean(profile && !profile.isAnonymous);
+  const isAuthenticated = Boolean(profile);
 
   return {
     profile,

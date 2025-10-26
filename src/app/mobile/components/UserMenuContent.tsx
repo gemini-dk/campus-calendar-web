@@ -259,24 +259,6 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
         {initializing ? (
           <p className="text-sm text-neutral-600">読み込み中...</p>
-        ) : isAuthenticated ? (
-          <div className="flex flex-col items-start gap-4">
-            <div>
-              <p className="text-base font-medium text-neutral-900">{profile?.displayName ?? 'ユーザ'} さんでログイン中</p>
-              <p className="mt-1 text-sm text-neutral-600">アカウント設定や学事情報の閲覧が可能です。</p>
-            </div>
-            <button
-              type="button"
-              onClick={signOut}
-              disabled={isProcessing}
-              className="w-full rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-400"
-            >
-              {isProcessing ? '処理中...' : 'ログアウト'}
-            </button>
-            {feedbackMessage ? (
-              <p className={`text-xs ${feedbackMessage.className}`}>{feedbackMessage.text}</p>
-            ) : null}
-          </div>
         ) : isAnonymous ? (
           <div className="flex flex-col items-start gap-4">
             <div>
@@ -300,6 +282,24 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
               onClick={signOut}
               disabled={isProcessing}
               className="w-full rounded border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400"
+            >
+              {isProcessing ? '処理中...' : 'ログアウト'}
+            </button>
+            {feedbackMessage ? (
+              <p className={`text-xs ${feedbackMessage.className}`}>{feedbackMessage.text}</p>
+            ) : null}
+          </div>
+        ) : isAuthenticated ? (
+          <div className="flex flex-col items-start gap-4">
+            <div>
+              <p className="text-base font-medium text-neutral-900">{profile?.displayName ?? 'ユーザ'} さんでログイン中</p>
+              <p className="mt-1 text-sm text-neutral-600">アカウント設定や学事情報の閲覧が可能です。</p>
+            </div>
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={isProcessing}
+              className="w-full rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-400"
             >
               {isProcessing ? '処理中...' : 'ログアウト'}
             </button>
