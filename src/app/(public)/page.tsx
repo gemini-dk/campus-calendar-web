@@ -18,7 +18,7 @@ export default async function HomePage() {
     <main className="relative flex min-h-screen w-full flex-1 flex-col bg-gradient-to-b from-sky-50 via-white to-white">
       <div className="flex w-full min-[1024px]:pr-0">
         <div className="flex w-full justify-center px-4 py-12 min-[1024px]:pr-[300px]">
-          <div className="w-full max-w-[724px] min-[1280px]:max-w-[980px]">
+          <div className="w-full max-w-[724px] min-[1280px]:max-w-[980px] 2xl:max-w-[1236px]">
             <section className="flex w-full flex-col gap-8 rounded-3xl border border-blue-200/60 bg-white p-10 text-slate-900 shadow-[0_24px_60px_rgba(148,163,184,0.25)]">
               <div className="flex w-full flex-col gap-3">
                 <span className="text-sm font-semibold uppercase tracking-[0.3em] text-blue-500">Academic Planning</span>
@@ -56,7 +56,7 @@ export default async function HomePage() {
         </div>
         <aside className="hidden fixed right-0 top-0 w-[300px] h-full flex-col min-[1024px]:flex z-10 overflow-y-auto">
           <div className="flex h-full w-full items-center justify-center border-l border-neutral-300 bg-white text-sm text-neutral-500">
-            広告枠
+            広告枠<br/><br/>ここに表示する広告を募集中です。
           </div>
         </aside>
       </div>
