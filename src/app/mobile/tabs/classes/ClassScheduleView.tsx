@@ -389,6 +389,7 @@ export default function ClassScheduleView({ calendar, onRequestCreateClass }: Cl
   const baseOffsetRef = useRef(0);
   const dragDeltaRef = useRef(0);
   const isDraggingRef = useRef(false);
+  const shouldSuppressClickRef = useRef(false);
 
   const pagerItems = useMemo<PagerItem[]>(() => {
     if (terms.length === 0) {
@@ -954,13 +955,23 @@ export default function ClassScheduleView({ calendar, onRequestCreateClass }: Cl
         }
       }
 
+      const wasDragging = isDraggingRef.current;
+
       settleToIndex(nextIndex);
       if (pointerId != null) {
         releasePointerCapture(pointerId);
       }
       resetPointerState();
+      shouldSuppressClickRef.current = wasDragging;
     },
-    [clampedTermIndex, pagerItems.length, releasePointerCapture, resetPointerState, settleToIndex, viewportWidth],
+    [
+      clampedTermIndex,
+      pagerItems.length,
+      releasePointerCapture,
+      resetPointerState,
+      settleToIndex,
+      viewportWidth,
+    ],
   );
 
   const handlePointerDown = useCallback(
@@ -975,6 +986,7 @@ export default function ClassScheduleView({ calendar, onRequestCreateClass }: Cl
         return;
       }
       isPointerDownRef.current = true;
+      shouldSuppressClickRef.current = false;
       pointerIdRef.current = event.pointerId;
       dragStartRef.current = event.clientX;
       dragDeltaRef.current = 0;
@@ -1197,13 +1209,19 @@ export default function ClassScheduleView({ calendar, onRequestCreateClass }: Cl
                                 <button
                                   key={`cell-${label}-${weekday.key}`}
                                   type="button"
-                                  onClick={() =>
+                                  onClick={(event) => {
+                                    if (shouldSuppressClickRef.current) {
+                                      shouldSuppressClickRef.current = false;
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      return;
+                                    }
                                     requestHandler({
                                       termId: termForItem.id,
                                       dayOfWeek: weekday.key,
                                       periodKey: label,
-                                    })
-                                  }
+                                    });
+                                  }}
                                   className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-white transition hover:bg-blue-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
                                   style={{
                                     gridColumnStart: weekdayIndex + 2,
