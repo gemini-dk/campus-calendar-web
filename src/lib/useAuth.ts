@@ -1,14 +1,17 @@
 'use client';
 
 import {
+  linkWithPopup,
   onIdTokenChanged,
   signInWithPopup,
   signOut,
   type User,
 } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
+import { FirebaseError } from 'firebase/app';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
-import { auth, googleProvider } from '@/lib/firebase/client';
+import { auth, db, googleProvider } from '@/lib/firebase/client';
 
 const AUTH_COOKIE_NAME = 'campus-calendar-auth';
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -18,15 +21,23 @@ type AuthCookiePayload = {
   displayName: string | null;
   email: string | null;
   photoURL: string | null;
+  isAnonymous: boolean;
   token: string;
   expiresAt: number;
 };
 
-export type AuthUserProfile = Omit<AuthCookiePayload, 'token' | 'expiresAt'>;
+export type AuthUserProfile = {
+  uid: string;
+  displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
+  isAnonymous: boolean;
+};
 
 type UseAuthState = {
   profile: AuthUserProfile | null;
   isAuthenticated: boolean;
+  isAnonymous: boolean;
   initializing: boolean;
   isProcessing: boolean;
   error: string | null;
@@ -74,17 +85,105 @@ export function useAuth(): UseAuthState {
     };
   }, []);
 
+  useEffect(() => {
+    if (!profile?.uid) {
+      return;
+    }
+
+    const userDocRef = doc(db, 'users', profile.uid);
+    const unsubscribe = onSnapshot(
+      userDocRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          return;
+        }
+
+        const data = snapshot.data() as { nickname?: unknown; iconUrl?: unknown };
+
+        const rawNickname = data.nickname;
+        let normalizedNickname: string | null | undefined;
+        if (typeof rawNickname === 'string') {
+          const trimmed = rawNickname.trim();
+          normalizedNickname = trimmed ? trimmed : null;
+        } else if (rawNickname === null) {
+          normalizedNickname = null;
+        }
+
+        const rawIconUrl = data.iconUrl;
+        let normalizedIconUrl: string | null | undefined;
+        if (typeof rawIconUrl === 'string') {
+          const trimmed = rawIconUrl.trim();
+          normalizedIconUrl = trimmed ? trimmed : null;
+        } else if (rawIconUrl === null) {
+          normalizedIconUrl = null;
+        }
+
+        setProfile((previous) => {
+          if (!previous) {
+            return previous;
+          }
+
+          const nextDisplayName =
+            normalizedNickname !== undefined ? normalizedNickname : previous.displayName;
+          const nextPhotoURL =
+            normalizedIconUrl !== undefined ? normalizedIconUrl : previous.photoURL;
+
+          if (nextDisplayName === previous.displayName && nextPhotoURL === previous.photoURL) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            displayName: nextDisplayName,
+            photoURL: nextPhotoURL,
+          } satisfies AuthUserProfile;
+        });
+      },
+      (error) => {
+        console.error('Failed to subscribe user profile document', error);
+      },
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [profile?.uid]);
+
   const signInWithGoogle = useCallback(async () => {
     setError(null);
     setSuccessMessage(null);
     setIsProcessing(true);
 
     try {
+      const currentUser = auth.currentUser;
+
+      if (currentUser && currentUser.isAnonymous) {
+        const credential = await linkWithPopup(currentUser, googleProvider);
+        const linkedUser = credential.user;
+        await linkedUser.reload();
+        const updatedUser = auth.currentUser ?? linkedUser;
+        await updateUserDocumentProfile(updatedUser);
+        const cookiePayload = await buildCookiePayload(updatedUser);
+        setAuthCookie(cookiePayload);
+        setProfile(extractProfile(cookiePayload));
+
+        const displayName = updatedUser.displayName ?? 'Googleアカウント';
+        setSuccessMessage(`${displayName} さんとしてサインインしました。`);
+        return;
+      }
+
       const result = await signInWithPopup(auth, googleProvider);
+      await updateUserDocumentProfile(result.user);
       const displayName = result.user.displayName ?? 'ゲスト';
       setSuccessMessage(`${displayName} さんとしてサインインしました。`);
     } catch (err) {
-      if (err instanceof Error) {
+      if (err instanceof FirebaseError) {
+        if (err.code === 'auth/credential-already-in-use') {
+          setError('このGoogleアカウントは既に別のユーザにリンクされています。別のアカウントをご利用ください。');
+        } else if (err.code !== 'auth/popup-closed-by-user') {
+          setError(err.message);
+        }
+      } else if (err instanceof Error) {
         setError(err.message);
       } else {
         setError('予期せぬエラーが発生しました。しばらく待ってから再度お試しください。');
@@ -115,9 +214,13 @@ export function useAuth(): UseAuthState {
     }
   }, []);
 
+  const isAnonymous = profile?.isAnonymous ?? false;
+  const isAuthenticated = Boolean(profile);
+
   return {
     profile,
-    isAuthenticated: Boolean(profile),
+    isAuthenticated,
+    isAnonymous,
     initializing,
     isProcessing,
     error,
@@ -138,9 +241,27 @@ async function buildCookiePayload(user: User): Promise<AuthCookiePayload> {
     displayName: user.displayName ?? null,
     email: user.email ?? null,
     photoURL: user.photoURL ?? null,
+    isAnonymous: user.isAnonymous,
     token: tokenResult.token,
     expiresAt,
   } satisfies AuthCookiePayload;
+}
+
+async function updateUserDocumentProfile(user: User): Promise<void> {
+  const providerProfile = user.providerData.find((profile) => profile.providerId === 'google.com')
+    ?? user.providerData[0]
+    ?? null;
+
+  const nickname = (user.displayName ?? providerProfile?.displayName ?? '').trim();
+  const iconUrl = user.photoURL ?? providerProfile?.photoURL ?? '';
+  const userDocRef = doc(db, 'users', user.uid);
+
+  const payload: Record<string, string | null> = {
+    nickname: nickname || null,
+    iconUrl: iconUrl || null,
+  };
+
+  await setDoc(userDocRef, payload, { merge: true });
 }
 
 function setAuthCookie(payload: AuthCookiePayload) {
@@ -166,7 +287,27 @@ function readAuthCookie(): AuthCookiePayload | null {
   const value = target.substring(target.indexOf('=') + 1);
 
   try {
-    return JSON.parse(decodeURIComponent(value)) as AuthCookiePayload;
+    const parsed = JSON.parse(decodeURIComponent(value)) as Partial<AuthCookiePayload>;
+
+    if (typeof parsed !== 'object' || parsed === null) {
+      return null;
+    }
+
+    if (typeof parsed.uid !== 'string' || typeof parsed.token !== 'string') {
+      return null;
+    }
+
+    const expiresAt = typeof parsed.expiresAt === 'number' ? parsed.expiresAt : Date.now();
+
+    return {
+      uid: parsed.uid,
+      displayName: typeof parsed.displayName === 'string' ? parsed.displayName : null,
+      email: typeof parsed.email === 'string' ? parsed.email : null,
+      photoURL: typeof parsed.photoURL === 'string' ? parsed.photoURL : null,
+      isAnonymous: Boolean(parsed.isAnonymous),
+      token: parsed.token,
+      expiresAt,
+    } satisfies AuthCookiePayload;
   } catch (err) {
     console.error('Failed to parse auth cookie', err);
     return null;
@@ -182,6 +323,6 @@ function clearAuthCookie() {
 }
 
 function extractProfile(payload: AuthCookiePayload): AuthUserProfile {
-  const { uid, displayName, email, photoURL } = payload;
-  return { uid, displayName, email, photoURL };
+  const { uid, displayName, email, photoURL, isAnonymous } = payload;
+  return { uid, displayName, email, photoURL, isAnonymous };
 }

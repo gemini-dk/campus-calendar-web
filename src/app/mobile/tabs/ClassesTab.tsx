@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faListUl, faPlus, faTable } from "@fortawesome/free-solid-svg-icons";
 import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 
-import { useUserSettings } from "@/lib/settings/UserSettingsProvider";
+import { CalendarEntry, useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
 import UserHamburgerMenu from "../components/UserHamburgerMenu";
 
@@ -23,19 +23,12 @@ type CreateClassPreset = {
   periodKey: string;
 };
 
-type CalendarEntry = {
-  fiscalYear: string;
-  calendarId: string;
-  lessonsPerDay: number;
-  hasSaturdayClasses: boolean;
-};
-
 function buildCalendarKey(entry: CalendarEntry): string {
   return `${entry.fiscalYear}::${entry.calendarId}`;
 }
 
 export default function ClassesTab() {
-  const { settings, saveCalendarSettings } = useUserSettings();
+  const { settings, setActiveCalendar } = useUserSettings();
   const { profile, isAuthenticated } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogPreset, setDialogPreset] = useState<CreateClassPreset | null>(null);
@@ -99,11 +92,7 @@ export default function ClassesTab() {
       return;
     }
 
-    saveCalendarSettings({
-      fiscalYear: matchedEntry.fiscalYear,
-      calendarId: matchedEntry.calendarId,
-      entries: settings.calendar.entries,
-    });
+    void setActiveCalendar(matchedEntry.fiscalYear, matchedEntry.calendarId);
   };
 
   const viewTitle = viewMode === "schedule" ? "時間割" : "授業科目一覧";

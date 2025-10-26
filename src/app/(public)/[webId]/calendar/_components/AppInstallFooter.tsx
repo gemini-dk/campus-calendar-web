@@ -4,14 +4,22 @@ import { useCallback } from "react";
 
 type AppInstallFooterProps = {
   fiscalYear: string;
+  webId: string;
+  universityName: string;
   calendar: {
     calendarId: string;
     calendarName: string;
     fiscalYear?: string | null;
+    hasSaturdayClasses?: boolean | null;
   } | null;
 };
 
-export default function AppInstallFooter({ fiscalYear, calendar }: AppInstallFooterProps) {
+export default function AppInstallFooter({
+  fiscalYear,
+  webId,
+  universityName,
+  calendar,
+}: AppInstallFooterProps) {
   const handleOpenMobileApp = useCallback(() => {
     if (!calendar) {
       return;
@@ -20,8 +28,16 @@ export default function AppInstallFooter({ fiscalYear, calendar }: AppInstallFoo
     const normalizedFiscalYear = (calendar.fiscalYear ?? fiscalYear ?? "").trim();
     const normalizedCalendarId = calendar.calendarId.trim();
     const normalizedCalendarName = calendar.calendarName.trim();
+    const normalizedUniversityName = universityName.trim();
+    const normalizedWebId = webId.trim();
 
-    if (!normalizedFiscalYear || !normalizedCalendarId || !normalizedCalendarName) {
+    if (
+      !normalizedFiscalYear ||
+      !normalizedCalendarId ||
+      !normalizedCalendarName ||
+      !normalizedUniversityName ||
+      !normalizedWebId
+    ) {
       return;
     }
 
@@ -30,16 +46,26 @@ export default function AppInstallFooter({ fiscalYear, calendar }: AppInstallFoo
       fiscalYear: normalizedFiscalYear,
       calendarId: normalizedCalendarId,
       calendarName: normalizedCalendarName,
+      universityName: normalizedUniversityName,
+      webId: normalizedWebId,
     });
+
+    if (typeof calendar.hasSaturdayClasses === "boolean") {
+      params.set("hasSaturdayClasses", calendar.hasSaturdayClasses ? "1" : "0");
+    }
 
     const mobileUrl = new URL("/mobile", window.location.origin);
     mobileUrl.search = params.toString();
 
     window.location.href = mobileUrl.toString();
-  }, [calendar, fiscalYear]);
+  }, [calendar, fiscalYear, universityName, webId]);
 
   const isActionAvailable = Boolean(
-    calendar?.calendarId && calendar.calendarName && (calendar.fiscalYear || fiscalYear),
+    calendar?.calendarId &&
+      calendar.calendarName &&
+      (calendar.fiscalYear || fiscalYear) &&
+      webId &&
+      universityName,
   );
 
   const actionButtonClassName =
