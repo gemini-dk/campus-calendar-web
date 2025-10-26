@@ -57,6 +57,7 @@ export default async function Page({ params }: PageProps) {
   );
   const calendarsByFiscalYear = Object.fromEntries(calendarEntries);
   const schoolColor = extractSchoolColor(university);
+  const homepageUrl = university.homepageUrl;
   const accentColor = schoolColor
     ? `rgb(${schoolColor.r}, ${schoolColor.g}, ${schoolColor.b})`
     : "#1d4ed8";
@@ -69,7 +70,7 @@ export default async function Page({ params }: PageProps) {
             <div className="flex w-full flex-col gap-8">
               <header className="flex w-full flex-col gap-4">
                 <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
-                  {`${university.name} 授業日程`}
+                  {`${university.name} 学事予定・授業日程`}
                   <span
                     className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
                     style={{
@@ -78,6 +79,22 @@ export default async function Page({ params }: PageProps) {
                     aria-hidden
                   />
                 </h1>
+                <p className="mt-2 text-base leading-relaxed text-neutral-700">
+                  {`${university.name}の${DEFAULT_FISCAL_YEAR}年度学事予定では、`}
+                  {homepageUrl ? (
+                    <a
+                      href={homepageUrl}
+                      className="text-blue-600 underline underline-offset-2"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      公式ページ
+                    </a>
+                  ) : (
+                    "公式ページ"
+                  )}
+                  {`の情報を元に授業日程をわかりやすく整理しています。最も重要視しているのは授業の有無です。学期や長期休暇の日程だけではなく、祝日なのに授業が行われる特別授業日、平日なのに休講となる特別休講日、実際の曜日とは異なる曜日の授業が行われる振替授業日を一目で分かるカレンダー形式にまとめています。`}
+                </p>
               </header>
               <UniversityCalendarContent
                 fiscalYears={FISCAL_YEARS}
