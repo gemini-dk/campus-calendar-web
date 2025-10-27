@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback } from "react";
 
 type AppInstallFooterProps = {
@@ -82,7 +83,7 @@ export default function AppInstallFooter({
             スマホに最適化したアプリでもっと便利に！
           </p>
         </div>
-        <div className="flex w-full flex-col gap-3 md:w-2/5 md:flex-row md:justify-end">
+        <div className="flex w-full flex-col gap-3 md:w-2/5 md:flex-row md:items-center md:justify-end">
           <button
             type="button"
             className={`${actionButtonClassName} bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 md:w-auto md:min-w-[220px]`}
@@ -91,6 +92,13 @@ export default function AppInstallFooter({
           >
             スマホアプリ表示
           </button>
+          <Link
+            href="/pwa-install"
+            className="flex h-12 w-12 items-center justify-center self-end rounded-full border border-blue-100 bg-white text-sm font-semibold text-blue-600 shadow transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 md:self-auto"
+            aria-label="PWAアプリのインストール方法を確認"
+          >
+            ?
+          </Link>
         </div>
       </div>
     </footer>
