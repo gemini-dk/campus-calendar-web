@@ -1,34 +1,51 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import PublicCalendarView from "@/app/(public)/public/calendar/_components/PublicCalendarView";
+import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
 import type { UniversityCalendar } from "@/lib/data/schema/university";
 
 import AppInstallFooter from "./AppInstallFooter";
 
+type PrefetchedUniversityCalendar = UniversityCalendar & {
+  calendarDays: CalendarDay[];
+  calendarTerms: CalendarTerm[];
+};
+
 type UniversityCalendarContentProps = {
   fiscalYears: readonly string[];
-  defaultFiscalYear: string;
-  calendarsByFiscalYear: Record<string, UniversityCalendar[]>;
+  activeFiscalYear: string;
+  calendarsByFiscalYear: Record<string, PrefetchedUniversityCalendar[]>;
   webId: string;
   universityName: string;
 };
 
 export default function UniversityCalendarContent({
   fiscalYears,
-  defaultFiscalYear,
+  activeFiscalYear,
   calendarsByFiscalYear,
   webId,
   universityName,
 }: UniversityCalendarContentProps) {
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState(defaultFiscalYear);
-  const calendars = useMemo(() => calendarsByFiscalYear[selectedFiscalYear] ?? [], [calendarsByFiscalYear, selectedFiscalYear]);
-  const [selectedCalendarId, setSelectedCalendarId] = useState(() => calendarsByFiscalYear[defaultFiscalYear]?.[0]?.id ?? "");
+  const router = useRouter();
+  const [selectedFiscalYear, setSelectedFiscalYear] = useState(activeFiscalYear);
+  const calendars = useMemo(
+    () => calendarsByFiscalYear[selectedFiscalYear] ?? [],
+    [calendarsByFiscalYear, selectedFiscalYear],
+  );
+  const [selectedCalendarId, setSelectedCalendarId] = useState(
+    () => calendarsByFiscalYear[activeFiscalYear]?.[0]?.id ?? "",
+  );
+
+  useEffect(() => {
+    setSelectedFiscalYear(activeFiscalYear);
+  }, [activeFiscalYear]);
 
   useEffect(() => {
     setSelectedCalendarId(calendars[0]?.id ?? "");
-  }, [calendars, selectedFiscalYear]);
+  }, [calendars]);
 
   const activeCalendar = useMemo(() => {
     if (!selectedCalendarId) {
@@ -47,7 +64,13 @@ export default function UniversityCalendarContent({
             <select
               id="fiscal-year-select"
               value={selectedFiscalYear}
-              onChange={(event) => setSelectedFiscalYear(event.target.value)}
+              onChange={(event) => {
+                const nextFiscalYear = event.target.value;
+                setSelectedFiscalYear(nextFiscalYear);
+                if (nextFiscalYear) {
+                  router.push(`/${encodeURIComponent(webId)}/calendar/${encodeURIComponent(nextFiscalYear)}`);
+                }
+              }}
               aria-label="年度を選択"
               className="h-11 w-full rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
             >
@@ -81,10 +104,14 @@ export default function UniversityCalendarContent({
           activeCalendar ? (
             <div className="w-full">
               <PublicCalendarView
-                fiscalYear={activeCalendar.fiscalYear || selectedFiscalYear}
-                calendarId={activeCalendar.calendarId}
+                dataset={{
+                  fiscalYear: activeCalendar.fiscalYear || selectedFiscalYear,
+                  calendarId: activeCalendar.calendarId,
+                  hasSaturdayClasses: activeCalendar.hasSaturdayClasses ?? null,
+                  days: activeCalendar.calendarDays,
+                  terms: activeCalendar.calendarTerms,
+                }}
                 initialMonth={null}
-                hasSaturdayClasses={activeCalendar.hasSaturdayClasses ?? true}
                 displayMode="grid"
               />
             </div>
@@ -118,7 +145,7 @@ export default function UniversityCalendarContent({
             ? {
                 calendarId: activeCalendar.calendarId,
                 calendarName: activeCalendar.name,
-                fiscalYear: activeCalendar.fiscalYear,
+                fiscalYear: activeCalendar.fiscalYear || selectedFiscalYear,
                 hasSaturdayClasses: activeCalendar.hasSaturdayClasses ?? null,
               }
             : null

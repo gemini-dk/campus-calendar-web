@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
 import {
-  getCalendarDisplayInfo,
   type CalendarDisplayInfo,
-} from "@/lib/data/service/calendarDisplay.service";
+  computeCalendarDisplayInfo,
+  normalizeCalendarDateId,
+} from "@/lib/data/service/calendarDisplay.shared";
 
 const WEEKDAY_HEADERS = [
   { label: "Sun", shortLabel: "日", color: "#f87171" },
@@ -49,10 +51,16 @@ type MonthConfig = MonthOption & {
   dateIds: string[];
 };
 
-type BaseCalendarProps = {
+type CalendarDataset = {
   fiscalYear: string;
   calendarId: string;
-  hasSaturdayClasses?: boolean;
+  hasSaturdayClasses?: boolean | null;
+  days: CalendarDay[];
+  terms: CalendarTerm[];
+};
+
+type BaseCalendarProps = {
+  dataset: CalendarDataset;
 };
 
 type SingleModeProps = BaseCalendarProps & {
@@ -142,17 +150,39 @@ function resolveInitialMonth(fiscalYear: string, providedMonth: number | null): 
   return FISCAL_MONTHS[0];
 }
 
-function SingleMonthCalendarView({
-  fiscalYear,
-  calendarId,
-  initialMonth,
-  hasSaturdayClasses = true,
-}: SingleMonthCalendarViewProps) {
+function createCalendarDayMap(days: CalendarDay[]): Map<string, CalendarDay> {
+  const map = new Map<string, CalendarDay>();
+  for (const day of days) {
+    const normalized = normalizeCalendarDateId(day.date) ?? normalizeCalendarDateId(day.id);
+    if (!normalized) {
+      continue;
+    }
+    map.set(normalized, day);
+  }
+  return map;
+}
+
+function useCalendarDisplayInfo(dateIds: readonly string[], dataset: CalendarDataset): CalendarInfoMap {
+  const { days, terms, hasSaturdayClasses } = dataset;
+  const normalizedHasSaturdayClasses = hasSaturdayClasses ?? undefined;
+  const dayMap = useMemo(() => createCalendarDayMap(days), [days]);
+
+  return useMemo(() => {
+    const map: CalendarInfoMap = {};
+    for (const dateId of dateIds) {
+      const day = dayMap.get(dateId) ?? null;
+      map[dateId] = computeCalendarDisplayInfo(dateId, day, terms, {
+        hasSaturdayClasses: normalizedHasSaturdayClasses,
+      });
+    }
+    return map;
+  }, [dayMap, dateIds, terms, normalizedHasSaturdayClasses]);
+}
+
+function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarViewProps) {
   const router = useRouter();
+  const { fiscalYear, calendarId } = dataset;
   const [selectedMonth, setSelectedMonth] = useState(() => resolveInitialMonth(fiscalYear, initialMonth));
-  const [infoMap, setInfoMap] = useState<CalendarInfoMap>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setSelectedMonth(resolveInitialMonth(fiscalYear, initialMonth));
@@ -180,52 +210,8 @@ function SingleMonthCalendarView({
   const dateIds = useMemo(() => calendarDates.map((date) => formatDateId(date)), [calendarDates]);
   const todayId = useMemo(() => formatDateId(new Date()), []);
 
+  const infoMap = useCalendarDisplayInfo(dateIds, dataset);
   const isConfigReady = fiscalYear.trim().length > 0 && calendarId.trim().length > 0;
-
-  useEffect(() => {
-    if (!isConfigReady) {
-      setInfoMap({});
-      setError("年度またはカレンダーIDが指定されていません。");
-      setLoading(false);
-      return;
-    }
-    setError(null);
-    let canceled = false;
-    async function loadMonthInfo() {
-      setLoading(true);
-      try {
-        const results = await Promise.all(
-          dateIds.map(async (dateId) => {
-            const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId, { hasSaturdayClasses });
-            return { dateId, info };
-          }),
-        );
-        if (canceled) {
-          return;
-        }
-        const nextMap: CalendarInfoMap = {};
-        for (const { dateId, info } of results) {
-          nextMap[dateId] = info;
-        }
-        setInfoMap(nextMap);
-      } catch (cause) {
-        if (canceled) {
-          return;
-        }
-        console.error(cause);
-        setError("学事予定の読み込みに失敗しました。しばらくしてから再度お試しください。");
-        setInfoMap({});
-      } finally {
-        if (!canceled) {
-          setLoading(false);
-        }
-      }
-    }
-    loadMonthInfo();
-    return () => {
-      canceled = true;
-    };
-  }, [calendarId, dateIds, fiscalYear, hasSaturdayClasses, isConfigReady]);
 
   const handleChangeMonth = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -234,13 +220,18 @@ function SingleMonthCalendarView({
         return;
       }
       setSelectedMonth(value);
+      if (!isConfigReady) {
+        return;
+      }
       const search = new URLSearchParams();
       search.set("year", fiscalYear);
       search.set("month", String(value));
       router.replace(`/public/calendar/${encodeURIComponent(calendarId)}?${search.toString()}`);
     },
-    [calendarId, fiscalYear, router],
+    [calendarId, fiscalYear, isConfigReady, router],
   );
+
+  const errorMessage = isConfigReady ? null : "年度またはカレンダーIDが指定されていません。";
 
   return (
     <div className="flex min-h-screen w-full flex-col items-center bg-neutral-100 px-4 py-8">
@@ -277,132 +268,121 @@ function SingleMonthCalendarView({
             ))}
           </div>
 
-          <div className="flex h-full min-h-[560px] w-full flex-1 flex-col">
-            <div className="grid h-full w-full flex-1 grid-cols-7 grid-rows-6 border border-t-0 border-neutral-200">
-              {calendarDates.map((date, index) => {
-                const dateId = dateIds[index];
-                const info = infoMap[dateId];
-                const general = info?.calendar;
-                const academic = info?.academic;
-                const day = info?.day ?? null;
+          {errorMessage ? (
+            <div className="flex h-full min-h-[560px] w-full flex-1 items-center justify-center border border-t-0 border-neutral-200 bg-white text-sm text-neutral-600">
+              {errorMessage}
+            </div>
+          ) : (
+            <div className="flex h-full w-full flex-1 flex-col">
+              <div className="grid h-full w-full flex-1 grid-cols-7 grid-rows-6 border border-t-0 border-neutral-200">
+                {calendarDates.map((date, index) => {
+                  const dateId = dateIds[index];
+                  const info = infoMap[dateId];
+                  const general = info?.calendar;
+                  const academic = info?.academic;
+                  const day = info?.day ?? null;
 
-                const isCurrentMonth =
-                  date.getFullYear() === activeMonthDate.getFullYear() &&
-                  date.getMonth() === activeMonthDate.getMonth();
-                const isToday = dateId === todayId;
-                const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
-                const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
+                  const isCurrentMonth =
+                    date.getFullYear() === activeMonthDate.getFullYear() &&
+                    date.getMonth() === activeMonthDate.getMonth();
+                  const isToday = dateId === todayId;
+                  const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
+                  const showBottomBorder = index < CALENDAR_CELL_COUNT - WEEKDAY_HEADERS.length;
 
-                if (!isCurrentMonth) {
+                  if (!isCurrentMonth) {
+                    return (
+                      <div
+                        key={dateId}
+                        className="flex h-full min-h-0 w-full flex-col bg-white"
+                        style={{
+                          borderRightWidth: showRightBorder ? 1 : 0,
+                          borderBottomWidth: showBottomBorder ? 1 : 0,
+                          borderColor: "rgba(212, 212, 216, 1)",
+                          borderStyle: "solid",
+                        }}
+                      />
+                    );
+                  }
+
+                  const hasNotificationAlert =
+                    Array.isArray(day?.notificationReasons) &&
+                    day.notificationReasons.some((reason) => reason === "1" || reason === "2" || reason === "3");
+
+                  const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
+                  const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
+                  const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
+                  const cellBackgroundColor = isToday
+                    ? "var(--color-calendar-today-background)"
+                    : backgroundColor;
+
+                  const isClassDay = day?.type === "授業日";
+                  const classOrder = academic?.classOrder;
+                  const classWeekday = academic?.weekdayNumber;
+                  const weekdayColor =
+                    typeof classWeekday === "number"
+                      ? WEEKDAY_HEADERS[classWeekday]?.color ?? "#2563eb"
+                      : "#2563eb";
+
+                  const rawTermName = typeof info?.term?.name === "string" ? info.term.name.trim() : "";
+                  const fallbackTermName =
+                    typeof day?.termName === "string" && day.termName ? day.termName.trim() : "";
+                  const publicLabel = rawTermName
+                    ? rawTermName
+                    : fallbackTermName
+                      ? fallbackTermName
+                      : academic?.label ?? "予定なし";
+
                   return (
                     <div
                       key={dateId}
-                      className="flex h-full min-h-0 w-full flex-col bg-white"
+                      className={`flex h-full min-h-0 w-full flex-col overflow-hidden px-1.5 py-1.5 text-left text-[11px] leading-tight ${
+                        isToday ? "" : "hover:bg-neutral-200/60"
+                      }`}
                       style={{
+                        backgroundColor: cellBackgroundColor,
                         borderRightWidth: showRightBorder ? 1 : 0,
                         borderBottomWidth: showBottomBorder ? 1 : 0,
                         borderColor: "rgba(212, 212, 216, 1)",
                         borderStyle: "solid",
+                        boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #1e3a8a" : undefined,
                       }}
-                    />
+                    >
+                      <div className="flex flex-shrink-0 items-start justify-between">
+                        <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
+                        {isClassDay && typeof classOrder === "number" ? (
+                          <span
+                            className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
+                            style={{ backgroundColor: weekdayColor }}
+                          >
+                            {classOrder}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-1.5 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
+                        <span className="block w-full min-h-[18px] truncate text-center text-[11px] text-neutral-800">
+                          {publicLabel}
+                        </span>
+                        {academic?.subLabel ? (
+                          <span className="mt-[2px] block w-full min-h-[16px] truncate text-center text-[11px] font-bold text-neutral-900">
+                            {academic.subLabel}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
                   );
-                }
-
-                const hasNotificationAlert =
-                  Array.isArray(day?.notificationReasons) &&
-                  day.notificationReasons.some((reason) => reason === "1" || reason === "2" || reason === "3");
-
-                const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
-                const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
-                const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
-                const cellBackgroundColor = isToday
-                  ? "var(--color-calendar-today-background)"
-                  : backgroundColor;
-
-                const isClassDay = day?.type === "授業日";
-                const classOrder = academic?.classOrder;
-                const classWeekday = academic?.weekdayNumber;
-                const weekdayColor =
-                  typeof classWeekday === "number"
-                    ? WEEKDAY_HEADERS[classWeekday]?.color ?? "#2563eb"
-                    : "#2563eb";
-
-                const rawTermName = typeof info?.term?.name === "string" ? info.term.name.trim() : "";
-                const fallbackTermName =
-                  typeof day?.termName === "string" && day.termName ? day.termName.trim() : "";
-                const publicLabel = rawTermName
-                  ? rawTermName
-                  : fallbackTermName
-                    ? fallbackTermName
-                    : academic?.label ?? "予定なし";
-
-                return (
-                  <div
-                    key={dateId}
-                    className={`flex h-full min-h-0 w-full flex-col overflow-hidden px-1.5 py-1.5 text-left text-[11px] leading-tight ${
-                      isToday
-                        ? ""
-                        : "hover:bg-neutral-200/60"
-                    }`}
-                    style={{
-                      backgroundColor: cellBackgroundColor,
-                      borderRightWidth: showRightBorder ? 1 : 0,
-                      borderBottomWidth: showBottomBorder ? 1 : 0,
-                      borderColor: "rgba(212, 212, 216, 1)",
-                      borderStyle: "solid",
-                      boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #1e3a8a" : undefined,
-                    }}
-                  >
-                    <div className="flex flex-shrink-0 items-start justify-between">
-                      <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
-                      {isClassDay && typeof classOrder === "number" ? (
-                        <span
-                          className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
-                          style={{ backgroundColor: weekdayColor }}
-                        >
-                          {classOrder}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-1.5 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
-                      <span className="block w-full min-h-[18px] truncate text-center text-[11px] text-neutral-800">
-                        {publicLabel}
-                      </span>
-                      {academic?.subLabel ? (
-                        <span className="mt-[2px] block w-full min-h-[16px] truncate text-center text-[11px] font-bold text-neutral-900">
-                          {academic.subLabel}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
-
-            {loading ? (
-              <div className="flex h-12 w-full items-center justify-center text-sm text-neutral-600">読み込み中...</div>
-            ) : null}
-
-            {error ? (
-              <div className="flex h-12 w-full items-center justify-center text-sm text-red-600">{error}</div>
-            ) : null}
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function GridCalendarView({
-  fiscalYear,
-  calendarId,
-  hasSaturdayClasses = true,
-}: GridCalendarViewProps) {
-  const [infoMap, setInfoMap] = useState<CalendarInfoMap>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+function GridCalendarView({ dataset }: GridCalendarViewProps) {
+  const { fiscalYear } = dataset;
   const monthOptions = useMemo<MonthOption[]>(() => {
     const yearNumber = Number(fiscalYear);
     return FISCAL_MONTHS.map((month) => {
@@ -439,69 +419,18 @@ function GridCalendarView({
     return Array.from(unique);
   }, [monthConfigs]);
 
+  const infoMap = useCalendarDisplayInfo(uniqueDateIds, dataset);
   const todayId = useMemo(() => formatDateId(new Date()), []);
+  const isConfigReady = dataset.fiscalYear.trim().length > 0 && dataset.calendarId.trim().length > 0;
 
-  const isConfigReady = fiscalYear.trim().length > 0 && calendarId.trim().length > 0;
-
-  useEffect(() => {
-    if (!isConfigReady) {
-      setInfoMap({});
-      setError("年度またはカレンダーIDが指定されていません。");
-      setLoading(false);
-      return;
-    }
-    setError(null);
-    let canceled = false;
-
-    async function loadAllMonths() {
-      setLoading(true);
-      try {
-        const results = await Promise.all(
-          uniqueDateIds.map(async (dateId) => {
-            const info = await getCalendarDisplayInfo(fiscalYear, calendarId, dateId, { hasSaturdayClasses });
-            return { dateId, info };
-          }),
-        );
-        if (canceled) {
-          return;
-        }
-        const nextMap: CalendarInfoMap = {};
-        for (const { dateId, info } of results) {
-          nextMap[dateId] = info;
-        }
-        setInfoMap(nextMap);
-      } catch (cause) {
-        if (canceled) {
-          return;
-        }
-        console.error(cause);
-        setError("学事予定の読み込みに失敗しました。しばらくしてから再度お試しください。");
-        setInfoMap({});
-      } finally {
-        if (!canceled) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadAllMonths();
-    return () => {
-      canceled = true;
-    };
-  }, [calendarId, fiscalYear, hasSaturdayClasses, isConfigReady, uniqueDateIds]);
+  const errorMessage = isConfigReady ? null : "年度またはカレンダーIDが指定されていません。";
 
   return (
     <div className="flex w-full flex-col gap-6 bg-neutral-100">
       <div className="flex w-full flex-col rounded-lg bg-white px-5 py-6 shadow">
-        {loading ? (
-          <div className="mt-4 flex h-10 w-full items-center justify-center rounded border border-dashed border-neutral-200 text-sm text-neutral-600">
-            読み込み中...
-          </div>
-        ) : null}
-
-        {error ? (
+        {errorMessage ? (
           <div className="mt-4 flex h-10 w-full items-center justify-center rounded border border-red-200 bg-red-50 text-sm text-red-600">
-            {error}
+            {errorMessage}
           </div>
         ) : null}
 
@@ -517,18 +446,20 @@ function GridCalendarView({
                   <span className="text-base font-bold text-neutral-900">{config.label}</span>
                 </div>
               </div>
+
               <div className="flex h-full w-full flex-1 flex-col">
-                <div className="grid h-8 w-full grid-cols-7 border border-neutral-200 bg-neutral-50 text-[11px] font-semibold text-neutral-700">
+                <div className="grid h-9 w-full grid-cols-7 border-b border-neutral-200 bg-neutral-50 text-[11px] font-semibold text-neutral-700">
                   {WEEKDAY_HEADERS.map((weekday) => (
                     <div
-                      key={`${config.month}-${weekday.label}`}
+                      key={`${config.displayYear}-${config.month}-${weekday.label}`}
                       className="flex h-full w-full items-center justify-center border-r border-neutral-200 last:border-r-0"
                     >
                       <span>{weekday.shortLabel}</span>
                     </div>
                   ))}
                 </div>
-                <div className="grid flex-1 grid-cols-7 grid-rows-6 border border-t-0 border-neutral-200">
+
+                <div className="grid h-full w-full flex-1 grid-cols-7 grid-rows-6 border border-t-0 border-neutral-200">
                   {config.calendarDates.map((date, index) => {
                     const dateId = config.dateIds[index];
                     const info = infoMap[dateId];
@@ -637,23 +568,8 @@ function GridCalendarView({
 
 export default function PublicCalendarView(props: PublicCalendarViewProps) {
   if (props.displayMode === "grid") {
-    const { calendarId, fiscalYear, hasSaturdayClasses = true } = props;
-    return (
-      <GridCalendarView
-        fiscalYear={fiscalYear}
-        calendarId={calendarId}
-        hasSaturdayClasses={hasSaturdayClasses}
-      />
-    );
+    return <GridCalendarView dataset={props.dataset} />;
   }
 
-  const { calendarId, fiscalYear, initialMonth, hasSaturdayClasses = true } = props;
-  return (
-    <SingleMonthCalendarView
-      fiscalYear={fiscalYear}
-      calendarId={calendarId}
-      initialMonth={initialMonth}
-      hasSaturdayClasses={hasSaturdayClasses}
-    />
-  );
+  return <SingleMonthCalendarView dataset={props.dataset} initialMonth={props.initialMonth} />;
 }

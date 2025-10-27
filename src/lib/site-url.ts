@@ -36,3 +36,13 @@ export function buildUniversityCalendarCanonicalUrl(webId: string): string {
   const encodedWebId = encodeURIComponent(normalizedWebId);
   return `${origin}/${encodedWebId}/calendar/`;
 }
+
+export function buildUniversityCalendarYearUrl(webId: string, fiscalYear: string): string {
+  const base = buildUniversityCalendarCanonicalUrl(webId).replace(/\/$/, "");
+  const normalizedFiscalYear = typeof fiscalYear === "string" ? fiscalYear.trim() : "";
+  if (!normalizedFiscalYear) {
+    return `${base}/`;
+  }
+  const encodedFiscalYear = encodeURIComponent(normalizedFiscalYear);
+  return `${base}/${encodedFiscalYear}/`;
+}
