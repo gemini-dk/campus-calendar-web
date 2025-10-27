@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 export default function PwaInstallPage() {
   return (
     <main className="flex min-h-full w-full flex-1 justify-center bg-gradient-to-b from-sky-50 via-white to-white">
-      <div className="flex min-h-full w-full flex-1 items-stretch justify-center px-4 py-12 md:py-16">
-        <article className="flex min-h-full w-full max-w-[720px] flex-1 flex-col gap-10 rounded-3xl border border-blue-200/60 bg-white p-10 text-slate-900 shadow-[0_24px_60px_rgba(148,163,184,0.25)]">
+      <div className="flex min-h-full w-full flex-1 items-start justify-center px-4 py-12 md:py-16">
+        <article className="flex w-full max-w-[720px] flex-1 flex-col gap-10 rounded-3xl border border-blue-200/60 bg-white p-10 text-slate-900 shadow-[0_24px_60px_rgba(148,163,184,0.25)]">
           <header className="flex w-full flex-col gap-4">
             <span className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-500">PWA Install Guide</span>
             <h1 className="text-3xl font-semibold leading-tight md:text-4xl">{PWA_APP_NAME} アプリのインストール方法</h1>
