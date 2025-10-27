@@ -18,6 +18,7 @@ type UniversityCalendarContentProps = {
   calendarsByFiscalYear: Record<string, PrefetchedUniversityCalendar[]>;
   webId: string;
   universityName: string;
+  horizontalPaddingClassName?: string;
 };
 
 export default function UniversityCalendarContent({
@@ -25,6 +26,7 @@ export default function UniversityCalendarContent({
   calendarsByFiscalYear,
   webId,
   universityName,
+  horizontalPaddingClassName = "",
 }: UniversityCalendarContentProps) {
   const calendars = useMemo(
     () => calendarsByFiscalYear[activeFiscalYear] ?? [],
@@ -46,11 +48,13 @@ export default function UniversityCalendarContent({
   }, [calendars, selectedCalendarId]);
 
   const hasCalendars = calendars.length > 0;
+  const withHorizontalPadding = (className: string) =>
+    horizontalPaddingClassName ? `${className} ${horizontalPaddingClassName}` : className;
 
   return (
     <>
       <div className="flex w-full flex-col gap-6 pb-36 md:pb-32">
-        <div className="flex w-full flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div className={withHorizontalPadding("flex w-full flex-col gap-4 md:flex-row md:items-end md:justify-between")}>
           <div className="flex w-full flex-col gap-2 md:flex-1">
             {hasCalendars ? (
               <>
@@ -92,11 +96,15 @@ export default function UniversityCalendarContent({
             </div>
           ) : null
         ) : (
-          <div className="flex w-full flex-col rounded-lg border border-neutral-200 bg-white px-4 py-6 text-sm text-neutral-600">
+          <div
+            className={withHorizontalPadding(
+              "flex w-full flex-col rounded-lg border border-neutral-200 bg-white px-4 py-6 text-sm text-neutral-600",
+            )}
+          >
             {activeFiscalYear}年度の公開学事カレンダーが登録されていません。
           </div>
         )}
-        <div className="flex w-full justify-end gap-2">
+        <div className={withHorizontalPadding("flex w-full justify-end gap-2")}>
           <button
             type="button"
             className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100"
