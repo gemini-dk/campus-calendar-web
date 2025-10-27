@@ -1,3 +1,4 @@
+import Script from "next/script";
 import type { Metadata } from "next";
 
 import { getSiteOrigin } from "@/lib/site-url";
@@ -12,6 +13,7 @@ import {
 import { AppProviders } from "./providers";
 
 const siteOrigin = getSiteOrigin();
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin),
@@ -69,6 +71,24 @@ export default function RootLayout({
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
         />
+        {GA_MEASUREMENT_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga-init" strategy="afterInteractive">
+              {`
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_MEASUREMENT_ID}', {
+                  page_path: window.location.pathname,
+                });
+              `}
+            </Script>
+          </>
+        )}
       </head>
       <body className="flex h-full min-h-dvh w-full flex-col overflow-hidden bg-slate-50 antialiased">
         <AppProviders>{children}</AppProviders>
