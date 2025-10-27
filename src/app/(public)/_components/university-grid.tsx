@@ -11,7 +11,7 @@ import {
 } from '@/lib/university-color';
 import { getCalendarHref } from '@/lib/calendar-url';
 
-type UniversityWithColor = University & {
+export type UniversityWithColor = University & {
   colorRgb?: {
     r?: number;
     g?: number;
@@ -22,6 +22,53 @@ type UniversityWithColor = University & {
 
 function createAccentStyles(color: SchoolColor | null) {
   return createUniversityCardAccentStyles(color);
+}
+
+export function UniversityCardGrid({
+  universities,
+}: {
+  universities: UniversityWithColor[];
+}) {
+  return (
+    <ul className="grid w-full grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+      {universities.map((university) => {
+        const color = extractSchoolColor(university);
+        const accent = createAccentStyles(color);
+        const scheduleHref = getCalendarHref(university.webId);
+
+        return (
+          <li key={university.id} className="h-full w-full">
+            <Link
+              href={scheduleHref}
+              className="block h-full w-full"
+              aria-label={`${university.name}の学事予定ページへ移動`}
+            >
+              <article
+                className="flex h-full w-full cursor-pointer flex-col gap-4 rounded-3xl border bg-white p-6 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
+                style={{
+                  borderColor: accent.borderColor,
+                  background: accent.background,
+                  boxShadow: accent.boxShadow,
+                }}
+              >
+                <div
+                  className="h-1.5 w-full rounded-full"
+                  style={{
+                    background: accent.accentBar,
+                  }}
+                  aria-hidden
+                />
+
+                <div className="flex w-full flex-col gap-3">
+                  <h3 className="text-lg font-semibold leading-tight text-slate-900">{university.name}</h3>
+                </div>
+              </article>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 function normalize(value: unknown): string {
@@ -89,6 +136,15 @@ export function SearchableUniversityGrid({
         <span className="text-xs font-medium text-slate-500">
           該当大学 {totalMatches} 校 / 全 {universities.length} 校
         </span>
+        <div className="flex w-full justify-end">
+          <Link
+            href="/area"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+          >
+            都道府県で探す
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
       </div>
 
       {filteredUniversities.length === 0 ? (
@@ -97,44 +153,7 @@ export function SearchableUniversityGrid({
           <p className="text-xs text-slate-500">検索条件を変更するか、大学名のスペルをご確認ください。</p>
         </div>
       ) : (
-        <ul className="grid w-full grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {filteredUniversities.map((university) => {
-            const color = extractSchoolColor(university);
-            const accent = createAccentStyles(color);
-            const scheduleHref = getCalendarHref(university.webId);
-
-            return (
-              <li key={university.id} className="h-full w-full">
-                <Link
-                  href={scheduleHref}
-                  className="block h-full w-full"
-                  aria-label={`${university.name}の学事予定ページへ移動`}
-                >
-                  <article
-                    className="flex h-full w-full cursor-pointer flex-col gap-4 rounded-3xl border bg-white p-6 text-slate-900 transition hover:-translate-y-1 hover:shadow-[0_26px_60px_rgba(148,163,184,0.35)]"
-                    style={{
-                      borderColor: accent.borderColor,
-                      background: accent.background,
-                      boxShadow: accent.boxShadow,
-                    }}
-                  >
-                    <div
-                      className="h-1.5 w-full rounded-full"
-                      style={{
-                        background: accent.accentBar,
-                      }}
-                      aria-hidden
-                    />
-
-                    <div className="flex w-full flex-col gap-3">
-                      <h3 className="text-lg font-semibold leading-tight text-slate-900">{university.name}</h3>
-                    </div>
-                  </article>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <UniversityCardGrid universities={filteredUniversities} />
       )}
     </section>
   );
