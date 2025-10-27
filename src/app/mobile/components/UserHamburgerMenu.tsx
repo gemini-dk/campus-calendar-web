@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars, faXmark } from '@fortawesome/free-solid-svg-icons';
 
 import UserMenuContent from './UserMenuContent';
+import { useAuth } from '@/lib/useAuth';
 
 type UserHamburgerMenuProps = {
   buttonAriaLabel?: string;
@@ -14,6 +15,9 @@ type UserHamburgerMenuProps = {
 export default function UserHamburgerMenu({ buttonAriaLabel }: UserHamburgerMenuProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const { isAnonymous } = useAuth();
+
+  const shouldShowAnonymousBadge = isAnonymous;
 
   const closeMenu = useCallback(() => {
     setOpen(false);
@@ -43,8 +47,16 @@ export default function UserHamburgerMenu({ buttonAriaLabel }: UserHamburgerMenu
         aria-controls={panelId}
         onClick={() => setOpen(true)}
         aria-label={buttonAriaLabel ?? 'ユーザメニューを開く'}
-        className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-800 shadow-sm transition hover:bg-neutral-100"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-800 shadow-sm transition hover:bg-neutral-100"
       >
+        {shouldShowAnonymousBadge ? (
+          <span
+            aria-hidden="true"
+            className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-red-600 shadow-sm"
+          >
+            !
+          </span>
+        ) : null}
         <FontAwesomeIcon icon={faBars} fontSize={20} />
       </button>
       {open ? (
