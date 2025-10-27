@@ -201,7 +201,7 @@ export default async function Page({ params }: PageProps) {
       <div className="flex w-full min-[1024px]:pr-0">
         <div className="flex w-full justify-center py-12 min-[1024px]:pr-[300px]">
           <div className="w-full max-w-[724px] min-[1280px]:max-w-[980px] 2xl:max-w-[1236px]">
-            <div className="flex w-full flex-col gap-8">
+            <div className="flex w-full flex-col gap-8 px-4 sm:px-6 min-[1024px]:px-[30px]">
               <header className="flex w-full flex-col gap-4">
                 <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
                 <div className="flex w-full justify-end gap-3">
@@ -223,10 +223,11 @@ export default async function Page({ params }: PageProps) {
                     );
                   })}
                 </div>
-                <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
-                  {`${fiscalYear}年度 ${university.name} 学事予定・授業日程`}
+                <h1 className="relative flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 text-3xl font-bold text-neutral-900">
+                  <span className="whitespace-nowrap">{`${fiscalYear}年度 ${university.name}`}</span>
+                  <span className="whitespace-nowrap">学事予定・授業日程</span>
                   <span
-                    className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
+                    className="pointer-events-none absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
                     style={{
                       backgroundColor: accentColor,
                     }}
