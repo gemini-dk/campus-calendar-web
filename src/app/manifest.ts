@@ -13,12 +13,12 @@ export default function manifest(): MetadataRoute.Manifest {
     name: PWA_APP_NAME,
     short_name: PWA_APP_NAME,
     description: PWA_MANIFEST_DESCRIPTION,
-    start_url: "/",
+    start_url: "/mobile",
     display: "standalone",
     background_color: PWA_THEME_COLOR,
     theme_color: PWA_THEME_COLOR,
-    scope: "/",
-    id: "/",
+    scope: "/mobile",
+    id: "/mobile",
     icons: [
       {
         src: PWA_ICON_SMALL_PATH,
