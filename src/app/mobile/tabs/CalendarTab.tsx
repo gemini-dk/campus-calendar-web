@@ -174,20 +174,37 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
     }
 
     let animationFrame: number | null = null;
+    let timeoutId: number | null = null;
+
+    const clearScheduledMeasure = () => {
+      if (animationFrame != null) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
 
     const measure = () => {
       const { width } = element.getBoundingClientRect();
       setContainerWidth((prev) => (prev === width ? prev : width));
-      animationFrame = null;
+      clearScheduledMeasure();
     };
 
     const scheduleMeasure = () => {
-      if (animationFrame != null) {
-        cancelAnimationFrame(animationFrame);
+      clearScheduledMeasure();
+
+      if (typeof window.requestAnimationFrame === 'function') {
+        animationFrame = window.requestAnimationFrame(measure);
+        return;
       }
-      animationFrame = requestAnimationFrame(measure);
+
+      timeoutId = window.setTimeout(measure, 0);
     };
 
+    measure();
     scheduleMeasure();
 
     if (typeof ResizeObserver === 'function') {
@@ -200,9 +217,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
       observer.observe(element);
 
       return () => {
-        if (animationFrame != null) {
-          cancelAnimationFrame(animationFrame);
-        }
+        clearScheduledMeasure();
         observer.disconnect();
       };
     }
@@ -215,9 +230,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
     window.addEventListener('orientationchange', handleWindowResize);
 
     return () => {
-      if (animationFrame != null) {
-        cancelAnimationFrame(animationFrame);
-      }
+      clearScheduledMeasure();
       window.removeEventListener('resize', handleWindowResize);
       window.removeEventListener('orientationchange', handleWindowResize);
     };
