@@ -1,10 +1,17 @@
 import {
   collection,
   doc,
+  documentId,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
   query,
+  startAfter,
   where,
+  type DocumentData,
+  type QueryConstraint,
+  type QueryDocumentSnapshot,
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase/firestore';
@@ -211,11 +218,42 @@ function coerceCalendarData(
   }
 }
 
+const LIST_UNIVERSITIES_BATCH_SIZE = 200;
+
+type UniversityDocumentSnapshot = QueryDocumentSnapshot<DocumentData>;
+
 export async function listUniversities(): Promise<University[]> {
   const universitiesRef = collection(db, 'universities');
-  const snapshot = await getDocs(universitiesRef);
+  const allDocs: UniversityDocumentSnapshot[] = [];
 
-  return snapshot.docs
+  let cursor: UniversityDocumentSnapshot | undefined;
+  // Firestoreの1リクエストあたりのレスポンスサイズ上限（約1MB）を考慮し、
+  // 複数回に分けて全ドキュメントを取得する。
+  while (true) {
+    const constraints: QueryConstraint[] = [
+      orderBy(documentId()),
+      limit(LIST_UNIVERSITIES_BATCH_SIZE),
+    ];
+    if (cursor) {
+      constraints.push(startAfter(cursor));
+    }
+    const paginatedQuery = query(universitiesRef, ...constraints);
+    const snapshot = await getDocs(paginatedQuery);
+
+    if (snapshot.empty) {
+      break;
+    }
+
+    allDocs.push(...snapshot.docs);
+
+    if (snapshot.size < LIST_UNIVERSITIES_BATCH_SIZE) {
+      break;
+    }
+
+    cursor = snapshot.docs[snapshot.docs.length - 1];
+  }
+
+  return allDocs
     .map((docSnap) => coerceUniversityData(docSnap.id, docSnap.data()))
     .filter((item): item is University => item !== null)
     .sort((a, b) => {
