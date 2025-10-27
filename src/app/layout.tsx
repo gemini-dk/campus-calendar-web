@@ -13,7 +13,7 @@ import {
 import { AppProviders } from "./providers";
 
 const siteOrigin = getSiteOrigin();
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteOrigin),
@@ -71,10 +71,10 @@ export default function RootLayout({
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
         />
-        {GA_ID && (
+        {GA_MEASUREMENT_ID && (
           <>
             <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
               strategy="afterInteractive"
             />
             <Script id="ga-init" strategy="afterInteractive">
@@ -82,7 +82,7 @@ export default function RootLayout({
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
                 gtag('js', new Date());
-                gtag('config', '${GA_ID}', {
+                gtag('config', '${GA_MEASUREMENT_ID}', {
                   page_path: window.location.pathname,
                 });
               `}
