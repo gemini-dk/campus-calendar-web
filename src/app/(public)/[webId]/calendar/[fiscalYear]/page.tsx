@@ -211,20 +211,20 @@ export default async function Page({ params }: PageProps) {
                     {FISCAL_YEARS.map((year) => {
                       const isActive = year === fiscalYear;
                       return (
-                      <Link
-                        key={year}
-                        href={`/${encodeURIComponent(webId)}/calendar/${encodeURIComponent(year)}`}
-                        aria-current={isActive ? "page" : undefined}
-                        className={`text-sm font-semibold transition ${
-                          isActive
-                            ? "text-blue-600"
-                            : "text-neutral-500 hover:text-neutral-700 focus-visible:text-neutral-700"
-                        }`}
-                      >
-                        {year}年度
-                      </Link>
-                    );
-                  })}
+                        <Link
+                          key={year}
+                          href={`/${encodeURIComponent(webId)}/calendar/${encodeURIComponent(year)}`}
+                          aria-current={isActive ? "page" : undefined}
+                          className={`text-sm font-semibold transition ${
+                            isActive
+                              ? "cursor-default text-neutral-500 pointer-events-none"
+                              : "text-blue-600 underline underline-offset-4 hover:text-blue-700 focus-visible:text-blue-700"
+                          }`}
+                        >
+                          {year}年度
+                        </Link>
+                      );
+                    })}
                 </div>
                 <h1 className="relative flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 text-3xl font-bold text-neutral-900">
                   <span className="whitespace-nowrap">{`${fiscalYear}年度 ${university.name}`}</span>
