@@ -3,13 +3,12 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import UniversityCalendarContent from "../_components/UniversityCalendarContent";
+import { DEFAULT_FISCAL_YEAR, FISCAL_YEARS, type FiscalYear } from "@/lib/constants/fiscal-year";
 import { getCalendarDays, getCalendarTerms } from "@/lib/data/service/calendar.service";
 import { getUniversityByWebId, listUniversities, listUniversityCalendars } from "@/lib/data/service/university.service";
 import { buildUniversityCalendarCanonicalUrl, buildUniversityCalendarYearUrl } from "@/lib/site-url";
 import { extractSchoolColor } from "@/lib/university-color";
 
-const FISCAL_YEARS = ["2025", "2026"] as const;
-const DEFAULT_FISCAL_YEAR = FISCAL_YEARS[0];
 const KEYWORD_VARIANTS = [
   "学事予定",
   "授業日程",
@@ -18,9 +17,6 @@ const KEYWORD_VARIANTS = [
   "授業計画",
   "講義カレンダー",
 ] as const;
-
-
-type FiscalYear = (typeof FISCAL_YEARS)[number];
 
 type PageParams = { webId: string; fiscalYear: string };
 
