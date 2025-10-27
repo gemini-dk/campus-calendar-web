@@ -181,6 +181,9 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
     });
     observer.observe(element);
 
+    const { width } = element.getBoundingClientRect();
+    setContainerWidth(width);
+
     return () => {
       observer.disconnect();
     };
