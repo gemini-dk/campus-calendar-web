@@ -266,6 +266,27 @@ export async function listUniversities(): Promise<University[]> {
     });
 }
 
+export async function listPublishableCalendarsByFiscalYear(
+  fiscalYear: string,
+): Promise<UniversityCalendar[]> {
+  const collectionName = `calendars_${fiscalYear}`;
+  const calendarsRef = collection(db, collectionName);
+  const calendarsQuery = query(calendarsRef, where('isPublishable', '==', true));
+  const snapshot = await getDocs(calendarsQuery);
+
+  return snapshot.docs
+    .map((docSnap) => coerceCalendarData(docSnap.id, docSnap.data(), fiscalYear))
+    .filter((item): item is UniversityCalendar => item !== null)
+    .sort((a, b) => {
+      const orderA = typeof a.order === 'number' ? a.order : Number.MAX_SAFE_INTEGER;
+      const orderB = typeof b.order === 'number' ? b.order : Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      return a.name.localeCompare(b.name, 'ja');
+    });
+}
+
 export async function getUniversityByWebId(webId: string): Promise<University | null> {
   const trimmedId = webId.trim();
   if (!trimmedId) {
