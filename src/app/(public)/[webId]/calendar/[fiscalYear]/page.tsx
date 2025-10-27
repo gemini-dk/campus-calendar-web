@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
@@ -203,8 +204,27 @@ export default async function Page({ params }: PageProps) {
             <div className="flex w-full flex-col gap-8">
               <header className="flex w-full flex-col gap-4">
                 <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
+                <div className="flex w-full justify-end gap-3">
+                  {FISCAL_YEARS.map((year) => {
+                    const isActive = year === fiscalYear;
+                    return (
+                      <Link
+                        key={year}
+                        href={`/${encodeURIComponent(webId)}/calendar/${encodeURIComponent(year)}`}
+                        aria-current={isActive ? "page" : undefined}
+                        className={`text-sm font-semibold transition ${
+                          isActive
+                            ? "text-blue-600"
+                            : "text-neutral-500 hover:text-neutral-700 focus-visible:text-neutral-700"
+                        }`}
+                      >
+                        {year}年度
+                      </Link>
+                    );
+                  })}
+                </div>
                 <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
-                  {`${university.name} 学事予定・授業日程`}
+                  {`${fiscalYear}年度 ${university.name} 学事予定・授業日程`}
                   <span
                     className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
                     style={{
@@ -231,7 +251,6 @@ export default async function Page({ params }: PageProps) {
                 </p>
               </header>
               <UniversityCalendarContent
-                fiscalYears={FISCAL_YEARS}
                 activeFiscalYear={fiscalYear}
                 calendarsByFiscalYear={calendarsByFiscalYear}
                 webId={webId}

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import PublicCalendarView from "@/app/(public)/public/calendar/_components/PublicCalendarView";
@@ -15,7 +14,6 @@ type PrefetchedUniversityCalendar = UniversityCalendar & {
 };
 
 type UniversityCalendarContentProps = {
-  fiscalYears: readonly string[];
   activeFiscalYear: string;
   calendarsByFiscalYear: Record<string, PrefetchedUniversityCalendar[]>;
   webId: string;
@@ -23,7 +21,6 @@ type UniversityCalendarContentProps = {
 };
 
 export default function UniversityCalendarContent({
-  fiscalYears,
   activeFiscalYear,
   calendarsByFiscalYear,
   webId,
@@ -53,11 +50,7 @@ export default function UniversityCalendarContent({
   return (
     <>
       <div className="flex w-full flex-col gap-6 pb-36 md:pb-32">
-        <div
-          className={`flex w-full flex-col gap-4 md:flex-row md:items-end md:justify-between ${
-            hasCalendars ? "md:gap-6" : ""
-          }`}
-        >
+        <div className="flex w-full flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="flex w-full flex-col gap-2 md:flex-1">
             {hasCalendars ? (
               <>
@@ -80,25 +73,6 @@ export default function UniversityCalendarContent({
                 {activeCalendar?.note ? <p className="text-xs text-neutral-500">{activeCalendar.note}</p> : null}
               </>
             ) : null}
-          </div>
-          <div className="flex items-center justify-end gap-3">
-            {fiscalYears.map((fiscalYear) => {
-              const isActive = fiscalYear === activeFiscalYear;
-              return (
-                <Link
-                  key={fiscalYear}
-                  href={`/${encodeURIComponent(webId)}/calendar/${encodeURIComponent(fiscalYear)}`}
-                  aria-current={isActive ? "page" : undefined}
-                  className={`text-sm font-semibold transition ${
-                    isActive
-                      ? "text-blue-600"
-                      : "text-neutral-500 hover:text-neutral-700 focus-visible:text-neutral-700"
-                  }`}
-                >
-                  {fiscalYear}年度
-                </Link>
-              );
-            })}
           </div>
         </div>
         {hasCalendars ? (
