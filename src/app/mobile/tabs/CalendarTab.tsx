@@ -172,20 +172,54 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
     if (!element) {
       return;
     }
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) {
-        return;
-      }
-      setContainerWidth(entry.contentRect.width);
-    });
-    observer.observe(element);
 
-    const { width } = element.getBoundingClientRect();
-    setContainerWidth(width);
+    let animationFrame: number | null = null;
+
+    const measure = () => {
+      const { width } = element.getBoundingClientRect();
+      setContainerWidth((prev) => (prev === width ? prev : width));
+      animationFrame = null;
+    };
+
+    const scheduleMeasure = () => {
+      if (animationFrame != null) {
+        cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = requestAnimationFrame(measure);
+    };
+
+    scheduleMeasure();
+
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver((entries) => {
+        if (!entries[0]) {
+          return;
+        }
+        scheduleMeasure();
+      });
+      observer.observe(element);
+
+      return () => {
+        if (animationFrame != null) {
+          cancelAnimationFrame(animationFrame);
+        }
+        observer.disconnect();
+      };
+    }
+
+    const handleWindowResize = () => {
+      scheduleMeasure();
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    window.addEventListener('orientationchange', handleWindowResize);
 
     return () => {
-      observer.disconnect();
+      if (animationFrame != null) {
+        cancelAnimationFrame(animationFrame);
+      }
+      window.removeEventListener('resize', handleWindowResize);
+      window.removeEventListener('orientationchange', handleWindowResize);
     };
   }, []);
 
