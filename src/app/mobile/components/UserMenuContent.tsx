@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/useAuth';
 
 type UserMenuContentProps = {
   className?: string;
+  showInstallPromotion?: boolean;
 };
 
 type EditableCalendarEntry = CalendarEntry & {
@@ -18,7 +19,7 @@ function toEditableEntries(entries: CalendarEntry[]): EditableCalendarEntry[] {
   }));
 }
 
-export default function UserMenuContent({ className }: UserMenuContentProps) {
+export default function UserMenuContent({ className, showInstallPromotion = false }: UserMenuContentProps) {
   const {
     profile,
     isAuthenticated,
@@ -256,6 +257,14 @@ export default function UserMenuContent({ className }: UserMenuContentProps) {
 
   return (
     <div className={containerClassName}>
+      {showInstallPromotion ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <h2 className="text-base font-semibold text-amber-800">スマホにインストールしよう！</h2>
+          <p className="mt-2 text-sm leading-relaxed text-amber-700">
+            ブラウザの共有メニューや設定メニューから「ホーム画面に追加」を選ぶと、アプリのように素早くアクセスできます。
+          </p>
+        </section>
+      ) : null}
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
         {initializing ? (
           <p className="text-sm text-neutral-600">読み込み中...</p>

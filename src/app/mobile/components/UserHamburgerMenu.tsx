@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars, faXmark } from '@fortawesome/free-solid-svg-icons';
@@ -14,10 +14,57 @@ type UserHamburgerMenuProps = {
 
 export default function UserHamburgerMenu({ buttonAriaLabel }: UserHamburgerMenuProps) {
   const [open, setOpen] = useState(false);
+  const [isPwa, setIsPwa] = useState<boolean | null>(null);
   const panelId = useId();
   const { isAnonymous } = useAuth();
 
   const shouldShowAnonymousBadge = isAnonymous;
+
+  const standaloneMediaQuery = useMemo(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return null;
+    }
+    return window.matchMedia('(display-mode: standalone)');
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const checkIsPwa = () => {
+      const byDisplayMode = standaloneMediaQuery?.matches ?? false;
+      const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+      const byNavigator = navigatorWithStandalone.standalone === true;
+      setIsPwa(byDisplayMode || byNavigator);
+    };
+
+    checkIsPwa();
+
+    if (!standaloneMediaQuery) {
+      return;
+    }
+
+    const handleChange = () => {
+      checkIsPwa();
+    };
+
+    if (typeof standaloneMediaQuery.addEventListener === 'function') {
+      standaloneMediaQuery.addEventListener('change', handleChange);
+      return () => {
+        standaloneMediaQuery.removeEventListener('change', handleChange);
+      };
+    }
+
+    if (typeof standaloneMediaQuery.addListener === 'function') {
+      standaloneMediaQuery.addListener(handleChange);
+      return () => {
+        standaloneMediaQuery.removeListener(handleChange);
+      };
+    }
+
+    return undefined;
+  }, [standaloneMediaQuery]);
 
   const closeMenu = useCallback(() => {
     setOpen(false);
@@ -85,7 +132,10 @@ export default function UserHamburgerMenu({ buttonAriaLabel }: UserHamburgerMenu
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <UserMenuContent className="h-full overflow-y-auto" />
+              <UserMenuContent
+                className="h-full overflow-y-auto"
+                showInstallPromotion={isPwa === false}
+              />
             </div>
           </div>
         </div>
