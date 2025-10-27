@@ -4,6 +4,7 @@ import { getSiteOrigin } from "@/lib/site-url";
 import {
   PWA_APP_DESCRIPTION,
   PWA_APP_NAME,
+  PWA_ICON_SMALL_PATH,
   PWA_ICON_PATH,
   PWA_THEME_COLOR,
 } from "@/lib/pwa";
@@ -24,12 +25,22 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
+        url: PWA_ICON_SMALL_PATH,
+        type: "image/png",
+        sizes: "192x192",
+      },
+      {
         url: PWA_ICON_PATH,
         type: "image/png",
         sizes: "512x512",
       },
     ],
     apple: [
+      {
+        url: PWA_ICON_SMALL_PATH,
+        type: "image/png",
+        sizes: "192x192",
+      },
       {
         url: PWA_ICON_PATH,
         type: "image/png",
