@@ -14,7 +14,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
           <Link href="/" className="flex h-16 w-fit items-center gap-4 text-slate-900">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.25)] border border-slate-200">
               <Image
-                src="/images/CampusCalendar.png"
+                src="/icons/icon-512.png"
                 alt="Campus Calendar"
                 width={48}
                 height={48}
