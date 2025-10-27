@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
@@ -195,18 +196,41 @@ export default async function Page({ params }: PageProps) {
   } as const;
   const structuredDataJson = JSON.stringify(structuredData).replace(/</g, "\\u003c");
 
+  const contentHorizontalPadding = "px-4 sm:px-6 min-[1024px]:px-[30px]";
+
   return (
     <main className="relative flex min-h-screen w-full flex-1 flex-col bg-neutral-100 pb-40">
       <div className="flex w-full min-[1024px]:pr-0">
         <div className="flex w-full justify-center py-12 min-[1024px]:pr-[300px]">
           <div className="w-full max-w-[724px] min-[1280px]:max-w-[980px] 2xl:max-w-[1236px]">
             <div className="flex w-full flex-col gap-8">
-              <header className="flex w-full flex-col gap-4">
-                <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
-                <h1 className="relative inline-block text-3xl font-bold text-neutral-900">
-                  {`${university.name} 学事予定・授業日程`}
+              <div className={contentHorizontalPadding}>
+                <header className="flex w-full flex-col gap-4">
+                  <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
+                  <div className="flex w-full justify-end gap-3">
+                    {FISCAL_YEARS.map((year) => {
+                      const isActive = year === fiscalYear;
+                      return (
+                        <Link
+                          key={year}
+                          href={`/${encodeURIComponent(webId)}/calendar/${encodeURIComponent(year)}`}
+                          aria-current={isActive ? "page" : undefined}
+                          className={`text-sm font-semibold transition ${
+                            isActive
+                              ? "cursor-default text-neutral-500 pointer-events-none"
+                              : "text-blue-600 underline underline-offset-4 hover:text-blue-700 focus-visible:text-blue-700"
+                          }`}
+                        >
+                          {year}年度
+                        </Link>
+                      );
+                    })}
+                </div>
+                <h1 className="relative flex w-full flex-wrap items-baseline gap-x-2 gap-y-1 text-3xl font-bold text-neutral-900">
+                  <span className="whitespace-nowrap">{`${fiscalYear}年度 ${university.name}`}</span>
+                  <span className="whitespace-nowrap">学事予定・授業日程</span>
                   <span
-                    className="absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
+                    className="pointer-events-none absolute -bottom-2 left-0 block h-1.5 w-full rounded-full"
                     style={{
                       backgroundColor: accentColor,
                     }}
@@ -230,12 +254,13 @@ export default async function Page({ params }: PageProps) {
                   {`の情報を元に授業日程をわかりやすく整理しています。最も重要視しているのは授業の有無です。学期や長期休暇の日程だけではなく、祝日なのに授業が行われる特別授業日、平日なのに休講となる特別休講日、実際の曜日とは異なる曜日の授業が行われる振替授業日を一目で分かるカレンダー形式にまとめています。`}
                 </p>
               </header>
+              </div>
               <UniversityCalendarContent
-                fiscalYears={FISCAL_YEARS}
                 activeFiscalYear={fiscalYear}
                 calendarsByFiscalYear={calendarsByFiscalYear}
                 webId={webId}
                 universityName={university.name}
+                horizontalPaddingClassName={contentHorizontalPadding}
               />
             </div>
           </div>
