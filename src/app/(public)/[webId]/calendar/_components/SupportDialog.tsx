@@ -12,7 +12,7 @@ type PrefetchedUniversityCalendar = UniversityCalendar & {
   calendarTerms: CalendarTerm[];
 };
 
-type SupportDialogType = "report" | "request" | "advertisement";
+export type SupportDialogType = "report" | "request" | "advertisement";
 
 type SupportDialogProps = {
   type: SupportDialogType;
@@ -73,7 +73,8 @@ function buildAdvertisementInfo(
   calendar: PrefetchedUniversityCalendar | null,
   webId: string,
 ): string {
-  const base = `広告枠問い合わせ\n大学: ${universityName}\n年度: ${fiscalYear}\nWebID: ${webId}`;
+  const advertisementUniversity = universityName.trim().length > 0 ? universityName : "全大学横断";
+  const base = `広告枠問い合わせ\n大学: ${advertisementUniversity}\n年度: ${fiscalYear}\nWebID: ${webId}`;
   if (!calendar) {
     return `${base}\n表示中カレンダー: 未選択`;
   }
@@ -95,7 +96,6 @@ export default function SupportDialog({
   const [name, setName] = useState("");
   const [calendarUrl, setCalendarUrl] = useState("");
   const [calendarCondition, setCalendarCondition] = useState("");
-  const [advertisementUniversity, setAdvertisementUniversity] = useState("");
   const [advertisementOrganization, setAdvertisementOrganization] = useState("");
   const [advertisementMessage, setAdvertisementMessage] = useState("");
 
@@ -132,11 +132,11 @@ export default function SupportDialog({
         const conditionText = calendarCondition.trim().length > 0 ? calendarCondition.trim() : "未入力";
         payloadContent = `カレンダーページURL: ${urlText}\n適用条件: ${conditionText}`;
       } else if (type === "advertisement") {
-        const universityText = advertisementUniversity.trim().length > 0 ? advertisementUniversity.trim() : "未入力";
         const organizationText =
           advertisementOrganization.trim().length > 0 ? advertisementOrganization.trim() : "未入力";
         const messageText = advertisementMessage.trim().length > 0 ? advertisementMessage.trim() : "未入力";
-        payloadContent = `大学名: ${universityText}\n団体名: ${organizationText}\n追加情報: ${messageText}`;
+        const advertisementUniversity = universityName.trim().length > 0 ? universityName.trim() : "全大学横断";
+        payloadContent = `大学名: ${advertisementUniversity}\n団体名: ${organizationText}\n追加情報: ${messageText}`;
         payloadEmail = email.trim();
         payloadName = name.trim();
       }
@@ -248,20 +248,6 @@ export default function SupportDialog({
 
             {type === "advertisement" ? (
               <div className="flex w-full flex-col gap-4">
-                <div className="flex w-full flex-col gap-2">
-                  <label className="text-sm font-semibold text-neutral-800" htmlFor="support-advertisement-university">
-                    大学名
-                  </label>
-                  <input
-                    id="support-advertisement-university"
-                    type="text"
-                    value={advertisementUniversity}
-                    onChange={(event) => setAdvertisementUniversity(event.target.value)}
-                    className="h-11 w-full rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                    placeholder="例: ○○大学"
-                    required
-                  />
-                </div>
                 <div className="flex w-full flex-col gap-2">
                   <label className="text-sm font-semibold text-neutral-800" htmlFor="support-advertisement-organization">
                     団体名など宣伝したい対象
