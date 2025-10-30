@@ -7,6 +7,7 @@ import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
 import type { UniversityCalendar } from "@/lib/data/schema/university";
 
 import AppInstallFooter from "./AppInstallFooter";
+import SupportDialog from "./SupportDialog";
 
 type PrefetchedUniversityCalendar = UniversityCalendar & {
   calendarDays: CalendarDay[];
@@ -35,6 +36,9 @@ export default function UniversityCalendarContent({
   const [selectedCalendarId, setSelectedCalendarId] = useState(
     () => calendarsByFiscalYear[activeFiscalYear]?.[0]?.id ?? "",
   );
+  const [supportDialogType, setSupportDialogType] = useState<
+    "report" | "request" | "advertisement" | null
+  >(null);
 
   useEffect(() => {
     setSelectedCalendarId(calendars[0]?.id ?? "");
@@ -107,15 +111,25 @@ export default function UniversityCalendarContent({
         <div className={withHorizontalPadding("flex w-full justify-end gap-2")}>
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100"
+            onClick={() => setSupportDialogType("report")}
+            disabled={!activeCalendar}
+            className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             間違い報告
           </button>
           <button
             type="button"
+            onClick={() => setSupportDialogType("request")}
             className="inline-flex items-center justify-center rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
           >
             カレンダー追加依頼
+          </button>
+          <button
+            type="button"
+            onClick={() => setSupportDialogType("advertisement")}
+            className="inline-flex items-center justify-center rounded border border-amber-500 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-500/20"
+          >
+            広告枠の募集
           </button>
         </div>
       </div>
@@ -134,6 +148,16 @@ export default function UniversityCalendarContent({
             : null
         }
       />
+      {supportDialogType ? (
+        <SupportDialog
+          type={supportDialogType}
+          onClose={() => setSupportDialogType(null)}
+          activeFiscalYear={activeFiscalYear}
+          universityName={universityName}
+          webId={webId}
+          calendar={activeCalendar}
+        />
+      ) : null}
     </>
   );
 }
