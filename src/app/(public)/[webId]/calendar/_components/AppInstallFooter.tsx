@@ -2,6 +2,11 @@
 
 import { useCallback } from "react";
 
+import {
+  PUBLIC_CALENDAR_TRANSFER_STORAGE_KEY,
+  type PublicCalendarTransferPayload,
+} from "@/lib/mobile/calendarTransfer";
+
 type AppInstallFooterProps = {
   fiscalYear: string;
   webId: string;
@@ -39,6 +44,24 @@ export default function AppInstallFooter({
       !normalizedWebId
     ) {
       return;
+    }
+
+    const payload: PublicCalendarTransferPayload = {
+      fiscalYear: normalizedFiscalYear,
+      calendarId: normalizedCalendarId,
+      calendarName: normalizedCalendarName,
+      universityName: normalizedUniversityName,
+      webId: normalizedWebId,
+      hasSaturdayClasses: Boolean(calendar.hasSaturdayClasses),
+    };
+
+    try {
+      window.sessionStorage.setItem(
+        PUBLIC_CALENDAR_TRANSFER_STORAGE_KEY,
+        JSON.stringify(payload),
+      );
+    } catch (error) {
+      console.warn("Failed to persist calendar transfer payload.", error);
     }
 
     const params = new URLSearchParams({

@@ -172,17 +172,67 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
     if (!element) {
       return;
     }
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (!entry) {
+
+    let animationFrame: number | null = null;
+    let timeoutId: number | null = null;
+
+    const clearScheduledMeasure = () => {
+      if (animationFrame != null) {
+        cancelAnimationFrame(animationFrame);
+        animationFrame = null;
+      }
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const measure = () => {
+      const { width } = element.getBoundingClientRect();
+      setContainerWidth((prev) => (prev === width ? prev : width));
+      clearScheduledMeasure();
+    };
+
+    const scheduleMeasure = () => {
+      clearScheduledMeasure();
+
+      if (typeof window.requestAnimationFrame === 'function') {
+        animationFrame = window.requestAnimationFrame(measure);
         return;
       }
-      setContainerWidth(entry.contentRect.width);
-    });
-    observer.observe(element);
+
+      timeoutId = window.setTimeout(measure, 0);
+    };
+
+    measure();
+    scheduleMeasure();
+
+    if (typeof ResizeObserver === 'function') {
+      const observer = new ResizeObserver((entries) => {
+        if (!entries[0]) {
+          return;
+        }
+        scheduleMeasure();
+      });
+      observer.observe(element);
+
+      return () => {
+        clearScheduledMeasure();
+        observer.disconnect();
+      };
+    }
+
+    const handleWindowResize = () => {
+      scheduleMeasure();
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    window.addEventListener('orientationchange', handleWindowResize);
 
     return () => {
-      observer.disconnect();
+      clearScheduledMeasure();
+      window.removeEventListener('resize', handleWindowResize);
+      window.removeEventListener('orientationchange', handleWindowResize);
     };
   }, []);
 

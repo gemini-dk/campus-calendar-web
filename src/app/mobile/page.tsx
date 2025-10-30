@@ -23,6 +23,7 @@ import ClassesTab from "./tabs/ClassesTab";
 import CalendarOverlayIcon from "./components/CalendarOverlayIcon";
 import type { TabDefinition, TabId } from "./tabs/types";
 import { auth } from "@/lib/firebase/client";
+import { PUBLIC_CALENDAR_TRANSFER_STORAGE_KEY } from "@/lib/mobile/calendarTransfer";
 import { CalendarConflictError, useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
 
@@ -113,7 +114,70 @@ function MobilePageContent() {
       !universityNameParam ||
       !webIdParam
     ) {
-      return null;
+      if (typeof window === "undefined") {
+        return null;
+      }
+
+      try {
+        const storedValue = window.sessionStorage.getItem(
+          PUBLIC_CALENDAR_TRANSFER_STORAGE_KEY,
+        );
+        if (!storedValue) {
+          return null;
+        }
+
+        const parsedValue = JSON.parse(storedValue) as Partial<CalendarSetupCandidate> | null;
+        if (!parsedValue || typeof parsedValue !== "object") {
+          return null;
+        }
+
+        const {
+          fiscalYear: storedFiscalYear,
+          calendarId: storedCalendarId,
+          calendarName: storedCalendarName,
+          universityName: storedUniversityName,
+          webId: storedWebId,
+          hasSaturdayClasses: storedHasSaturdayClasses,
+        } = parsedValue;
+
+        if (
+          typeof storedFiscalYear !== "string" ||
+          typeof storedCalendarId !== "string" ||
+          typeof storedCalendarName !== "string" ||
+          typeof storedUniversityName !== "string" ||
+          typeof storedWebId !== "string"
+        ) {
+          return null;
+        }
+
+        const normalizedFiscalYear = storedFiscalYear.trim();
+        const normalizedCalendarId = storedCalendarId.trim();
+        const normalizedCalendarName = storedCalendarName.trim();
+        const normalizedUniversityName = storedUniversityName.trim();
+        const normalizedWebId = storedWebId.trim();
+
+        if (
+          !normalizedFiscalYear ||
+          !normalizedCalendarId ||
+          !normalizedCalendarName ||
+          !normalizedUniversityName ||
+          !normalizedWebId
+        ) {
+          return null;
+        }
+
+        return {
+          fiscalYear: normalizedFiscalYear,
+          calendarId: normalizedCalendarId,
+          calendarName: normalizedCalendarName,
+          universityName: normalizedUniversityName,
+          webId: normalizedWebId,
+          hasSaturdayClasses: Boolean(storedHasSaturdayClasses),
+        } satisfies CalendarSetupCandidate;
+      } catch (error) {
+        console.error("Failed to restore calendar transfer payload from storage.", error);
+        return null;
+      }
     }
 
     const fiscalYear = fiscalYearParam.trim();
@@ -133,7 +197,7 @@ function MobilePageContent() {
       return null;
     }
 
-    return {
+    const candidate: CalendarSetupCandidate = {
       fiscalYear,
       calendarId,
       calendarName,
@@ -141,6 +205,19 @@ function MobilePageContent() {
       webId,
       hasSaturdayClasses,
     } satisfies CalendarSetupCandidate;
+
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.setItem(
+          PUBLIC_CALENDAR_TRANSFER_STORAGE_KEY,
+          JSON.stringify(candidate),
+        );
+      } catch (error) {
+        console.warn("Failed to persist calendar transfer payload from query.", error);
+      }
+    }
+
+    return candidate;
   }, [searchParams]);
 
   const [pendingCalendar, setPendingCalendar] = useState<CalendarSetupCandidate | null>(
@@ -158,6 +235,17 @@ function MobilePageContent() {
   useEffect(() => {
     setActiveTab((prev) => (prev === tabFromParams ? prev : tabFromParams));
   }, [tabFromParams]);
+
+  const clearTransferPayload = useCallback(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.sessionStorage.removeItem(PUBLIC_CALENDAR_TRANSFER_STORAGE_KEY);
+    } catch (error) {
+      console.warn("Failed to clear calendar transfer payload from storage.", error);
+    }
+  }, []);
 
   const updateSearchParams = useCallback(
     (updater: (params: URLSearchParams) => void) => {
@@ -180,7 +268,8 @@ function MobilePageContent() {
       params.delete("webId");
       params.delete("hasSaturdayClasses");
     });
-  }, [updateSearchParams]);
+    clearTransferPayload();
+  }, [clearTransferPayload, updateSearchParams]);
 
   const applyCalendarSettings = useCallback(
     async (
@@ -215,6 +304,7 @@ function MobilePageContent() {
     }
 
     if (!calendarCandidate) {
+      clearTransferPayload();
       setPendingCalendar(null);
       setIsCalendarDialogOpen(false);
       setCalendarDialogError(null);
@@ -311,6 +401,7 @@ function MobilePageContent() {
     calendarCandidate,
     calendarCandidateKey,
     clearCalendarParams,
+    clearTransferPayload,
     initializing,
     isAuthenticated,
     settingsInitialized,
