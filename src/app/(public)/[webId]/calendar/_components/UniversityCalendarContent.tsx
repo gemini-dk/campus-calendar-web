@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 
 import PublicCalendarView from "@/app/(public)/public/calendar/_components/PublicCalendarView";
 import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
 import type { UniversityCalendar } from "@/lib/data/schema/university";
 
 import AppInstallFooter from "./AppInstallFooter";
+import SupportDialog, { type SupportDialogType } from "./SupportDialog";
 
 type PrefetchedUniversityCalendar = UniversityCalendar & {
   calendarDays: CalendarDay[];
   calendarTerms: CalendarTerm[];
 };
 
-type UniversityCalendarContentProps = {
+export type UniversityCalendarContentProps = {
   activeFiscalYear: string;
   calendarsByFiscalYear: Record<string, PrefetchedUniversityCalendar[]>;
   webId: string;
@@ -21,13 +22,23 @@ type UniversityCalendarContentProps = {
   horizontalPaddingClassName?: string;
 };
 
-export default function UniversityCalendarContent({
+export type UniversityCalendarContentHandle = {
+  openSupportDialog: (type: SupportDialogType) => void;
+};
+
+const UniversityCalendarContent = forwardRef<
+  UniversityCalendarContentHandle,
+  UniversityCalendarContentProps
+>(function UniversityCalendarContent(
+  {
   activeFiscalYear,
   calendarsByFiscalYear,
   webId,
   universityName,
   horizontalPaddingClassName = "",
-}: UniversityCalendarContentProps) {
+  },
+  ref,
+) {
   const calendars = useMemo(
     () => calendarsByFiscalYear[activeFiscalYear] ?? [],
     [calendarsByFiscalYear, activeFiscalYear],
@@ -35,6 +46,13 @@ export default function UniversityCalendarContent({
   const [selectedCalendarId, setSelectedCalendarId] = useState(
     () => calendarsByFiscalYear[activeFiscalYear]?.[0]?.id ?? "",
   );
+  const [supportDialogType, setSupportDialogType] = useState<SupportDialogType | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    openSupportDialog: (type: SupportDialogType) => {
+      setSupportDialogType(type);
+    },
+  }));
 
   useEffect(() => {
     setSelectedCalendarId(calendars[0]?.id ?? "");
@@ -107,12 +125,15 @@ export default function UniversityCalendarContent({
         <div className={withHorizontalPadding("flex w-full justify-end gap-2")}>
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100"
+            onClick={() => setSupportDialogType("report")}
+            disabled={!activeCalendar}
+            className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
             間違い報告
           </button>
           <button
             type="button"
+            onClick={() => setSupportDialogType("request")}
             className="inline-flex items-center justify-center rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
           >
             カレンダー追加依頼
@@ -134,6 +155,18 @@ export default function UniversityCalendarContent({
             : null
         }
       />
+      {supportDialogType ? (
+        <SupportDialog
+          type={supportDialogType}
+          onClose={() => setSupportDialogType(null)}
+          activeFiscalYear={activeFiscalYear}
+          universityName={universityName}
+          webId={webId}
+          calendar={activeCalendar}
+        />
+      ) : null}
     </>
   );
-}
+});
+
+export default UniversityCalendarContent;

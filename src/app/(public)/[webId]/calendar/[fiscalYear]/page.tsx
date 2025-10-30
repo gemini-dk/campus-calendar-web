@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
-import UniversityCalendarContent from "../_components/UniversityCalendarContent";
+import UniversityCalendarSupportSection from "../_components/UniversityCalendarSupportSection";
 import { DEFAULT_FISCAL_YEAR, FISCAL_YEARS, type FiscalYear } from "@/lib/constants/fiscal-year";
 import { getCalendarDays, getCalendarTerms } from "@/lib/data/service/calendar.service";
 import { getUniversityByWebId, listUniversities, listUniversityCalendars } from "@/lib/data/service/university.service";
@@ -418,7 +418,7 @@ export default async function Page({ params }: PageProps) {
                 </p>
               </header>
               </div>
-              <UniversityCalendarContent
+              <UniversityCalendarSupportSection
                 activeFiscalYear={fiscalYear}
                 calendarsByFiscalYear={calendarsByFiscalYear}
                 webId={webId}
@@ -428,11 +428,6 @@ export default async function Page({ params }: PageProps) {
             </div>
           </div>
         </div>
-        <aside className="hidden fixed right-0 top-0 w-[300px] h-full flex-col min-[1024px]:flex z-10 overflow-y-auto">
-          <div className="flex h-full w-full items-center justify-center border-l border-neutral-300 bg-white text-sm text-neutral-500">
-            広告枠
-          </div>
-        </aside>
       </div>
     </main>
   );
