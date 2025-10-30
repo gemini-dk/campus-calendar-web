@@ -261,7 +261,8 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 shadow-sm">
           <h2 className="text-base font-semibold text-amber-800">スマホにインストールしよう！</h2>
           <p className="mt-2 text-sm leading-relaxed text-amber-700">
-            ブラウザの共有メニューや設定メニューから「ホーム画面に追加」を選ぶと、アプリのように素早くアクセスできます。
+            ブラウザの共有メニューや設定メニューから「ホーム画面に追加」を選ぶと、アプリのように素早くアクセスでき、メニューがなくなるため画面がより広く使えます。
+            ただし、データ移行ができないため、Googleログインしてからホーム画面に追加いただくことをおすすめします。
           </p>
         </section>
       ) : null}
@@ -368,17 +369,6 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         </div>
       </section>
 
-      <div className="mt-auto border-t border-neutral-200 pt-3 text-center text-xs text-neutral-500">
-        <p className="mb-2 font-medium text-neutral-700">開発用メニュー</p>
-        <div className="flex flex-col items-center gap-1 text-blue-600">
-          <a className="hover:underline" href="/calendar-debug">
-            calendar-debug
-          </a>
-          <a className="hover:underline" href="/timetable_debug">
-            timetable_debug
-          </a>
-        </div>
-      </div>
     </div>
   );
 }
