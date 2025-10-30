@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { SearchableUniversityGrid } from './_components/university-grid';
+import TopPageAdvertisementSection from './_components/TopPageAdvertisementSection';
 import { listUniversities } from '@/lib/data/service/university.service';
 
 export const dynamic = 'force-dynamic';
@@ -55,8 +56,8 @@ export default async function HomePage() {
           </div>
         </div>
         <aside className="hidden fixed right-0 top-0 w-[300px] h-full flex-col min-[1024px]:flex z-10 overflow-y-auto">
-          <div className="flex h-full w-full items-center justify-center border-l border-neutral-300 bg-white text-sm text-neutral-500">
-            広告枠<br/><br/>ここに表示する広告を募集中です。
+          <div className="flex h-full w-full border-l border-neutral-300 bg-white">
+            <TopPageAdvertisementSection />
           </div>
         </aside>
       </div>
