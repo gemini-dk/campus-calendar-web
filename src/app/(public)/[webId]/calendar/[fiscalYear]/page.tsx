@@ -29,6 +29,7 @@ type PageProps = {
 type PrefetchedUniversityCalendar = UniversityCalendar & {
   calendarDays: CalendarDay[];
   calendarTerms: CalendarTerm[];
+  disableSaturday?: boolean;
 };
 
 const WEEKDAY_LABELS: Record<number, string> = {
@@ -131,13 +132,22 @@ function joinSegments(...segments: (string | null | undefined)[]): string {
     .join(" ");
 }
 
-function buildAiSuggestionLine(day: CalendarDay, term: CalendarTerm | null): string | null {
+function buildAiSuggestionLine(
+  calendar: PrefetchedUniversityCalendar,
+  day: CalendarDay,
+  term: CalendarTerm | null,
+): string | null {
   const isoDate = day.date;
   if (!isoDate) {
     return null;
   }
 
   const termName = normalizeTermLookupKey(term?.name ?? day.termName ?? day.termShortName) ?? "";
+  const weekdayNumber = toWeekdayNumberFromIso(isoDate);
+  const disableSaturday = Boolean(calendar.disableSaturday);
+  if (weekdayNumber === 7 || (weekdayNumber === 6 && disableSaturday)) {
+    return joinSegments(`${isoDate}:授業なし`, termName);
+  }
   const isHolidayTerm = term?.holidayFlag === 1;
   if (isHolidayTerm) {
     return joinSegments(`${isoDate}:授業なし`, termName);
@@ -175,7 +185,7 @@ function buildAiSuggestionComment(
 ): string | null {
   const lookup = buildTermLookup(calendar.calendarTerms);
   const lines = calendar.calendarDays
-    .map((day) => buildAiSuggestionLine(day, resolveTermForDay(day, lookup)))
+    .map((day) => buildAiSuggestionLine(calendar, day, resolveTermForDay(day, lookup)))
     .filter((line): line is string => Boolean(line));
 
   if (lines.length === 0) {
