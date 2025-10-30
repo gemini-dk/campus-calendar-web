@@ -8,6 +8,8 @@ import { getCalendarDays, getCalendarTerms } from "@/lib/data/service/calendar.s
 import { getUniversityByWebId, listUniversities, listUniversityCalendars } from "@/lib/data/service/university.service";
 import { buildUniversityCalendarCanonicalUrl, buildUniversityCalendarYearUrl } from "@/lib/site-url";
 import { extractSchoolColor } from "@/lib/university-color";
+import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
+import type { UniversityCalendar } from "@/lib/data/schema/university";
 
 const KEYWORD_VARIANTS = [
   "学事予定",
@@ -22,6 +24,21 @@ type PageParams = { webId: string; fiscalYear: string };
 
 type PageProps = {
   params: PageParams;
+};
+
+type PrefetchedUniversityCalendar = UniversityCalendar & {
+  calendarDays: CalendarDay[];
+  calendarTerms: CalendarTerm[];
+};
+
+const WEEKDAY_LABELS: Record<number, string> = {
+  1: "月曜",
+  2: "火曜",
+  3: "水曜",
+  4: "木曜",
+  5: "金曜",
+  6: "土曜",
+  7: "日曜",
 };
 
 function normalizeUniversityTextList(values: string[] | undefined): string[] {
@@ -45,6 +62,130 @@ function summarizeList(values: string[]): string | undefined {
 
 function toFiscalYear(value: string): FiscalYear | null {
   return FISCAL_YEARS.find((year) => year === value) ?? null;
+}
+
+function normalizeTermLookupKey(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function buildTermLookup(terms: CalendarTerm[]) {
+  const byId = new Map<string, CalendarTerm>();
+  const byName = new Map<string, CalendarTerm>();
+  terms.forEach((term) => {
+    byId.set(term.id, term);
+    const normalizedName = normalizeTermLookupKey(term.name);
+    if (normalizedName) {
+      byName.set(normalizedName, term);
+    }
+    const normalizedShortName = normalizeTermLookupKey(term.shortName);
+    if (normalizedShortName) {
+      byName.set(normalizedShortName, term);
+    }
+  });
+  return { byId, byName } as const;
+}
+
+function resolveTermForDay(day: CalendarDay, lookup: ReturnType<typeof buildTermLookup>): CalendarTerm | null {
+  if (day.termId && lookup.byId.has(day.termId)) {
+    return lookup.byId.get(day.termId) ?? null;
+  }
+  const normalizedTermName = normalizeTermLookupKey(day.termName ?? day.termShortName);
+  if (normalizedTermName && lookup.byName.has(normalizedTermName)) {
+    return lookup.byName.get(normalizedTermName) ?? null;
+  }
+  return null;
+}
+
+function toWeekdayNumberFromIso(date: string | undefined): number | null {
+  if (!date) {
+    return null;
+  }
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return ((parsed.getDay() + 6) % 7) + 1;
+}
+
+function formatClassScheduleLabel(day: CalendarDay): string | null {
+  const weekdayNumber = day.classWeekday ?? toWeekdayNumberFromIso(day.date ?? undefined);
+  const weekdayLabel = weekdayNumber ? WEEKDAY_LABELS[weekdayNumber] : undefined;
+  if (!weekdayLabel) {
+    return null;
+  }
+  const classOrder = day.classOrder;
+  if (typeof classOrder === "number" && Number.isFinite(classOrder)) {
+    return `${weekdayLabel}授業(${classOrder})`;
+  }
+  return `${weekdayLabel}授業`;
+}
+
+function joinSegments(...segments: (string | null | undefined)[]): string {
+  return segments
+    .map((segment) => (typeof segment === "string" ? segment.trim() : ""))
+    .filter((segment) => segment.length > 0)
+    .join(" ");
+}
+
+function buildAiSuggestionLine(day: CalendarDay, term: CalendarTerm | null): string | null {
+  const isoDate = day.date;
+  if (!isoDate) {
+    return null;
+  }
+
+  const termName = normalizeTermLookupKey(term?.name ?? day.termName ?? day.termShortName) ?? "";
+  const isHolidayTerm = term?.holidayFlag === 1;
+  if (isHolidayTerm) {
+    return joinSegments(`${isoDate}:授業なし`, termName);
+  }
+
+  const type = day.type ?? "";
+  if (type === "休講日") {
+    return joinSegments(`${isoDate}:授業なし`, termName);
+  }
+  if (type === "試験日") {
+    return joinSegments(`${isoDate}:試験日`, termName);
+  }
+  if (type === "予備日") {
+    return joinSegments(`${isoDate}:予備日・補講日`, termName);
+  }
+  if (type === "授業日") {
+    const classLabel = formatClassScheduleLabel(day);
+    return joinSegments(`${isoDate}:授業あり`, termName, classLabel);
+  }
+
+  if (type === "休業日" || type === "長期休暇") {
+    return joinSegments(`${isoDate}:授業なし`, termName);
+  }
+
+  if (termName) {
+    return joinSegments(`${isoDate}:授業日程`, termName);
+  }
+
+  return `${isoDate}:授業日程`;
+}
+
+function buildAiSuggestionComment(
+  calendar: PrefetchedUniversityCalendar,
+  calendarCount: number,
+): string | null {
+  const lookup = buildTermLookup(calendar.calendarTerms);
+  const lines = calendar.calendarDays
+    .map((day) => buildAiSuggestionLine(day, resolveTermForDay(day, lookup)))
+    .filter((line): line is string => Boolean(line));
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const headerSuffix = calendarCount > 1 ? `（${calendar.name}）` : "";
+  const header = `大学公式情報から取得した授業日程を表示しています。${headerSuffix}`;
+  const body = lines.map((line) => `- ${line}`).join("\n");
+  return `<!-- ${header}\n${body}\n-->`;
 }
 
 export async function generateStaticParams() {
@@ -193,6 +334,13 @@ export default async function Page({ params }: PageProps) {
   const structuredDataJson = JSON.stringify(structuredData).replace(/</g, "\\u003c");
 
   const contentHorizontalPadding = "px-4 sm:px-6 min-[1024px]:px-[30px]";
+  const calendarsForActiveFiscalYear = calendarsByFiscalYear[fiscalYear] ?? [];
+  const aiSuggestionComments = calendarsForActiveFiscalYear
+    .map((calendar) => ({
+      id: calendar.id,
+      comment: buildAiSuggestionComment(calendar, calendarsForActiveFiscalYear.length),
+    }))
+    .filter((item): item is { id: string; comment: string } => Boolean(item.comment));
 
   return (
     <main className="relative flex min-h-screen w-full flex-1 flex-col bg-neutral-100 pb-40">
@@ -203,6 +351,14 @@ export default async function Page({ params }: PageProps) {
               <div className={contentHorizontalPadding}>
                 <header className="flex w-full flex-col gap-4">
                   <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: structuredDataJson }} />
+                  {aiSuggestionComments.map(({ id, comment }) => (
+                    <div
+                      key={`ai-suggestion-${id}`}
+                      hidden
+                      aria-hidden="true"
+                      dangerouslySetInnerHTML={{ __html: comment }}
+                    />
+                  ))}
                   <div className="flex w-full justify-end gap-3">
                     {FISCAL_YEARS.map((year) => {
                       const isActive = year === fiscalYear;
