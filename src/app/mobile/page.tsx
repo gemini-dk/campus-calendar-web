@@ -23,6 +23,7 @@ import ClassesTab from "./tabs/ClassesTab";
 import CalendarOverlayIcon from "./components/CalendarOverlayIcon";
 import type { TabDefinition, TabId } from "./tabs/types";
 import { auth } from "@/lib/firebase/client";
+import { ensureCalendarDataIsCached } from "@/lib/data/service/calendar.service";
 import { CalendarConflictError, useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
 
@@ -64,6 +65,21 @@ function MobilePageContent() {
   const { settings, initialized: settingsInitialized, installCalendar, setActiveCalendar } =
     useUserSettings();
   const { isAuthenticated, initializing } = useAuth();
+
+  useEffect(() => {
+    if (!settingsInitialized) {
+      return;
+    }
+    const fiscalYear = settings.calendar.fiscalYear.trim();
+    const calendarId = settings.calendar.calendarId.trim();
+    if (!fiscalYear || !calendarId) {
+      return;
+    }
+
+    ensureCalendarDataIsCached(fiscalYear, calendarId).catch((error) => {
+      console.error("学事カレンダーのキャッシュ生成に失敗しました。", error);
+    });
+  }, [settings.calendar.calendarId, settings.calendar.fiscalYear, settingsInitialized]);
 
   const tabFromParams = useMemo<TabId>(() => {
     const param = searchParams.get("tab");
