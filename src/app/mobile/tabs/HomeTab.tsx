@@ -96,7 +96,7 @@ function extractDayNumber(label: string): string {
 
 function HomeTabContent() {
   const searchParams = useSearchParams();
-  const { settings } = useUserSettings();
+  const { settings, initialized: settingsInitialized } = useUserSettings();
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,6 +122,16 @@ function HomeTabContent() {
 
   useEffect(() => {
     let active = true;
+
+    if (!settingsInitialized) {
+      setDisplayInfo(null);
+      setErrorMessage(null);
+      setLoading(true);
+      return () => {
+        active = false;
+      };
+    }
+
     const fiscalYear = settings.calendar.fiscalYear;
     const calendarId = settings.calendar.calendarId;
 
@@ -163,6 +173,7 @@ function HomeTabContent() {
   }, [
     dateId,
     hasSaturdayClasses,
+    settingsInitialized,
     settings.calendar.calendarId,
     settings.calendar.entries,
     settings.calendar.fiscalYear,
