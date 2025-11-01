@@ -1,4 +1,5 @@
 import {
+  ensureCalendarDataCached,
   listCalendarDays,
   listCalendarTerms,
 } from '../repository/calendar.repository';
@@ -26,4 +27,12 @@ export async function getCalendarDays(
 ) {
   validateCalendarQueryParams(fiscalYear, calendarId);
   return listCalendarDays(fiscalYear, calendarId);
+}
+
+export async function ensureCalendarDataIsCached(
+  fiscalYear: string,
+  calendarId: string,
+) {
+  validateCalendarQueryParams(fiscalYear, calendarId);
+  await ensureCalendarDataCached(fiscalYear, calendarId);
 }

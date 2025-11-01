@@ -20,10 +20,114 @@ import {
 
 const CALENDAR_COLLECTION_PREFIX = 'calendars_';
 
+const LOCAL_STORAGE_KEY_PREFIX = 'ccw:calendar_data:';
+const LOCAL_STORAGE_VERSION = 1;
+
 const DAY_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+type CalendarDataBundle = {
+  days: CalendarDay[];
+  terms: CalendarTerm[];
+};
+
+type StoredCalendarData = CalendarDataBundle & {
+  version: number;
+  fiscalYear: string;
+  calendarId: string;
+  fetchedAt: number;
+};
+
+const pendingBundleRequests = new Map<string, Promise<CalendarDataBundle>>();
 
 function getCalendarPathSegments(fiscalYear: string, calendarId: string) {
   return [`${CALENDAR_COLLECTION_PREFIX}${fiscalYear}`, calendarId] as const;
+}
+
+function getLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage;
+  } catch (error) {
+    console.warn('localStorage へアクセスできませんでした。', error);
+    return null;
+  }
+}
+
+function getStorageKey(fiscalYear: string, calendarId: string): string {
+  return `${LOCAL_STORAGE_KEY_PREFIX}${fiscalYear}::${calendarId}`;
+}
+
+function sanitizeCalendarTerm(term: CalendarTerm): CalendarTerm {
+  const sanitized = { ...term } as CalendarTerm & Record<string, unknown>;
+  delete sanitized.updatedAt;
+  return sanitized;
+}
+
+function sanitizeCalendarDay(day: CalendarDay): CalendarDay {
+  const sanitized = { ...day } as CalendarDay & Record<string, unknown>;
+  delete sanitized.updatedAt;
+  delete sanitized.syncedAt;
+  return sanitized;
+}
+
+function saveCalendarDataToStorage(
+  storage: Storage,
+  fiscalYear: string,
+  calendarId: string,
+  bundle: CalendarDataBundle,
+) {
+  const key = getStorageKey(fiscalYear, calendarId);
+  try {
+    const record: StoredCalendarData = {
+      version: LOCAL_STORAGE_VERSION,
+      fiscalYear,
+      calendarId,
+      fetchedAt: Date.now(),
+      terms: bundle.terms.map(sanitizeCalendarTerm),
+      days: bundle.days.map(sanitizeCalendarDay),
+    };
+    storage.setItem(key, JSON.stringify(record));
+  } catch (error) {
+    console.warn('学事カレンダーのキャッシュ保存に失敗しました。', error);
+  }
+}
+
+function loadCalendarDataFromStorage(
+  storage: Storage,
+  fiscalYear: string,
+  calendarId: string,
+): CalendarDataBundle | null {
+  const key = getStorageKey(fiscalYear, calendarId);
+  const rawValue = storage.getItem(key);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as Partial<StoredCalendarData>;
+    if (parsed.version !== LOCAL_STORAGE_VERSION) {
+      storage.removeItem(key);
+      return null;
+    }
+    if (parsed.fiscalYear !== fiscalYear || parsed.calendarId !== calendarId) {
+      storage.removeItem(key);
+      return null;
+    }
+    if (!Array.isArray(parsed.days) || !Array.isArray(parsed.terms)) {
+      storage.removeItem(key);
+      return null;
+    }
+    return {
+      days: parsed.days as CalendarDay[],
+      terms: parsed.terms as CalendarTerm[],
+    } satisfies CalendarDataBundle;
+  } catch (error) {
+    console.warn('学事カレンダーのキャッシュ読み込みに失敗しました。', error);
+    storage.removeItem(key);
+    return null;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -100,6 +204,27 @@ function findCalendarDayInMonthData(
   return null;
 }
 
+function findCalendarDayInList(
+  days: CalendarDay[],
+  keysToMatch: Set<string>,
+): CalendarDay | null {
+  for (const day of days) {
+    const normalizedId = day.id.replaceAll('-', '');
+    if (keysToMatch.has(day.id) || keysToMatch.has(normalizedId)) {
+      return day;
+    }
+
+    if (day.date) {
+      const normalizedDate = day.date.replaceAll('-', '');
+      if (keysToMatch.has(day.date) || keysToMatch.has(normalizedDate)) {
+        return day;
+      }
+    }
+  }
+
+  return null;
+}
+
 function coerceTermData(data: unknown): CalendarTerm {
   const record = typeof data === 'object' && data !== null ? data : {};
   const order =
@@ -141,7 +266,7 @@ function coerceDayData(data: unknown): CalendarDay {
   };
 }
 
-export async function listCalendarTerms(
+async function fetchCalendarTermsFromFirestore(
   fiscalYear: string,
   calendarId: string,
 ): Promise<CalendarTerm[]> {
@@ -166,7 +291,7 @@ export async function listCalendarTerms(
     });
 }
 
-export async function listCalendarDays(
+async function fetchCalendarDaysFromFirestore(
   fiscalYear: string,
   calendarId: string,
 ): Promise<CalendarDay[]> {
@@ -199,14 +324,79 @@ export async function listCalendarDays(
   });
 }
 
+async function fetchCalendarDataBundle(
+  fiscalYear: string,
+  calendarId: string,
+): Promise<CalendarDataBundle> {
+  const [terms, days] = await Promise.all([
+    fetchCalendarTermsFromFirestore(fiscalYear, calendarId),
+    fetchCalendarDaysFromFirestore(fiscalYear, calendarId),
+  ]);
+
+  return { terms, days } satisfies CalendarDataBundle;
+}
+
+async function getCalendarDataBundle(
+  fiscalYear: string,
+  calendarId: string,
+): Promise<CalendarDataBundle> {
+  const storage = getLocalStorage();
+  if (storage) {
+    const cached = loadCalendarDataFromStorage(storage, fiscalYear, calendarId);
+    if (cached) {
+      return cached;
+    }
+  }
+
+  const key = getStorageKey(fiscalYear, calendarId);
+  const pending = pendingBundleRequests.get(key);
+  if (pending) {
+    return pending;
+  }
+
+  const request = fetchCalendarDataBundle(fiscalYear, calendarId)
+    .then((bundle) => {
+      if (storage) {
+        saveCalendarDataToStorage(storage, fiscalYear, calendarId, bundle);
+      }
+      return bundle;
+    })
+    .finally(() => {
+      pendingBundleRequests.delete(key);
+    });
+
+  pendingBundleRequests.set(key, request);
+  return request;
+}
+
+export async function listCalendarTerms(
+  fiscalYear: string,
+  calendarId: string,
+): Promise<CalendarTerm[]> {
+  const bundle = await getCalendarDataBundle(fiscalYear, calendarId);
+  return bundle.terms;
+}
+
+export async function listCalendarDays(
+  fiscalYear: string,
+  calendarId: string,
+): Promise<CalendarDay[]> {
+  const bundle = await getCalendarDataBundle(fiscalYear, calendarId);
+  return bundle.days;
+}
+
+export async function ensureCalendarDataCached(
+  fiscalYear: string,
+  calendarId: string,
+): Promise<void> {
+  await getCalendarDataBundle(fiscalYear, calendarId);
+}
+
 export async function getCalendarDay(
   fiscalYear: string,
   calendarId: string,
   dateId: string,
 ): Promise<CalendarDay | null> {
-  const segments = getCalendarPathSegments(fiscalYear, calendarId);
-  const daysRef = collection(db, ...segments, 'calendar_days');
-
   const isoDate = toIsoDateString(dateId);
   const normalizedDate = (isoDate ?? dateId).replaceAll('-', '');
   const monthId = toMonthIdFromDateId(dateId);
@@ -215,6 +405,19 @@ export async function getCalendarDay(
     keysToMatch.add(isoDate);
     keysToMatch.add(isoDate.replaceAll('-', ''));
   }
+
+  try {
+    const bundle = await getCalendarDataBundle(fiscalYear, calendarId);
+    const cached = findCalendarDayInList(bundle.days, keysToMatch);
+    if (cached) {
+      return cached;
+    }
+  } catch (error) {
+    console.warn('学事カレンダーのローカルキャッシュからの取得に失敗しました。', error);
+  }
+
+  const segments = getCalendarPathSegments(fiscalYear, calendarId);
+  const daysRef = collection(db, ...segments, 'calendar_days');
 
   if (monthId) {
     const monthRef = doc(db, ...segments, 'calendar_days', monthId);
