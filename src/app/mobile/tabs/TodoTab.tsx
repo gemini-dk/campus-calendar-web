@@ -451,6 +451,29 @@ function CreateActivityDialog({
             />
           </label>
 
+          {isAssignment ? (
+            <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-700">
+              <label className="flex items-center gap-2">
+                <span className="font-medium">完了:</span>
+                <input
+                  type="checkbox"
+                  checked={formState.isCompleted}
+                  onChange={(event) => onChange('isCompleted', event.target.checked)}
+                  className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-200"
+                />
+              </label>
+              <label className="flex items-center gap-2">
+                <span className="font-medium">期限:</span>
+                <input
+                  type="date"
+                  value={formState.dueDate}
+                  onChange={(event) => onChange('dueDate', event.target.value)}
+                  className="h-9 rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+              </label>
+            </div>
+          ) : null}
+
           <label className="flex flex-col gap-2">
             <span className="text-sm font-medium text-neutral-700">詳細</span>
             <textarea
@@ -487,29 +510,6 @@ function CreateActivityDialog({
             </span>
           </label>
 
-          {isAssignment ? (
-            <div className="flex flex-col gap-4 rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-              <label className="flex items-center gap-3 text-sm font-medium text-neutral-700">
-                <input
-                  type="checkbox"
-                  checked={formState.isCompleted}
-                  onChange={(event) => onChange('isCompleted', event.target.checked)}
-                  className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-200"
-                />
-                完了した課題として保存する
-              </label>
-
-              <label className="flex flex-col gap-2">
-                <span className="text-sm font-medium text-neutral-700">期限</span>
-                <input
-                  type="date"
-                  value={formState.dueDate}
-                  onChange={(event) => onChange('dueDate', event.target.value)}
-                  className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </label>
-            </div>
-          ) : null}
         </div>
 
         {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}

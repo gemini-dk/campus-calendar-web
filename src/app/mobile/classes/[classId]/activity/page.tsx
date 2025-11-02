@@ -12,6 +12,7 @@ import {
   faNoteSticky,
   faPen,
   faPlay,
+  faPlus,
   faVideo,
 } from "@fortawesome/free-solid-svg-icons";
 import { faSquare, faSquareCheck } from "@fortawesome/free-regular-svg-icons";
@@ -1039,26 +1040,40 @@ function UpcomingAssignmentItem({
   );
 }
 
-function QuickActionButton({
-  icon,
-  label,
-  variant = "primary",
-}: {
+type CreateActionButtonProps = {
   icon: IconDefinition;
   label: string;
-  variant?: "primary" | "secondary";
-}) {
-  const baseClass =
-    variant === "primary"
-      ? "bg-blue-600 text-white hover:bg-blue-700"
-      : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200";
+  variant?: "blue" | "purple" | "neutral";
+  onClick?: () => void;
+};
+
+function CreateActionButton({ icon, label, variant = "blue", onClick }: CreateActionButtonProps) {
+  const variantClass = (() => {
+    switch (variant) {
+      case "purple":
+        return "bg-violet-50 text-violet-600 hover:bg-violet-100";
+      case "neutral":
+        return "bg-neutral-100 text-neutral-600 hover:bg-neutral-200";
+      case "blue":
+      default:
+        return "bg-blue-50 text-blue-600 hover:bg-blue-100";
+    }
+  })();
+
   return (
     <button
       type="button"
-      className={`flex h-11 flex-1 items-center justify-center gap-2 rounded-full text-sm font-semibold transition ${baseClass}`}
+      aria-label={label}
+      title={label}
+      className={`flex h-11 w-11 items-center justify-center rounded-full text-lg transition ${variantClass}`}
+      onClick={onClick}
     >
-      <FontAwesomeIcon icon={icon} className="text-base" aria-hidden="true" />
-      <span>{label}</span>
+      <span className="relative flex items-center justify-center">
+        <FontAwesomeIcon icon={icon} className="text-lg" aria-hidden="true" />
+        <span className="absolute -bottom-1 -right-1 flex h-[0.875rem] w-[0.875rem] items-center justify-center rounded-full bg-white text-[0.5rem] text-blue-600 ring-1 ring-blue-200">
+          <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
+        </span>
+      </span>
     </button>
   );
 }
@@ -1344,6 +1359,34 @@ export function ClassActivityContent({
     [router],
   );
 
+  const handleCreateActivity = useCallback(
+    (type: ActivityType) => {
+      if (!classDetail?.id) {
+        return;
+      }
+
+      const params = new URLSearchParams();
+      params.set("tab", "todo");
+      params.set("activityAction", "create");
+      params.set("activityType", type);
+      params.set("activityClassId", classDetail.id);
+      params.set("activityView", type === "memo" ? "memo" : "todo");
+      params.set("activityTitle", "");
+
+      const query = params.toString();
+      router.push(query ? `/mobile?${query}` : "/mobile");
+    },
+    [classDetail?.id, router],
+  );
+
+  const handleCreateAssignment = useCallback(() => {
+    handleCreateActivity("assignment");
+  }, [handleCreateActivity]);
+
+  const handleCreateMemo = useCallback(() => {
+    handleCreateActivity("memo");
+  }, [handleCreateActivity]);
+
   const renderContent = () => {
     if (authInitializing) {
       return (
@@ -1430,8 +1473,13 @@ export function ClassActivityContent({
 
         <section className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3">
-            <QuickActionButton icon={faListCheck} label="課題作成" />
-            <QuickActionButton icon={faNoteSticky} label="メモ作成" variant="secondary" />
+            <CreateActionButton icon={faListCheck} label="課題作成" onClick={handleCreateAssignment} />
+            <CreateActionButton
+              icon={faNoteSticky}
+              label="メモ作成"
+              variant="purple"
+              onClick={handleCreateMemo}
+            />
           </div>
         </section>
 
