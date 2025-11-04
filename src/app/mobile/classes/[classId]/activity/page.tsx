@@ -1357,15 +1357,23 @@ export function ClassActivityContent({
 
   const handleCreateActivity = useCallback(
     (type: ActivityType) => {
-      if (!classDetail?.id) {
-        return;
+      const options: {
+        classId?: string;
+        classLabel?: string;
+        title: string;
+      } = {
+        title: "",
+      };
+
+      if (classDetail?.id) {
+        options.classId = classDetail.id;
+        const trimmedLabel = classDetail.className.trim();
+        if (trimmedLabel.length > 0) {
+          options.classLabel = trimmedLabel;
+        }
       }
 
-      openCreateDialog(type, {
-        classId: classDetail.id,
-        classLabel: classDetail.className ?? '',
-        title: "",
-      });
+      openCreateDialog(type, options);
     },
     [classDetail?.className, classDetail?.id, openCreateDialog],
   );
