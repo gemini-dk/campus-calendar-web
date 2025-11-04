@@ -51,16 +51,18 @@ export default function ClassActivityOverlay({
 
   return (
     <div className="fixed inset-0 z-50 flex h-[100svh] w-full flex-1 min-h-0 flex-col bg-white">
-      <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-neutral-200 px-5">
-        <h1 className="text-lg font-semibold text-neutral-900">授業活動記録</h1>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="画面を閉じる"
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-700 shadow-sm transition hover:bg-neutral-100"
-        >
-          <FontAwesomeIcon icon={faXmark} fontSize={20} />
-        </button>
+      <header className="flex h-14 w-full flex-shrink-0 justify-center border-b border-neutral-200 bg-white">
+        <div className="flex h-full w-full max-w-[800px] items-center justify-between px-5">
+          <h1 className="text-lg font-semibold text-neutral-900">授業活動記録</h1>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="画面を閉じる"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-neutral-300 bg-white text-neutral-700 shadow-sm transition hover:bg-neutral-100"
+          >
+            <FontAwesomeIcon icon={faXmark} fontSize={20} />
+          </button>
+        </div>
       </header>
       <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-100">
         <ClassActivityContent classId={session.classId} fiscalYearOverride={fiscalYear} />
