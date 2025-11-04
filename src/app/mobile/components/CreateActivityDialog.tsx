@@ -1,11 +1,14 @@
-'use client';
+"use client";
 
-import type { ActivityFormState, ActivityType } from '@/app/mobile/features/activities/types';
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark } from '@fortawesome/free-solid-svg-icons';
+import type { ActivityFormState, ActivityType } from "@/app/mobile/features/activities/types";
 
-import type { TimetableClassSummary } from '@/lib/data/service/class.service';
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+
+import type { TimetableClassSummary } from "@/lib/data/service/class.service";
 
 type CreateActivityDialogProps = {
   open: boolean;
@@ -36,7 +39,13 @@ export default function CreateActivityDialog({
   activeFiscalYear,
   selectedClassLabel,
 }: CreateActivityDialogProps) {
-  if (!open) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!open || !mounted) {
     return null;
   }
 
@@ -62,8 +71,8 @@ export default function CreateActivityDialog({
     : '設定で利用中の年度を設定してください';
   const selectionDisabled = normalizedFiscalYear === null;
 
-  return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 px-4 py-6">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
       <div className="w-full max-w-[480px] rounded-2xl bg-white p-6 shadow-xl">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -186,6 +195,7 @@ export default function CreateActivityDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
