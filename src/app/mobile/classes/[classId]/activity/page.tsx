@@ -1180,7 +1180,7 @@ export function ClassActivityContent({
 
   const upcomingTimelineItems = useMemo<UpcomingTimelineItem[]>(() => {
     const sessionItems: UpcomingSessionTimelineItem[] = classDates
-      .filter((date) => date.classDate > todayId)
+      .filter((date) => date.classDate >= todayId)
       .map((date) => ({
         kind: "session" as const,
         id: date.id,
