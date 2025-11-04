@@ -726,11 +726,17 @@ function DailyClassCard({
   const navigateToActivityForm = useCallback(
     (
       type: 'assignment' | 'memo',
-      options: { title: string; classId: string; dueDate?: string | null },
+      options: {
+        title: string;
+        classId: string;
+        classLabel: string;
+        dueDate?: string | null;
+      },
     ) => {
       openCreateDialog(type, {
         title: options.title,
         classId: options.classId,
+        classLabel: options.classLabel,
         dueDate: type === 'assignment' ? options.dueDate ?? '' : '',
       });
     },
@@ -761,6 +767,7 @@ function DailyClassCard({
       navigateToActivityForm('assignment', {
         title,
         classId: session.classId,
+        classLabel: session.className,
         dueDate,
       });
     },
@@ -769,6 +776,7 @@ function DailyClassCard({
       fiscalYear,
       navigateToActivityForm,
       session.classDate,
+      session.className,
       session.classId,
       userId,
     ],
@@ -784,9 +792,16 @@ function DailyClassCard({
       navigateToActivityForm('memo', {
         title,
         classId: session.classId,
+        classLabel: session.className,
       });
     },
-    [buildMemoTitle, navigateToActivityForm, session.classDate, session.classId],
+    [
+      buildMemoTitle,
+      navigateToActivityForm,
+      session.classDate,
+      session.classId,
+      session.className,
+    ],
   );
 
   return (

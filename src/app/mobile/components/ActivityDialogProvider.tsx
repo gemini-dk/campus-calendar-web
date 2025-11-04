@@ -82,6 +82,10 @@ function mapActivity(docSnapshot: QueryDocumentSnapshot<DocumentData>): Activity
   } satisfies Activity;
 }
 
+type ActivityDialogOpenOptions = Partial<ActivityFormState> & {
+  classLabel?: string;
+};
+
 type ActivityDialogContextValue = {
   activities: Activity[];
   assignments: Activity[];
@@ -92,7 +96,7 @@ type ActivityDialogContextValue = {
   classNameMap: Map<string, string>;
   openCreateDialog: (
     type: ActivityType,
-    options?: Partial<ActivityFormState>,
+    options?: ActivityDialogOpenOptions,
   ) => void;
   openEditDialog: (activity: Activity) => void;
   toggleAssignmentStatus: (activity: Activity) => Promise<void>;
@@ -120,6 +124,8 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
+  const [classLabelHints, setClassLabelHints] = useState<Record<string, string>>({});
+
   const [classOptions, setClassOptions] = useState<TimetableClassSummary[]>([]);
 
   const { profile } = useAuth();
@@ -139,6 +145,7 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
       setActivities([]);
       setLoading(false);
       setError(null);
+      setClassLabelHints({});
       return () => {};
     }
 
@@ -217,11 +224,24 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
     for (const option of classOptions) {
       map.set(option.id, option.className);
     }
+    for (const [id, label] of Object.entries(classLabelHints)) {
+      if (typeof label === 'string' && label.trim().length > 0) {
+        map.set(id, label.trim());
+      }
+    }
     return map;
-  }, [classOptions]);
+  }, [classLabelHints, classOptions]);
 
   const activeFiscalYearForDialog =
     trimmedActiveFiscalYear.length > 0 ? trimmedActiveFiscalYear : null;
+
+  const selectedClassLabel = (() => {
+    const trimmedId = formState.classId.trim();
+    if (!trimmedId) {
+      return null;
+    }
+    return classNameMap.get(trimmedId) ?? null;
+  })();
 
   const handleFormChange = useCallback(
     (field: keyof ActivityFormState, value: string | boolean) => {
@@ -282,7 +302,7 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
   }, [dialogType, formState, profile?.uid, selectedActivity]);
 
   const openCreateDialog = useCallback(
-    (type: ActivityType, options?: Partial<ActivityFormState>) => {
+    (type: ActivityType, options?: ActivityDialogOpenOptions) => {
       setDialogType(type);
       setFormState({
         ...createDefaultFormState(),
@@ -294,6 +314,22 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
       });
       setDialogError(null);
       setSelectedActivity(null);
+      const trimmedClassId =
+        typeof options?.classId === 'string' ? options.classId.trim() : '';
+      if (trimmedClassId.length > 0) {
+        const label =
+          typeof options?.classLabel === 'string' && options.classLabel.trim().length > 0
+            ? options.classLabel.trim()
+            : null;
+        if (label) {
+          setClassLabelHints((prev) => {
+            if (prev[trimmedClassId] === label) {
+              return prev;
+            }
+            return { ...prev, [trimmedClassId]: label };
+          });
+        }
+      }
       setIsDialogOpen(true);
     },
     [],
@@ -304,8 +340,21 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
     setFormState(createFormStateFromActivity(activity));
     setDialogError(null);
     setSelectedActivity(activity);
+    const classId =
+      typeof activity.classId === 'string' ? activity.classId.trim() : '';
+    if (classId.length > 0) {
+      const matchedOption = classOptions.find((option) => option.id === classId);
+      if (matchedOption?.className) {
+        setClassLabelHints((prev) => {
+          if (prev[classId] === matchedOption.className) {
+            return prev;
+          }
+          return { ...prev, [classId]: matchedOption.className };
+        });
+      }
+    }
     setIsDialogOpen(true);
-  }, []);
+  }, [classOptions]);
 
   const toggleAssignmentStatus = useCallback(
     async (activity: Activity) => {
@@ -370,6 +419,22 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }, [activities, openCreateDialog, openEditDialog, pathname, router, searchParams]);
 
+  useEffect(() => {
+    setClassLabelHints((prev) => {
+      let next = prev;
+      for (const option of classOptions) {
+        if (prev[option.id] === option.className) {
+          continue;
+        }
+        if (next === prev) {
+          next = { ...prev };
+        }
+        next[option.id] = option.className;
+      }
+      return next;
+    });
+  }, [classOptions]);
+
   const contextValue = useMemo<ActivityDialogContextValue>(
     () => ({
       activities,
@@ -412,6 +477,7 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
         error={dialogError}
         classOptions={classOptions}
         activeFiscalYear={activeFiscalYearForDialog}
+        selectedClassLabel={selectedClassLabel}
       />
     </ActivityDialogContext.Provider>
   );

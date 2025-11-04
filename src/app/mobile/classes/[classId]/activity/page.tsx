@@ -1360,10 +1360,11 @@ export function ClassActivityContent({
 
       openCreateDialog(type, {
         classId: classDetail.id,
+        classLabel: classDetail.className ?? '',
         title: "",
       });
     },
-    [classDetail?.id, openCreateDialog],
+    [classDetail?.className, classDetail?.id, openCreateDialog],
   );
 
   const handleCreateAssignment = useCallback(() => {

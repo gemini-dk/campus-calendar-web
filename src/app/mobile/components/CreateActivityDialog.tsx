@@ -19,6 +19,7 @@ type CreateActivityDialogProps = {
   error: string | null;
   classOptions: TimetableClassSummary[];
   activeFiscalYear: string | null;
+  selectedClassLabel: string | null;
 };
 
 export default function CreateActivityDialog({
@@ -33,6 +34,7 @@ export default function CreateActivityDialog({
   error,
   classOptions,
   activeFiscalYear,
+  selectedClassLabel,
 }: CreateActivityDialogProps) {
   if (!open) {
     return null;
@@ -48,6 +50,11 @@ export default function CreateActivityDialog({
   const hasUnknownSelection =
     trimmedSelection.length > 0 &&
     !classOptions.some((option) => option.id === trimmedSelection);
+  const unknownSelectionLabel = hasUnknownSelection
+    ? selectedClassLabel && selectedClassLabel.trim().length > 0
+      ? selectedClassLabel.trim()
+      : trimmedSelection
+    : null;
   const placeholderLabel = normalizedFiscalYear
     ? classOptions.length > 0
       ? '関連授業を選択'
@@ -146,7 +153,9 @@ export default function CreateActivityDialog({
                 </option>
               ))}
               {hasUnknownSelection ? (
-                <option value={trimmedSelection}>{`現在の選択 (${trimmedSelection})`}</option>
+                <option value={trimmedSelection}>
+                  {unknownSelectionLabel ?? trimmedSelection}
+                </option>
               ) : null}
             </select>
             <span className="text-xs text-neutral-500">
