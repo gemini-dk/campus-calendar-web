@@ -119,6 +119,26 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
+type TodayBadgeClasses = {
+  backgroundClass: string;
+  textClass: string;
+};
+
+function resolveTodayBadgeClasses(date: Date, accent: string | null | undefined): TodayBadgeClasses {
+  const weekday = date.getDay();
+  const accentKey = accent ?? "";
+
+  if (accentKey === "holiday" || weekday === 0) {
+    return { backgroundClass: "bg-red-500", textClass: "text-white" };
+  }
+
+  if (accentKey === "saturday" || weekday === 6) {
+    return { backgroundClass: "bg-blue-600", textClass: "text-white" };
+  }
+
+  return { backgroundClass: "bg-neutral-900", textClass: "text-white" };
+}
+
 function extractDayNumber(label: string | null | undefined): string {
   if (!label) {
     return "-";
@@ -311,9 +331,14 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                   const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                   const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
                   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
-                  const cellBackgroundColor = isToday
-                    ? "var(--color-calendar-today-background)"
-                    : backgroundColor;
+                  const cellBackgroundColor = backgroundColor;
+                  const todayBadgeClasses = resolveTodayBadgeClasses(
+                    date,
+                    general?.dateTextColor,
+                  );
+                  const dateBadgeClass = isToday
+                    ? `inline-flex h-6 min-w-[26px] items-center justify-center rounded px-1.5 ${todayBadgeClasses.backgroundClass} ${todayBadgeClasses.textClass}`
+                    : dateColorClass;
 
                   const isClassDay = day?.type === "授業日";
                   const classOrder = academic?.classOrder;
@@ -348,7 +373,7 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                       }}
                     >
                       <div className="flex flex-shrink-0 items-start justify-between">
-                        <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
+                        <span className={`text-[13px] font-semibold ${dateBadgeClass}`}>{dateNumber}</span>
                         {isClassDay && typeof classOrder === "number" ? (
                           <span
                             className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
@@ -496,9 +521,14 @@ function GridCalendarView({ dataset }: GridCalendarViewProps) {
                     const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                     const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
                     const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
-                    const cellBackgroundColor = isToday
-                      ? "var(--color-calendar-today-background)"
-                      : backgroundColor;
+                    const cellBackgroundColor = backgroundColor;
+                    const todayBadgeClasses = resolveTodayBadgeClasses(
+                      date,
+                      general?.dateTextColor,
+                    );
+                    const dateBadgeClass = isToday
+                      ? `inline-flex h-5 min-w-[22px] items-center justify-center rounded px-1 ${todayBadgeClasses.backgroundClass} ${todayBadgeClasses.textClass}`
+                      : dateColorClass;
 
                     const isClassDay = day?.type === "授業日";
                     const classOrder = academic?.classOrder;
@@ -533,7 +563,7 @@ function GridCalendarView({ dataset }: GridCalendarViewProps) {
                         }}
                       >
                         <div className="flex flex-shrink-0 items-start justify-between">
-                          <span className={`text-xs font-semibold ${dateColorClass}`}>{dateNumber}</span>
+                          <span className={`text-xs font-semibold ${dateBadgeClass}`}>{dateNumber}</span>
                           {isClassDay && typeof classOrder === "number" ? (
                             <span
                               className="flex h-[16px] min-w-[16px] items-center justify-center text-[10px] font-bold text-white"
