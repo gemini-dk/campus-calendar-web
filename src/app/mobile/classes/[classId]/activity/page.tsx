@@ -32,7 +32,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
 import DeliveryToggleGroup from "@/app/mobile/components/DeliveryToggleGroup";
-import { useActivityDialog } from "@/app/mobile/components/ActivityDialogProvider";
+import {
+  ActivityDialogProvider,
+  useActivityDialog,
+} from "@/app/mobile/components/ActivityDialogProvider";
 import type { Activity } from "@/app/mobile/features/activities/types";
 import CreateClassDialog, { type EditClassInitialData } from "@/app/mobile/tabs/classes/CreateClassDialog";
 import type { CalendarOption } from "@/app/mobile/tabs/classes/TermSettingsDialog";
@@ -1600,6 +1603,11 @@ export default function ClassActivityPage() {
   const fiscalYearParam = searchParams.get("fiscalYear");
 
   return (
-    <ClassActivityContent classId={classIdParam} fiscalYearOverride={fiscalYearParam} />
+    <ActivityDialogProvider>
+      <ClassActivityContent
+        classId={classIdParam}
+        fiscalYearOverride={fiscalYearParam}
+      />
+    </ActivityDialogProvider>
   );
 }
