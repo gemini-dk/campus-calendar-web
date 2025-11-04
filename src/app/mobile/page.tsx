@@ -21,6 +21,7 @@ import WeeklyCalendarTab from "./tabs/WeeklyCalendarTab";
 import TodoTab from "./tabs/TodoTab";
 import ClassesTab from "./tabs/ClassesTab";
 import CalendarOverlayIcon from "./components/CalendarOverlayIcon";
+import { ActivityDialogProvider } from "./components/ActivityDialogProvider";
 import type { TabDefinition, TabId } from "./tabs/types";
 import { auth } from "@/lib/firebase/client";
 import { ensureCalendarDataIsCached } from "@/lib/data/service/calendar.service";
@@ -524,7 +525,9 @@ export default function MobilePage() {
         </div>
       }
     >
-      <MobilePageContent />
+      <ActivityDialogProvider>
+        <MobilePageContent />
+      </ActivityDialogProvider>
     </Suspense>
   );
 }

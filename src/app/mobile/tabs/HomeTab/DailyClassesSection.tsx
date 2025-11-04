@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -34,6 +33,7 @@ import { findNextClassDateAfter } from '@/lib/data/service/class.service';
 import AttendanceToggleGroup from '@/app/mobile/components/AttendanceToggleGroup';
 import AttendanceSummary from '@/app/mobile/components/AttendanceSummary';
 import DeliveryToggleGroup from '@/app/mobile/components/DeliveryToggleGroup';
+import { useActivityDialog } from '@/app/mobile/components/ActivityDialogProvider';
 import type {
   AttendanceStatus,
   AttendanceSummary as AttendanceSummaryType,
@@ -646,10 +646,7 @@ function DailyClassCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [attendanceUpdating, setAttendanceUpdating] = useState(false);
   const [deliveryUpdating, setDeliveryUpdating] = useState(false);
-
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { openCreateDialog } = useActivityDialog();
 
   const periodLabel = formatPeriodLabel(session.periods);
   const locationInfo = buildSessionLocationDisplay(session);
@@ -729,25 +726,21 @@ function DailyClassCard({
   const navigateToActivityForm = useCallback(
     (
       type: 'assignment' | 'memo',
-      options: { title: string; classId: string; dueDate?: string | null },
+      options: {
+        title: string;
+        classId: string;
+        classLabel: string;
+        dueDate?: string | null;
+      },
     ) => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set('tab', 'todo');
-      params.set('activityAction', 'create');
-      params.set('activityType', type);
-      params.set('activityTitle', options.title);
-      params.set('activityClassId', options.classId);
-      params.set('activityView', type === 'memo' ? 'memo' : 'todo');
-      if (type === 'assignment' && options.dueDate) {
-        params.set('activityDueDate', options.dueDate);
-      } else {
-        params.delete('activityDueDate');
-      }
-
-      const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      openCreateDialog(type, {
+        title: options.title,
+        classId: options.classId,
+        classLabel: options.classLabel,
+        dueDate: type === 'assignment' ? options.dueDate ?? '' : '',
+      });
     },
-    [pathname, router, searchParams],
+    [openCreateDialog],
   );
 
   const handleCreateAssignment = useCallback(
@@ -774,6 +767,7 @@ function DailyClassCard({
       navigateToActivityForm('assignment', {
         title,
         classId: session.classId,
+        classLabel: session.className,
         dueDate,
       });
     },
@@ -782,6 +776,7 @@ function DailyClassCard({
       fiscalYear,
       navigateToActivityForm,
       session.classDate,
+      session.className,
       session.classId,
       userId,
     ],
@@ -797,9 +792,16 @@ function DailyClassCard({
       navigateToActivityForm('memo', {
         title,
         classId: session.classId,
+        classLabel: session.className,
       });
     },
-    [buildMemoTitle, navigateToActivityForm, session.classDate, session.classId],
+    [
+      buildMemoTitle,
+      navigateToActivityForm,
+      session.classDate,
+      session.classId,
+      session.className,
+    ],
   );
 
   return (
