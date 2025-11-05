@@ -103,6 +103,29 @@ function MobilePageContent() {
   const [calendarDialogError, setCalendarDialogError] = useState<string | null>(null);
   const [isApplyingCalendar, setIsApplyingCalendar] = useState(false);
 
+  const latestCalendarStateRef = useRef({
+    entries: settings.calendar.entries,
+    fiscalYear: settings.calendar.fiscalYear,
+  });
+  useEffect(() => {
+    latestCalendarStateRef.current = {
+      entries: settings.calendar.entries,
+      fiscalYear: settings.calendar.fiscalYear,
+    };
+  }, [settings.calendar.entries, settings.calendar.fiscalYear]);
+
+  const latestIsAuthenticatedRef = useRef(isAuthenticated);
+  useEffect(() => {
+    latestIsAuthenticatedRef.current = isAuthenticated;
+  }, [isAuthenticated]);
+
+  const isComponentUnmountedRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      isComponentUnmountedRef.current = true;
+    };
+  }, []);
+
   type CalendarSetupCandidate = {
     fiscalYear: string;
     calendarId: string;
@@ -164,6 +187,7 @@ function MobilePageContent() {
     calendarCandidate,
   );
   const autoAppliedCalendarKeyRef = useRef<string | null>(null);
+  const activeAutoApplyKeyRef = useRef<string | null>(null);
 
   const calendarCandidateKey = useMemo(() => {
     if (!calendarCandidate) {
@@ -204,9 +228,9 @@ function MobilePageContent() {
       candidate: CalendarSetupCandidate,
       options?: { replaceExisting?: boolean; lessonsPerDayOverride?: number },
     ) => {
-      const fallbackEntry = settings.calendar.entries.find(
-        (entry) => entry.fiscalYear === settings.calendar.fiscalYear,
-      ) ?? settings.calendar.entries[0] ?? null;
+      const { entries, fiscalYear } = latestCalendarStateRef.current;
+      const fallbackEntry =
+        entries.find((entry) => entry.fiscalYear === fiscalYear) ?? entries[0] ?? null;
       const lessonsPerDay =
         options?.lessonsPerDayOverride ?? fallbackEntry?.lessonsPerDay ?? 6;
 
@@ -223,7 +247,7 @@ function MobilePageContent() {
         { replaceExisting: options?.replaceExisting },
       );
     },
-    [installCalendar, settings.calendar.entries, settings.calendar.fiscalYear],
+    [installCalendar],
   );
 
   useEffect(() => {
@@ -237,6 +261,7 @@ function MobilePageContent() {
       setCalendarDialogError(null);
       setIsApplyingCalendar(false);
       autoAppliedCalendarKeyRef.current = null;
+      activeAutoApplyKeyRef.current = null;
       return;
     }
 
@@ -252,10 +277,11 @@ function MobilePageContent() {
       return;
     }
 
-    const existingEntry = settings.calendar.entries.find(
+    const { entries } = latestCalendarStateRef.current;
+    const existingEntry = entries.find(
       (entry) => entry.fiscalYear === calendarCandidate.fiscalYear,
     );
-    const isLoggedIn = isAuthenticated || Boolean(auth.currentUser);
+    const isLoggedIn = latestIsAuthenticatedRef.current || Boolean(auth.currentUser);
 
     if (isLoggedIn && existingEntry && existingEntry.calendarId !== calendarCandidate.calendarId) {
       setIsApplyingCalendar(false);
@@ -263,9 +289,12 @@ function MobilePageContent() {
       return;
     }
 
-    let canceled = false;
+    activeAutoApplyKeyRef.current = candidateKey;
 
     const run = async () => {
+      if (isComponentUnmountedRef.current) {
+        return;
+      }
       setIsApplyingCalendar(true);
 
       try {
@@ -273,14 +302,14 @@ function MobilePageContent() {
           await signInAnonymously(auth);
         }
 
-        if (canceled) {
+        if (activeAutoApplyKeyRef.current !== candidateKey || isComponentUnmountedRef.current) {
           return;
         }
 
         if (!existingEntry) {
           autoAppliedCalendarKeyRef.current = candidateKey;
           await applyCalendarSettings(calendarCandidate, { replaceExisting: true });
-          if (canceled) {
+          if (activeAutoApplyKeyRef.current !== candidateKey || isComponentUnmountedRef.current) {
             return;
           }
           clearCalendarParams();
@@ -291,14 +320,14 @@ function MobilePageContent() {
 
         autoAppliedCalendarKeyRef.current = candidateKey;
         await setActiveCalendar(existingEntry.fiscalYear, existingEntry.calendarId);
-        if (canceled) {
+        if (activeAutoApplyKeyRef.current !== candidateKey || isComponentUnmountedRef.current) {
           return;
         }
         clearCalendarParams();
         setPendingCalendar(null);
         setIsCalendarDialogOpen(false);
       } catch (error) {
-        if (canceled) {
+        if (activeAutoApplyKeyRef.current !== candidateKey || isComponentUnmountedRef.current) {
           return;
         }
         if (error instanceof CalendarConflictError) {
@@ -312,27 +341,24 @@ function MobilePageContent() {
           );
         }
       } finally {
-        if (!canceled) {
+        if (
+          activeAutoApplyKeyRef.current === candidateKey &&
+          !isComponentUnmountedRef.current
+        ) {
           setIsApplyingCalendar(false);
         }
       }
     };
 
     void run();
-
-    return () => {
-      canceled = true;
-    };
   }, [
     applyCalendarSettings,
     calendarCandidate,
     calendarCandidateKey,
     clearCalendarParams,
     initializing,
-    isAuthenticated,
     settingsInitialized,
     setActiveCalendar,
-    settings.calendar.entries,
   ]);
 
   const formatDateId = useCallback((date: Date) => {
