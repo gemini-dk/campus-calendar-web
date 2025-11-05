@@ -102,26 +102,6 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
-type TodayBadgeClasses = {
-  backgroundClass: string;
-  textClass: string;
-};
-
-function resolveTodayBadgeClasses(date: Date, accent: string | null | undefined): TodayBadgeClasses {
-  const weekday = date.getDay();
-  const accentKey = accent ?? '';
-
-  if (accentKey === 'holiday' || weekday === 0) {
-    return { backgroundClass: 'bg-red-500', textClass: 'text-white' };
-  }
-
-  if (accentKey === 'saturday' || weekday === 6) {
-    return { backgroundClass: 'bg-blue-600', textClass: 'text-white' };
-  }
-
-  return { backgroundClass: 'bg-neutral-900', textClass: 'text-white' };
-}
-
 const BORDER_COLOR = 'var(--color-calendar-border, rgb(229 231 235))';
 
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
@@ -767,12 +747,9 @@ function WeekSlide({
           const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
           const weekdayLabel = general?.weekdayLabel ?? '-';
           const accentClass = resolveAccentColor(general?.dateTextColor);
-          const cellBackground = resolveBackgroundColor(academic?.backgroundColor);
-          const todayBadgeClasses = resolveTodayBadgeClasses(date, general?.dateTextColor);
-          const badgeContainerClass = isToday
-            ? `flex items-end gap-1 rounded px-2 py-1 leading-none ${todayBadgeClasses.backgroundClass}`
-            : 'flex items-end gap-1 leading-none';
-          const dateAccentClass = isToday ? todayBadgeClasses.textClass : accentClass;
+          const cellBackground = isToday
+            ? 'var(--color-calendar-today-background)'
+            : resolveBackgroundColor(academic?.backgroundColor);
 
           const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;
           const showBottomBorder = index < totalCells - WEEK_COLUMN_COUNT;
@@ -804,9 +781,9 @@ function WeekSlide({
             >
               <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-transparent px-2 pb-2 pt-1">
                 <div className="flex items-end gap-2">
-                  <div className={badgeContainerClass}>
-                    <span className={`text-lg font-semibold ${dateAccentClass}`}>{dateNumber}</span>
-                    <span className={`text-xs font-semibold ${dateAccentClass}`}>{weekdayLabel}</span>
+                  <div className="flex items-end gap-1 leading-none">
+                    <span className={`text-lg font-semibold ${accentClass}`}>{dateNumber}</span>
+                    <span className={`text-xs font-semibold ${accentClass}`}>{weekdayLabel}</span>
                   </div>
                 </div>
                 <div className="flex min-w-0 flex-col items-end justify-end gap-[2px] text-right">
