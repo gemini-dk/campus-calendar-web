@@ -257,7 +257,7 @@ function MobilePageContent() {
     );
     const isLoggedIn = isAuthenticated || Boolean(auth.currentUser);
 
-    if (existingEntry && existingEntry.calendarId !== calendarCandidate.calendarId) {
+    if (isLoggedIn && existingEntry && existingEntry.calendarId !== calendarCandidate.calendarId) {
       setIsApplyingCalendar(false);
       setIsCalendarDialogOpen(true);
       return;
