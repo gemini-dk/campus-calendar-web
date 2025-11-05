@@ -41,20 +41,18 @@ export default function AppInstallFooter({
       return;
     }
 
-    const params = new URLSearchParams({
-      fiscalYear: normalizedFiscalYear,
-      calendarId: normalizedCalendarId,
-      calendarName: normalizedCalendarName,
-      universityName: normalizedUniversityName,
-      webId: normalizedWebId,
-    });
+    const mobileUrl = new URL("/mobile", window.location.origin);
+    mobileUrl.searchParams.set("fiscalYear", normalizedFiscalYear);
+    mobileUrl.searchParams.set("calendarId", normalizedCalendarId);
+    mobileUrl.searchParams.set("calendarName", normalizedCalendarName);
+    mobileUrl.searchParams.set("universityName", normalizedUniversityName);
+    mobileUrl.searchParams.set("webId", normalizedWebId);
 
     if (typeof calendar.hasSaturdayClasses === "boolean") {
-      params.set("hasSaturdayClasses", calendar.hasSaturdayClasses ? "1" : "0");
+      mobileUrl.searchParams.set("hasSaturdayClasses", calendar.hasSaturdayClasses ? "1" : "0");
+    } else {
+      mobileUrl.searchParams.delete("hasSaturdayClasses");
     }
-
-    const mobileUrl = new URL("/mobile", window.location.origin);
-    mobileUrl.search = params.toString();
 
     window.location.href = mobileUrl.toString();
   }, [calendar, fiscalYear, universityName, webId]);
