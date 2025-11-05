@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { FirebaseError } from 'firebase/app';
 import { doc, onSnapshot, runTransaction } from 'firebase/firestore';
 
 import { auth, db } from '@/lib/firebase/client';
@@ -84,6 +85,104 @@ export class CalendarConflictError extends Error {
     this.name = 'CalendarConflictError';
     this.fiscalYear = fiscalYear;
   }
+}
+
+function isTemporaryNetworkError(error: unknown): error is FirebaseError {
+  if (!(error instanceof FirebaseError)) {
+    return false;
+  }
+
+  return error.code === 'unavailable' || error.code === 'deadline-exceeded';
+}
+
+function createInstalledEntries(
+  entries: CalendarEntry[],
+  input: InstallCalendarInput,
+): CalendarEntry[] {
+  const fiscalYear = input.fiscalYear.trim();
+  const calendarId = input.calendarId.trim();
+  const calendarName = input.calendarName.trim();
+  const universityName = input.universityName.trim();
+  const webId = input.webId.trim();
+  const lessonsPerDay = sanitizeLessonsPerDay(input.lessonsPerDay);
+  const hasSaturdayClasses = Boolean(input.hasSaturdayClasses);
+
+  const nextEntries = entries
+    .filter((entry) => entry.fiscalYear !== fiscalYear)
+    .map((entry) => ({ ...entry, defaultFlag: false }));
+
+  nextEntries.push({
+    fiscalYear,
+    calendarId,
+    calendarName,
+    universityName,
+    webId,
+    lessonsPerDay,
+    hasSaturdayClasses,
+    defaultFlag: true,
+  });
+
+  nextEntries.sort((a, b) => b.fiscalYear.localeCompare(a.fiscalYear));
+  return nextEntries;
+}
+
+function updateEntryLocally(
+  entries: CalendarEntry[],
+  input: UpdateCalendarEntryInput,
+): CalendarEntry[] {
+  const fiscalYear = input.fiscalYear.trim();
+  const calendarId = input.calendarId.trim();
+  if (!fiscalYear || !calendarId) {
+    return entries;
+  }
+
+  let updated = false;
+  const nextEntries = entries.map((entry) => {
+    if (entry.fiscalYear !== fiscalYear || entry.calendarId !== calendarId) {
+      return entry;
+    }
+
+    updated = true;
+    return {
+      ...entry,
+      ...(input.lessonsPerDay !== undefined
+        ? { lessonsPerDay: sanitizeLessonsPerDay(input.lessonsPerDay) }
+        : {}),
+      ...(input.hasSaturdayClasses !== undefined
+        ? { hasSaturdayClasses: Boolean(input.hasSaturdayClasses) }
+        : {}),
+    } satisfies CalendarEntry;
+  });
+
+  return updated ? nextEntries : entries;
+}
+
+function activateEntryLocally(
+  entries: CalendarEntry[],
+  fiscalYearInput: string,
+  calendarIdInput: string,
+): CalendarEntry[] {
+  const fiscalYear = fiscalYearInput.trim();
+  const calendarId = calendarIdInput.trim();
+  if (!fiscalYear || !calendarId) {
+    return entries;
+  }
+
+  let hasMatch = false;
+  const nextEntries = entries.map((entry) => {
+    if (entry.fiscalYear === fiscalYear && entry.calendarId === calendarId) {
+      hasMatch = true;
+      return { ...entry, defaultFlag: true } satisfies CalendarEntry;
+    }
+    return { ...entry, defaultFlag: false } satisfies CalendarEntry;
+  });
+
+  if (!hasMatch) {
+    return entries;
+  }
+
+  nextEntries.sort((a, b) => b.fiscalYear.localeCompare(a.fiscalYear));
+  return nextEntries;
 }
 
 type UserSettingsContextValue = {
@@ -224,7 +323,6 @@ export function UserSettingsProvider({ children }: { children: React.ReactNode }
       input: InstallCalendarInput,
       options?: { replaceExisting?: boolean },
     ): Promise<void> {
-      const uid = await ensureUserId();
       const fiscalYear = input.fiscalYear.trim();
       const calendarId = input.calendarId.trim();
       const calendarName = input.calendarName.trim();
@@ -237,150 +335,271 @@ export function UserSettingsProvider({ children }: { children: React.ReactNode }
 
       const lessonsPerDay = sanitizeLessonsPerDay(input.lessonsPerDay);
       const hasSaturdayClasses = Boolean(input.hasSaturdayClasses);
-      const userDocRef = doc(db, 'users', uid);
 
-      await runTransaction(db, async (transaction) => {
-        const snapshot = await transaction.get(userDocRef);
-        const rawCalendars = snapshot.data()?.calendars;
-        const existingCalendars =
-          rawCalendars && typeof rawCalendars === 'object' ? { ...rawCalendars } : {};
+      let uid: string | null = null;
+      try {
+        uid = await ensureUserId();
+      } catch (error) {
+        console.warn('ユーザー ID を取得できなかったためローカル設定へフォールバックします。', error);
+      }
 
-        const currentEntry = existingCalendars[fiscalYear];
-        if (currentEntry && !options?.replaceExisting) {
+      const applyLocalInstall = () => {
+        const existingEntry = settings.calendar.entries.find(
+          (entry) => entry.fiscalYear === fiscalYear,
+        );
+        if (existingEntry && !options?.replaceExisting) {
           throw new CalendarConflictError(
             `${fiscalYear}年度のカレンダーが既に設定されています。`,
             fiscalYear,
           );
         }
 
-        const updatedCalendars: Record<string, unknown> = {};
-        for (const [year, value] of Object.entries(existingCalendars)) {
-          if (!value || typeof value !== 'object') {
-            continue;
+        setSettings((prev) => ({
+          calendar: {
+            fiscalYear,
+            calendarId,
+            entries: createInstalledEntries(prev.calendar.entries, {
+              fiscalYear,
+              calendarId,
+              calendarName,
+              universityName,
+              webId,
+              hasSaturdayClasses,
+              lessonsPerDay,
+            }),
+          },
+        }));
+      };
+
+      if (!uid) {
+        applyLocalInstall();
+        return;
+      }
+
+      const userDocRef = doc(db, 'users', uid);
+
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snapshot = await transaction.get(userDocRef);
+          const rawCalendars = snapshot.data()?.calendars;
+          const existingCalendars =
+            rawCalendars && typeof rawCalendars === 'object' ? { ...rawCalendars } : {};
+
+          const currentEntry = existingCalendars[fiscalYear];
+          if (currentEntry && !options?.replaceExisting) {
+            throw new CalendarConflictError(
+              `${fiscalYear}年度のカレンダーが既に設定されています。`,
+              fiscalYear,
+            );
           }
-          if (year === fiscalYear) {
-            continue;
+
+          const updatedCalendars: Record<string, unknown> = {};
+          for (const [year, value] of Object.entries(existingCalendars)) {
+            if (!value || typeof value !== 'object') {
+              continue;
+            }
+            if (year === fiscalYear) {
+              continue;
+            }
+            updatedCalendars[year] = {
+              ...value,
+              defaultFlag: false,
+            };
           }
-          updatedCalendars[year] = {
-            ...value,
-            defaultFlag: false,
+
+          updatedCalendars[fiscalYear] = {
+            calendarId,
+            calendarName,
+            universityName,
+            webId,
+            lessonsPerDay,
+            hasSaturdayClasses,
+            defaultFlag: true,
           };
+
+          transaction.set(
+            userDocRef,
+            {
+              calendars: updatedCalendars,
+            },
+            { merge: true },
+          );
+        });
+        return;
+      } catch (error) {
+        if (!isTemporaryNetworkError(error)) {
+          throw error;
         }
 
-        updatedCalendars[fiscalYear] = {
-          calendarId,
-          calendarName,
-          universityName,
-          webId,
-          lessonsPerDay,
-          hasSaturdayClasses,
-          defaultFlag: true,
-        };
-
-        transaction.set(
-          userDocRef,
-          {
-            calendars: updatedCalendars,
-          },
-          { merge: true },
-        );
-      });
+        console.warn('Firestore に接続できないためローカル設定にフォールバックします。', error);
+        applyLocalInstall();
+      }
     }
 
     async function updateCalendarEntry(input: UpdateCalendarEntryInput): Promise<void> {
-      const uid = await ensureUserId();
       const fiscalYear = input.fiscalYear.trim();
       const calendarId = input.calendarId.trim();
       if (!fiscalYear || !calendarId) {
         return;
       }
 
-      const userDocRef = doc(db, 'users', uid);
-      await runTransaction(db, async (transaction) => {
-        const snapshot = await transaction.get(userDocRef);
-        const rawCalendars = snapshot.data()?.calendars;
-        if (!rawCalendars || typeof rawCalendars !== 'object') {
-          return;
-        }
+      let uid: string | null = null;
+      try {
+        uid = await ensureUserId();
+      } catch (error) {
+        console.warn('ユーザー ID を取得できなかったためローカル設定の更新にフォールバックします。', error);
+      }
 
-        const existingEntry = rawCalendars[fiscalYear];
-        if (!existingEntry || typeof existingEntry !== 'object') {
-          return;
-        }
-
-        const storedCalendarId = normalizeString(
-          (existingEntry as { calendarId?: unknown }).calendarId,
-        );
-        if (storedCalendarId !== calendarId) {
-          return;
-        }
-
-        const nextEntry = {
-          ...existingEntry,
-          ...(input.lessonsPerDay !== undefined
-            ? { lessonsPerDay: sanitizeLessonsPerDay(input.lessonsPerDay) }
-            : {}),
-          ...(input.hasSaturdayClasses !== undefined
-            ? { hasSaturdayClasses: Boolean(input.hasSaturdayClasses) }
-            : {}),
-        };
-
-        const updatedCalendars: Record<string, unknown> = {
-          ...rawCalendars,
-          [fiscalYear]: nextEntry,
-        };
-
-        transaction.set(
-          userDocRef,
-          {
-            calendars: updatedCalendars,
+      const applyLocalUpdate = () => {
+        setSettings((prev) => ({
+          calendar: {
+            fiscalYear: prev.calendar.fiscalYear,
+            calendarId: prev.calendar.calendarId,
+            entries: updateEntryLocally(prev.calendar.entries, input),
           },
-          { merge: true },
-        );
-      });
+        }));
+      };
+
+      if (!uid) {
+        applyLocalUpdate();
+        return;
+      }
+
+      const userDocRef = doc(db, 'users', uid);
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snapshot = await transaction.get(userDocRef);
+          const rawCalendars = snapshot.data()?.calendars;
+          if (!rawCalendars || typeof rawCalendars !== 'object') {
+            return;
+          }
+
+          const existingEntry = rawCalendars[fiscalYear];
+          if (!existingEntry || typeof existingEntry !== 'object') {
+            return;
+          }
+
+          const storedCalendarId = normalizeString(
+            (existingEntry as { calendarId?: unknown }).calendarId,
+          );
+          if (storedCalendarId !== calendarId) {
+            return;
+          }
+
+          const nextEntry = {
+            ...existingEntry,
+            ...(input.lessonsPerDay !== undefined
+              ? { lessonsPerDay: sanitizeLessonsPerDay(input.lessonsPerDay) }
+              : {}),
+            ...(input.hasSaturdayClasses !== undefined
+              ? { hasSaturdayClasses: Boolean(input.hasSaturdayClasses) }
+              : {}),
+          };
+
+          const updatedCalendars: Record<string, unknown> = {
+            ...rawCalendars,
+            [fiscalYear]: nextEntry,
+          };
+
+          transaction.set(
+            userDocRef,
+            {
+              calendars: updatedCalendars,
+            },
+            { merge: true },
+          );
+        });
+      } catch (error) {
+        if (!isTemporaryNetworkError(error)) {
+          throw error;
+        }
+
+        console.warn('Firestore に接続できないためローカル設定を更新します。', error);
+        applyLocalUpdate();
+      }
     }
 
     async function setActiveCalendar(
       fiscalYearInput: string,
       calendarIdInput: string,
     ): Promise<void> {
-      const uid = await ensureUserId();
       const fiscalYear = fiscalYearInput.trim();
       const calendarId = calendarIdInput.trim();
       if (!fiscalYear || !calendarId) {
         return;
       }
 
-      const userDocRef = doc(db, 'users', uid);
-      await runTransaction(db, async (transaction) => {
-        const snapshot = await transaction.get(userDocRef);
-        const rawCalendars = snapshot.data()?.calendars;
-        if (!rawCalendars || typeof rawCalendars !== 'object') {
-          return;
-        }
+      let uid: string | null = null;
+      try {
+        uid = await ensureUserId();
+      } catch (error) {
+        console.warn('ユーザー ID を取得できないためローカルで既定カレンダーを切り替えます。', error);
+      }
 
-        const updatedCalendars: Record<string, unknown> = {};
+      const applyLocalActivation = () => {
+        setSettings((prev) => {
+          const nextEntries = activateEntryLocally(prev.calendar.entries, fiscalYear, calendarId);
 
-        for (const [year, value] of Object.entries(rawCalendars)) {
-          if (!value || typeof value !== 'object') {
-            continue;
+          if (nextEntries === prev.calendar.entries) {
+            return prev;
           }
 
-          const storedCalendarId = normalizeString((value as { calendarId?: unknown }).calendarId);
-          updatedCalendars[year] = {
-            ...value,
-            defaultFlag: year === fiscalYear && storedCalendarId === calendarId,
-          };
+          return {
+            calendar: {
+              fiscalYear,
+              calendarId,
+              entries: nextEntries,
+            },
+          } satisfies UserSettings;
+        });
+      };
+
+      if (!uid) {
+        applyLocalActivation();
+        return;
+      }
+
+      const userDocRef = doc(db, 'users', uid);
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snapshot = await transaction.get(userDocRef);
+          const rawCalendars = snapshot.data()?.calendars;
+          if (!rawCalendars || typeof rawCalendars !== 'object') {
+            return;
+          }
+
+          const updatedCalendars: Record<string, unknown> = {};
+
+          for (const [year, value] of Object.entries(rawCalendars)) {
+            if (!value || typeof value !== 'object') {
+              continue;
+            }
+
+            const storedCalendarId = normalizeString(
+              (value as { calendarId?: unknown }).calendarId,
+            );
+            updatedCalendars[year] = {
+              ...value,
+              defaultFlag: year === fiscalYear && storedCalendarId === calendarId,
+            };
+          }
+
+          transaction.set(
+            userDocRef,
+            {
+              calendars: updatedCalendars,
+            },
+            { merge: true },
+          );
+        });
+      } catch (error) {
+        if (!isTemporaryNetworkError(error)) {
+          throw error;
         }
 
-        transaction.set(
-          userDocRef,
-          {
-            calendars: updatedCalendars,
-          },
-          { merge: true },
-        );
-      });
+        console.warn('Firestore に接続できないためローカルで既定カレンダーを切り替えます。', error);
+        applyLocalActivation();
+      }
     }
 
     return {
