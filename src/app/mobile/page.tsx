@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { signInAnonymously } from "firebase/auth";
+import type { Unsubscribe } from "firebase/messaging";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -25,6 +26,11 @@ import { ActivityDialogProvider } from "./components/ActivityDialogProvider";
 import DailyCalendarOverlay from "./components/DailyCalendarOverlay";
 import type { TabDefinition, TabId } from "./tabs/types";
 import { auth } from "@/lib/firebase/client";
+import {
+  getMessagingToken,
+  initializeMessaging,
+  onForegroundMessage,
+} from "@/lib/firebase/messaging";
 import { ensureCalendarDataIsCached } from "@/lib/data/service/calendar.service";
 import { CalendarConflictError, useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
@@ -82,6 +88,53 @@ function MobilePageContent() {
       console.error("学事カレンダーのキャッシュ生成に失敗しました。", error);
     });
   }, [settings.calendar.calendarId, settings.calendar.fiscalYear, settingsInitialized]);
+
+  useEffect(() => {
+    let unsubscribe: Unsubscribe | undefined;
+
+    const setupMessaging = async () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      try {
+        const messaging = await initializeMessaging();
+        if (!messaging) {
+          return;
+        }
+
+        if (!("Notification" in window)) {
+          console.warn("このブラウザは通知に対応していません。");
+          return;
+        }
+
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          console.info("通知が許可されなかったため、Firebase Messaging を利用できません。");
+          return;
+        }
+
+        const token = await getMessagingToken(messaging);
+        if (token) {
+          console.info("取得した FCM トークン:", token);
+        } else {
+          console.warn("FCM トークンを取得できませんでした。");
+        }
+
+        unsubscribe = onForegroundMessage(messaging, (payload) => {
+          console.info("フォアグラウンド通知を受信しました:", payload);
+        });
+      } catch (error) {
+        console.error("Firebase Messaging の初期化に失敗しました。", error);
+      }
+    };
+
+    void setupMessaging();
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
 
   const tabFromParams = useMemo<TabId>(() => {
     const param = searchParams.get("tab");
