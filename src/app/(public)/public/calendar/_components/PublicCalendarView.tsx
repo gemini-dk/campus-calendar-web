@@ -331,7 +331,7 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
                   const dateNumberClassName = `text-[13px] font-semibold leading-none ${dateColorClass}`;
-                  const todayBadgeClassName = `flex h-[18px] min-w-[32px] items-center justify-center rounded px-1.5 text-[12px] font-semibold leading-none ${todayHighlight.backgroundClass} ${todayHighlight.textClass}`;
+                  const todayBadgeClassName = `flex h-[18px] w-[18px] items-center justify-center text-[11px] font-bold leading-none ${todayHighlight.backgroundClass} ${todayHighlight.textClass}`;
 
                   const isClassDay = day?.type === "授業日";
                   const classOrder = academic?.classOrder;
@@ -366,9 +366,12 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                       }}
                     >
                       <div className="flex flex-shrink-0 items-start gap-1">
-                        {!isToday ? <span className={dateNumberClassName}>{dateNumber}</span> : null}
+                        {isToday ? (
+                          <span className={todayBadgeClassName}>{dateNumber}</span>
+                        ) : (
+                          <span className={dateNumberClassName}>{dateNumber}</span>
+                        )}
                         <div className="ml-auto flex items-start gap-1">
-                          {isToday ? <span className={todayBadgeClassName}>{dateNumber}</span> : null}
                           {isClassDay && typeof classOrder === "number" ? (
                             <span
                               className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
