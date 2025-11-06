@@ -372,11 +372,8 @@ function MobilePageContent() {
   const handleCalendarDateSelect = useCallback(
     (dateId: string) => {
       setDailyOverlayDateId(dateId);
-      updateSearchParams((params) => {
-        params.set("date", dateId);
-      });
     },
-    [updateSearchParams],
+    [],
   );
 
   const handleCloseDailyOverlay = useCallback(() => {

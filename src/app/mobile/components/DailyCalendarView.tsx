@@ -255,8 +255,9 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
               >
                 <FontAwesomeIcon icon={faXmark} fontSize={20} />
               </button>
-            ) : null}
-            <UserHamburgerMenu />
+            ) : (
+              <UserHamburgerMenu />
+            )}
           </div>
           {loading ? (
             <div className="mt-4 text-center text-sm text-neutral-700">読み込み中...</div>
