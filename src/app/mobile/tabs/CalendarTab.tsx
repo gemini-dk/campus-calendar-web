@@ -122,6 +122,23 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
+type TodayHighlight = {
+  backgroundClass: string;
+  textClass: string;
+};
+
+function resolveTodayHighlight(accent: string | null | undefined): TodayHighlight {
+  if (accent === "holiday") {
+    return { backgroundClass: "bg-red-600", textClass: "text-white" };
+  }
+
+  if (accent === "saturday") {
+    return { backgroundClass: "bg-blue-600", textClass: "text-white" };
+  }
+
+  return { backgroundClass: "bg-neutral-900", textClass: "text-white" };
+}
+
 export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const { settings, initialized } = useUserSettings();
   const fiscalYear = settings.calendar.fiscalYear.trim();
@@ -690,10 +707,11 @@ function CalendarMonthSlide({
 
           const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
           const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
+          const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
           const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
-          const cellBackgroundColor = isToday
-            ? 'var(--color-calendar-today-background)'
-            : backgroundColor;
+
+          const dateNumberClassName = `text-[13px] font-semibold leading-none ${dateColorClass}`;
+          const todayBadgeClassName = `flex h-[18px] w-[18px] items-center justify-center text-[11px] font-bold leading-none ${todayHighlight.backgroundClass} ${todayHighlight.textClass}`;
 
           const isClassDay = day?.type === '授業日';
           const classOrder = academic?.classOrder;
@@ -715,23 +733,29 @@ function CalendarMonthSlide({
                 isCurrentMonth ? '' : 'opacity-50'
               } hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60`}
               style={{
-                backgroundColor: cellBackgroundColor,
+                backgroundColor,
                 borderRightWidth: showRightBorder ? 1 : 0,
                 borderBottomWidth: showBottomBorder ? 1 : 0,
                 borderColor: 'rgba(212, 212, 216, 1)',
                 borderStyle: 'solid',
               }}
             >
-              <div className="flex flex-shrink-0 items-start justify-between">
-                <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
-                {isClassDay && typeof classOrder === 'number' ? (
-                  <span
-                    className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
-                    style={{ backgroundColor: weekdayColor }}
-                  >
-                    {classOrder}
-                  </span>
-                ) : null}
+              <div className="flex flex-shrink-0 items-start gap-1">
+                {isToday ? (
+                  <span className={todayBadgeClassName}>{dateNumber}</span>
+                ) : (
+                  <span className={dateNumberClassName}>{dateNumber}</span>
+                )}
+                <div className="ml-auto flex items-start gap-1">
+                  {isClassDay && typeof classOrder === 'number' ? (
+                    <span
+                      className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
+                      style={{ backgroundColor: weekdayColor }}
+                    >
+                      {classOrder}
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
               <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">

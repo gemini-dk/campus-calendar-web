@@ -32,6 +32,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import AttendanceSummary from "@/app/mobile/components/AttendanceSummary";
 import AttendanceToggleGroup from "@/app/mobile/components/AttendanceToggleGroup";
 import DeliveryToggleGroup from "@/app/mobile/components/DeliveryToggleGroup";
+import {
+  ActivityDialogProvider,
+  useActivityDialog,
+} from "@/app/mobile/components/ActivityDialogProvider";
+import type { Activity } from "@/app/mobile/features/activities/types";
 import CreateClassDialog, { type EditClassInitialData } from "@/app/mobile/tabs/classes/CreateClassDialog";
 import type { CalendarOption } from "@/app/mobile/tabs/classes/TermSettingsDialog";
 import type {
@@ -1088,6 +1093,7 @@ export function ClassActivityContent({
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const { settings } = useUserSettings();
   const router = useRouter();
+  const { openCreateDialog, openEditDialog } = useActivityDialog();
 
   const normalizedClassId = useMemo(() => {
     if (classId == null) {
@@ -1174,7 +1180,7 @@ export function ClassActivityContent({
 
   const upcomingTimelineItems = useMemo<UpcomingTimelineItem[]>(() => {
     const sessionItems: UpcomingSessionTimelineItem[] = classDates
-      .filter((date) => date.classDate > todayId)
+      .filter((date) => date.classDate >= todayId)
       .map((date) => ({
         kind: "session" as const,
         id: date.id,
@@ -1344,39 +1350,32 @@ export function ClassActivityContent({
 
   const handleSelectActivity = useCallback(
     (activity: ActivityDoc) => {
-      const params = new URLSearchParams();
-      params.set("tab", "todo");
-      params.set("activityAction", "edit");
-      params.set("activityId", activity.id);
-      params.set("activityType", activity.type);
-      params.set("activityView", activity.type === "memo" ? "memo" : "todo");
-      if (activity.classId) {
-        params.set("activityClassId", activity.classId);
-      }
-      const query = params.toString();
-      router.push(query ? `/mobile?${query}` : "/mobile");
+      openEditDialog(activity as Activity);
     },
-    [router],
+    [openEditDialog],
   );
 
   const handleCreateActivity = useCallback(
     (type: ActivityType) => {
-      if (!classDetail?.id) {
-        return;
+      const options: {
+        classId?: string;
+        classLabel?: string;
+        title: string;
+      } = {
+        title: "",
+      };
+
+      if (classDetail?.id) {
+        options.classId = classDetail.id;
+        const trimmedLabel = classDetail.className.trim();
+        if (trimmedLabel.length > 0) {
+          options.classLabel = trimmedLabel;
+        }
       }
 
-      const params = new URLSearchParams();
-      params.set("tab", "todo");
-      params.set("activityAction", "create");
-      params.set("activityType", type);
-      params.set("activityClassId", classDetail.id);
-      params.set("activityView", type === "memo" ? "memo" : "todo");
-      params.set("activityTitle", "");
-
-      const query = params.toString();
-      router.push(query ? `/mobile?${query}` : "/mobile");
+      openCreateDialog(type, options);
     },
-    [classDetail?.id, router],
+    [classDetail?.className, classDetail?.id, openCreateDialog],
   );
 
   const handleCreateAssignment = useCallback(() => {
@@ -1612,6 +1611,11 @@ export default function ClassActivityPage() {
   const fiscalYearParam = searchParams.get("fiscalYear");
 
   return (
-    <ClassActivityContent classId={classIdParam} fiscalYearOverride={fiscalYearParam} />
+    <ActivityDialogProvider>
+      <ClassActivityContent
+        classId={classIdParam}
+        fiscalYearOverride={fiscalYearParam}
+      />
+    </ActivityDialogProvider>
   );
 }

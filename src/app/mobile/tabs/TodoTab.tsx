@@ -1,124 +1,22 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useState } from 'react';
 
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faListCheck,
-  faNoteSticky,
-  faPlus,
-  faXmark,
-} from '@fortawesome/free-solid-svg-icons';
+import { faListCheck, faNoteSticky, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { faSquare, faSquareCheck } from '@fortawesome/free-regular-svg-icons';
-import {
-  addDoc,
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-  Timestamp,
-  updateDoc,
-  type DocumentData,
-  type QueryDocumentSnapshot,
-} from 'firebase/firestore';
 
-import { db } from '@/lib/firebase/client';
-import {
-  listTimetableClassesByYear,
-  type TimetableClassSummary,
-} from '@/lib/data/service/class.service';
-import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
+import { useActivityDialog } from '../components/ActivityDialogProvider';
+import type {
+  Activity,
+  ActivityStatus,
+  ActivityType,
+} from '../features/activities/types';
 
 type ViewMode = 'todo' | 'memo';
-
-type ActivityType = 'assignment' | 'memo';
-
-type ActivityStatus = 'pending' | 'done';
-
-type Activity = {
-  id: string;
-  title: string;
-  notes: string;
-  type: ActivityType;
-  status: ActivityStatus;
-  dueDate: string | null;
-  classId: string | null;
-  createdAt: Date | null;
-  updatedAt: Date | null;
-};
-
-type ActivityFormState = {
-  title: string;
-  notes: string;
-  classId: string;
-  dueDate: string;
-  isCompleted: boolean;
-};
-
-function createDefaultFormState(): ActivityFormState {
-  return {
-    title: '',
-    notes: '',
-    classId: '',
-    dueDate: '',
-    isCompleted: false,
-  };
-}
-
-function createFormStateFromActivity(activity: Activity): ActivityFormState {
-  return {
-    title: activity.title,
-    notes: activity.notes,
-    classId: activity.classId ?? '',
-    dueDate: activity.dueDate ?? '',
-    isCompleted: activity.status === 'done',
-  } satisfies ActivityFormState;
-}
-
-function parseTimestamp(value: unknown): Date | null {
-  if (value instanceof Timestamp) {
-    return value.toDate();
-  }
-  if (typeof value === 'number') {
-    const fromNumber = new Date(value);
-    return Number.isNaN(fromNumber.getTime()) ? null : fromNumber;
-  }
-  if (typeof value === 'string') {
-    const fromString = new Date(value);
-    return Number.isNaN(fromString.getTime()) ? null : fromString;
-  }
-  return null;
-}
-
-function mapActivity(doc: QueryDocumentSnapshot<DocumentData>): Activity {
-  const data = doc.data();
-
-  const type: ActivityType = data.type === 'memo' ? 'memo' : 'assignment';
-  const status: ActivityStatus = data.status === 'done' ? 'done' : 'pending';
-  const dueDate = typeof data.dueDate === 'string' ? data.dueDate : null;
-  const classId =
-    typeof data.classId === 'string' && data.classId.trim().length > 0
-      ? data.classId.trim()
-      : null;
-
-  return {
-    id: doc.id,
-    title: typeof data.title === 'string' ? data.title : '',
-    notes: typeof data.notes === 'string' ? data.notes : '',
-    type,
-    status,
-    dueDate,
-    classId,
-    createdAt: parseTimestamp(data.createdAt),
-    updatedAt: parseTimestamp(data.updatedAt),
-  } satisfies Activity;
-}
 
 function formatDueDateLabel(value: string | null): string {
   if (!value) {
@@ -361,454 +259,40 @@ function MemoList({
   );
 }
 
-type CreateActivityDialogProps = {
-  open: boolean;
-  type: ActivityType;
-  mode: 'create' | 'edit';
-  formState: ActivityFormState;
-  onChange: (field: keyof ActivityFormState, value: string | boolean) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-  isSaving: boolean;
-  error: string | null;
-  classOptions: TimetableClassSummary[];
-  activeFiscalYear: string | null;
-};
-
-function CreateActivityDialog({
-  open,
-  type,
-  mode,
-  formState,
-  onChange,
-  onClose,
-  onSubmit,
-  isSaving,
-  error,
-  classOptions,
-  activeFiscalYear,
-}: CreateActivityDialogProps) {
-  if (!open) {
-    return null;
-  }
-
-  const isAssignment = type === 'assignment';
-  const isEditing = mode === 'edit';
-  const normalizedFiscalYear =
-    typeof activeFiscalYear === 'string' && activeFiscalYear.trim().length > 0
-      ? activeFiscalYear.trim()
-      : null;
-  const trimmedSelection = formState.classId.trim();
-  const hasUnknownSelection =
-    trimmedSelection.length > 0 &&
-    !classOptions.some((option) => option.id === trimmedSelection);
-  const placeholderLabel = normalizedFiscalYear
-    ? classOptions.length > 0
-      ? '関連授業を選択'
-      : `${normalizedFiscalYear}年度の授業が見つかりません`
-    : '設定で利用中の年度を設定してください';
-  const selectionDisabled = normalizedFiscalYear === null;
-
-  return (
-    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 px-4 py-6">
-      <div className="w-full max-w-[480px] rounded-2xl bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-900">
-              {isAssignment
-                ? isEditing
-                  ? '課題を編集'
-                  : '課題を追加'
-                : isEditing
-                  ? 'メモを編集'
-                  : 'メモを追加'}
-            </h2>
-            <p className="mt-1 text-sm text-neutral-600">
-              {isAssignment
-                ? '基本情報とステータスを入力してください。'
-                : '基本情報を入力してください。'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 transition hover:bg-neutral-200"
-          >
-            <FontAwesomeIcon icon={faXmark} fontSize={18} />
-            <span className="sr-only">閉じる</span>
-          </button>
-        </div>
-
-        <div className="mt-5 flex flex-col gap-4">
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-neutral-700">タイトル</span>
-            <input
-              type="text"
-              value={formState.title}
-              onChange={(event) => onChange('title', event.target.value)}
-              placeholder="タイトルを入力"
-              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </label>
-
-          {isAssignment ? (
-            <div className="flex flex-wrap items-center gap-4 text-sm text-neutral-700">
-              <label className="flex items-center gap-2">
-                <span className="font-medium">完了:</span>
-                <input
-                  type="checkbox"
-                  checked={formState.isCompleted}
-                  onChange={(event) => onChange('isCompleted', event.target.checked)}
-                  className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-200"
-                />
-              </label>
-              <label className="flex items-center gap-2">
-                <span className="font-medium">期限:</span>
-                <input
-                  type="date"
-                  value={formState.dueDate}
-                  onChange={(event) => onChange('dueDate', event.target.value)}
-                  className="h-9 rounded border border-neutral-300 px-3 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </label>
-            </div>
-          ) : null}
-
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-neutral-700">詳細</span>
-            <textarea
-              value={formState.notes}
-              onChange={(event) => onChange('notes', event.target.value)}
-              rows={4}
-              placeholder="詳細を入力"
-              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </label>
-
-          <label className="flex flex-col gap-2">
-            <span className="text-sm font-medium text-neutral-700">関連授業</span>
-            <select
-              value={formState.classId}
-              onChange={(event) => onChange('classId', event.target.value)}
-              disabled={selectionDisabled}
-              className="rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-neutral-100"
-            >
-              <option value="">{placeholderLabel}</option>
-              {classOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.className}
-                </option>
-              ))}
-              {hasUnknownSelection ? (
-                <option value={trimmedSelection}>{`現在の選択 (${trimmedSelection})`}</option>
-              ) : null}
-            </select>
-            <span className="text-xs text-neutral-500">
-              {normalizedFiscalYear
-                ? `${normalizedFiscalYear}年度の授業から選択できます。`
-                : '設定で利用中の年度を設定すると授業一覧が表示されます。'}
-            </span>
-          </label>
-
-        </div>
-
-        {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={isSaving}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
-          >
-            {isSaving ? (isEditing ? '更新中...' : '保存中...') : isEditing ? '更新する' : '保存する'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function TodoTab() {
   const [viewMode, setViewMode] = useState<ViewMode>('todo');
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [dialogType, setDialogType] = useState<ActivityType>('assignment');
-  const [formState, setFormState] = useState<ActivityFormState>(() => createDefaultFormState());
-  const [dialogError, setDialogError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
-
-  const [classOptions, setClassOptions] = useState<TimetableClassSummary[]>([]);
-
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
-  const router = useRouter();
-
-  const { profile, isAuthenticated, initializing: authInitializing } = useAuth();
-  const { settings } = useUserSettings();
-  const activeFiscalYearSetting = settings.calendar.fiscalYear;
-  const trimmedActiveFiscalYear =
-    typeof activeFiscalYearSetting === 'string'
-      ? activeFiscalYearSetting.trim()
-      : '';
-
-  useEffect(() => {
-    if (!profile?.uid) {
-      setActivities([]);
-      setLoading(false);
-      setError(null);
-      return () => {};
-    }
-
-    setLoading(true);
-    setError(null);
-
-    const collectionRef = collection(db, 'users', profile.uid, 'activities');
-    const activitiesQuery = query(collectionRef, orderBy('createdAt', 'desc'));
-
-    const unsubscribe = onSnapshot(
-      activitiesQuery,
-      (snapshot) => {
-        const items = snapshot.docs.map(mapActivity);
-        setActivities(items);
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Failed to fetch activities', err);
-        setActivities([]);
-        setError('データの取得に失敗しました。時間をおいて再度お試しください。');
-        setLoading(false);
-      },
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [profile?.uid]);
-
-  useEffect(() => {
-    if (!profile?.uid) {
-      setClassOptions([]);
-      return;
-    }
-
-    if (!trimmedActiveFiscalYear) {
-      setClassOptions([]);
-      return;
-    }
-
-    let cancelled = false;
-
-    listTimetableClassesByYear({
-      userId: profile.uid,
-      fiscalYear: trimmedActiveFiscalYear,
-    })
-      .then((items) => {
-        if (!cancelled) {
-          setClassOptions(items);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to list timetable classes for activities', err);
-        if (!cancelled) {
-          setClassOptions([]);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [profile?.uid, trimmedActiveFiscalYear]);
-
-  const assignments = useMemo(
-    () => activities.filter((activity) => activity.type === 'assignment'),
-    [activities],
-  );
-
-  const memos = useMemo(
-    () => activities.filter((activity) => activity.type === 'memo'),
-    [activities],
-  );
-
-  const classNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const option of classOptions) {
-      map.set(option.id, option.className);
-    }
-    return map;
-  }, [classOptions]);
-
-  const activeFiscalYearForDialog =
-    trimmedActiveFiscalYear.length > 0 ? trimmedActiveFiscalYear : null;
+  const { isAuthenticated, initializing: authInitializing } = useAuth();
+  const {
+    assignments,
+    memos,
+    loading,
+    error,
+    classNameMap,
+    openCreateDialog,
+    openEditDialog,
+    toggleAssignmentStatus,
+  } = useActivityDialog();
 
   const handleOpenDialog = useCallback(() => {
-    const nextType: ActivityType = viewMode === 'todo' ? 'assignment' : 'memo';
-    setDialogType(nextType);
-    setFormState(createDefaultFormState());
-    setDialogError(null);
-    setSelectedActivity(null);
-    setIsDialogOpen(true);
-  }, [viewMode]);
-
-  const handleCloseDialog = useCallback(() => {
-    setIsDialogOpen(false);
-    setDialogError(null);
-    setIsSaving(false);
-    setSelectedActivity(null);
-  }, []);
-
-  const handleFormChange = useCallback(
-    (field: keyof ActivityFormState, value: string | boolean) => {
-      setFormState((prev) => ({
-        ...prev,
-        [field]: field === 'isCompleted' ? Boolean(value) : (value as string),
-      }));
-    },
-    [],
-  );
-
-  const handleSubmit = useCallback(async () => {
-    if (!profile?.uid) {
-      setDialogError('ログイン状態を確認できませんでした。再度サインインしてください。');
-      return;
-    }
-
-    setIsSaving(true);
-    setDialogError(null);
-
-    const payload: Record<string, unknown> = {
-      title: formState.title,
-      notes: formState.notes,
-      classId: formState.classId.trim().length > 0 ? formState.classId.trim() : null,
-      type: dialogType,
-      status: dialogType === 'assignment' && formState.isCompleted ? 'done' : 'pending',
-      dueDate:
-        dialogType === 'assignment' && formState.dueDate.trim().length > 0
-          ? formState.dueDate
-          : null,
-      updatedAt: serverTimestamp(),
-    };
-
-    try {
-      if (selectedActivity) {
-        const docRef = doc(db, 'users', profile.uid, 'activities', selectedActivity.id);
-        await updateDoc(docRef, payload);
-      } else {
-        const parent = collection(db, 'users', profile.uid, 'activities');
-        await addDoc(parent, { ...payload, createdAt: serverTimestamp() });
-      }
-      setIsDialogOpen(false);
-      setFormState(createDefaultFormState());
-      setSelectedActivity(null);
-    } catch (err) {
-      console.error('Failed to save activity', err);
-      setDialogError('保存に失敗しました。時間をおいて再度お試しください。');
-    } finally {
-      setIsSaving(false);
-    }
-  }, [dialogType, formState, profile?.uid, selectedActivity]);
+    const type: ActivityType = viewMode === 'todo' ? 'assignment' : 'memo';
+    openCreateDialog(type);
+  }, [openCreateDialog, viewMode]);
 
   const handleSelectActivity = useCallback(
     (activity: Activity) => {
-      setDialogType(activity.type);
-      setFormState(createFormStateFromActivity(activity));
-      setDialogError(null);
-      setSelectedActivity(activity);
-      setIsDialogOpen(true);
+      openEditDialog(activity);
     },
-    [],
+    [openEditDialog],
   );
 
   const handleToggleAssignmentStatus = useCallback(
-    async (activity: Activity) => {
-      if (!profile?.uid) {
-        return;
-      }
-
-      try {
-        const docRef = doc(db, 'users', profile.uid, 'activities', activity.id);
-        const nextStatus: ActivityStatus = activity.status === 'done' ? 'pending' : 'done';
-        await updateDoc(docRef, {
-          status: nextStatus,
-          updatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.error('Failed to toggle assignment status', err);
+    (activity: Activity) => {
+      if (activity.type === 'assignment') {
+        void toggleAssignmentStatus(activity);
       }
     },
-    [profile?.uid],
+    [toggleAssignmentStatus],
   );
-
-  useEffect(() => {
-    const action = searchParams.get('activityAction');
-    if (action !== 'create' && action !== 'edit') {
-      return;
-    }
-
-    if (action === 'create') {
-      const typeParam = searchParams.get('activityType');
-      const resolvedType: ActivityType = typeParam === 'memo' ? 'memo' : 'assignment';
-      const titleParam = searchParams.get('activityTitle') ?? '';
-      const classIdParam = searchParams.get('activityClassId') ?? '';
-      const dueDateParam = searchParams.get('activityDueDate') ?? '';
-      const viewParam = searchParams.get('activityView');
-
-      setViewMode(viewParam === 'memo' ? 'memo' : 'todo');
-      setDialogType(resolvedType);
-      setFormState({
-        title: titleParam,
-        notes: '',
-        classId: classIdParam,
-        dueDate: resolvedType === 'assignment' ? dueDateParam : '',
-        isCompleted: false,
-      });
-      setDialogError(null);
-      setSelectedActivity(null);
-      setIsDialogOpen(true);
-    } else if (action === 'edit') {
-      const activityId = searchParams.get('activityId');
-      if (!activityId) {
-        return;
-      }
-
-      const activity =
-        assignments.find((item) => item.id === activityId) ??
-        memos.find((item) => item.id === activityId);
-
-      if (!activity) {
-        return;
-      }
-
-      setViewMode(activity.type === 'memo' ? 'memo' : 'todo');
-      setDialogType(activity.type);
-      setFormState(createFormStateFromActivity(activity));
-      setDialogError(null);
-      setSelectedActivity(activity);
-      setIsDialogOpen(true);
-    }
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('activityAction');
-    params.delete('activityType');
-    params.delete('activityTitle');
-    params.delete('activityClassId');
-    params.delete('activityDueDate');
-    params.delete('activityView');
-    params.delete('activityId');
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [assignments, memos, pathname, router, searchParams]);
 
   return (
     <div className="relative flex min-h-full flex-1 flex-col bg-neutral-50">
@@ -848,44 +332,33 @@ export default function TodoTab() {
         )}
       </div>
 
-      <div className="pointer-events-none fixed bottom-[100px] right-4 z-20 flex items-center gap-3">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-2.5 py-2 backdrop-blur">
-          <ViewToggleButton
-            icon={faListCheck}
-            label="Todo ビュー"
-            isActive={viewMode === 'todo'}
-            onClick={() => setViewMode('todo')}
-          />
-          <ViewToggleButton
-            icon={faNoteSticky}
-            label="メモ ビュー"
-            isActive={viewMode === 'memo'}
-            onClick={() => setViewMode('memo')}
-          />
+      <div className="pointer-events-none fixed inset-x-0 bottom-[100px] z-20 flex justify-center px-4">
+        <div className="pointer-events-none flex w-full max-w-[800px] items-center justify-end gap-3">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-2.5 py-2 backdrop-blur">
+            <ViewToggleButton
+              icon={faListCheck}
+              label="Todo ビュー"
+              isActive={viewMode === 'todo'}
+              onClick={() => setViewMode('todo')}
+            />
+            <ViewToggleButton
+              icon={faNoteSticky}
+              label="メモ ビュー"
+              isActive={viewMode === 'memo'}
+              onClick={() => setViewMode('memo')}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenDialog}
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-md transition hover:bg-blue-400"
+            aria-label="新規作成"
+          >
+            <FontAwesomeIcon icon={faPlus} fontSize={20} />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleOpenDialog}
-          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-md transition hover:bg-blue-400"
-          aria-label="新規作成"
-        >
-          <FontAwesomeIcon icon={faPlus} fontSize={20} />
-        </button>
       </div>
-
-      <CreateActivityDialog
-        open={isDialogOpen}
-        type={dialogType}
-        mode={selectedActivity ? 'edit' : 'create'}
-        formState={formState}
-        onChange={handleFormChange}
-        onClose={handleCloseDialog}
-        onSubmit={handleSubmit}
-        isSaving={isSaving}
-        error={dialogError}
-        classOptions={classOptions}
-        activeFiscalYear={activeFiscalYearForDialog}
-      />
     </div>
   );
 }
+

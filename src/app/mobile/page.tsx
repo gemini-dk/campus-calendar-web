@@ -21,6 +21,8 @@ import WeeklyCalendarTab from "./tabs/WeeklyCalendarTab";
 import TodoTab from "./tabs/TodoTab";
 import ClassesTab from "./tabs/ClassesTab";
 import CalendarOverlayIcon from "./components/CalendarOverlayIcon";
+import { ActivityDialogProvider } from "./components/ActivityDialogProvider";
+import DailyCalendarOverlay from "./components/DailyCalendarOverlay";
 import type { TabDefinition, TabId } from "./tabs/types";
 import { auth } from "@/lib/firebase/client";
 import { ensureCalendarDataIsCached } from "@/lib/data/service/calendar.service";
@@ -98,6 +100,7 @@ function MobilePageContent() {
   const [activeTab, setActiveTab] = useState<TabId>(tabFromParams);
   const [calendarResetKey, setCalendarResetKey] = useState(0);
   const [weeklyResetKey, setWeeklyResetKey] = useState(0);
+  const [dailyOverlayDateId, setDailyOverlayDateId] = useState<string | null>(null);
   const [isCalendarDialogOpen, setIsCalendarDialogOpen] = useState(false);
   const [calendarDialogError, setCalendarDialogError] = useState<string | null>(null);
   const [isApplyingCalendar, setIsApplyingCalendar] = useState(false);
@@ -368,14 +371,14 @@ function MobilePageContent() {
 
   const handleCalendarDateSelect = useCallback(
     (dateId: string) => {
-      setActiveTab("home");
-      updateSearchParams((params) => {
-        params.set("tab", "home");
-        params.set("date", dateId);
-      });
+      setDailyOverlayDateId(dateId);
     },
-    [updateSearchParams],
+    [],
   );
+
+  const handleCloseDailyOverlay = useCallback(() => {
+    setDailyOverlayDateId(null);
+  }, []);
 
   const handleConfirmCalendarSetup = useCallback(async () => {
     if (!pendingCalendar) {
@@ -467,7 +470,6 @@ function MobilePageContent() {
         </div>
       ) : null}
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
-
         <main className="flex flex-1 flex-col overflow-hidden pb-4">
           <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50">
             {currentTab.id === "calendar" ? (
@@ -511,6 +513,11 @@ function MobilePageContent() {
           </div>
         </nav>
       </div>
+      <DailyCalendarOverlay
+        open={dailyOverlayDateId !== null}
+        dateId={dailyOverlayDateId}
+        onClose={handleCloseDailyOverlay}
+      />
     </div>
   );
 }
@@ -524,7 +531,9 @@ export default function MobilePage() {
         </div>
       }
     >
-      <MobilePageContent />
+      <ActivityDialogProvider>
+        <MobilePageContent />
+      </ActivityDialogProvider>
     </Suspense>
   );
 }
