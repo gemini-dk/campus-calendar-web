@@ -4,7 +4,11 @@ import { doc, setDoc } from 'firebase/firestore';
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import { db } from '@/lib/firebase/client';
-import { getMessagingToken, initializeMessaging } from '@/lib/firebase/messaging';
+import {
+  MessagingSupportError,
+  getMessagingToken,
+  initializeMessaging,
+} from '@/lib/firebase/messaging';
 
 type UserMenuContentProps = {
   className?: string;
@@ -203,13 +207,6 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
 
     try {
       const messaging = await initializeMessaging();
-      if (!messaging) {
-        setMessagingTokenFeedback({
-          type: 'error',
-          text: 'Firebase Messaging を初期化できませんでした。対応ブラウザか確認してください。',
-        });
-        return;
-      }
 
       if (Notification.permission === 'default') {
         const permission = await Notification.requestPermission();
@@ -274,6 +271,12 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         text: `端末「${sanitizedKey}」の通知トークンを保存しました。`,
       });
     } catch (error) {
+      if (error instanceof MessagingSupportError) {
+        console.info('Firebase Messaging を初期化できませんでした。', error);
+        setMessagingTokenFeedback({ type: 'error', text: error.message });
+        return;
+      }
+
       console.error('Failed to save messaging token', error);
       setMessagingTokenFeedback({
         type: 'error',

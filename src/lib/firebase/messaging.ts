@@ -3,12 +3,43 @@ import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messagi
 
 import { getFirebaseApp, firebaseVapidKey } from './app';
 
-let messagingPromise: Promise<Messaging | null> | null = null;
-let registrationPromise: Promise<ServiceWorkerRegistration | null> | null = null;
+type MessagingSupportErrorCode =
+  | 'insecure-context'
+  | 'service-worker-unsupported'
+  | 'push-unsupported'
+  | 'messaging-unsupported'
+  | 'registration-failed';
 
-async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-    return null;
+export class MessagingSupportError extends Error {
+  constructor(public readonly code: MessagingSupportErrorCode, message: string) {
+    super(message);
+    this.name = 'MessagingSupportError';
+  }
+}
+
+let messagingPromise: Promise<Messaging> | null = null;
+let registrationPromise: Promise<ServiceWorkerRegistration> | null = null;
+
+async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
+  if (typeof window === 'undefined') {
+    throw new MessagingSupportError(
+      'service-worker-unsupported',
+      'Service Worker はブラウザ環境でのみ利用できます。',
+    );
+  }
+
+  if (!window.isSecureContext) {
+    throw new MessagingSupportError(
+      'insecure-context',
+      'HTTPS もしくは localhost からアクセスする必要があります。',
+    );
+  }
+
+  if (!('serviceWorker' in navigator)) {
+    throw new MessagingSupportError(
+      'service-worker-unsupported',
+      'このブラウザでは Service Worker が無効化されているため、通知を利用できません。',
+    );
   }
 
   if (!registrationPromise) {
@@ -17,26 +48,66 @@ async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistrat
       if (existing) {
         return existing;
       }
+
       try {
         return await navigator.serviceWorker.register('/firebase-messaging-sw.js', { type: 'module' });
       } catch (error) {
         console.error('Firebase Messaging の Service Worker 登録に失敗しました。', error);
-        return null;
+        throw new MessagingSupportError(
+          'registration-failed',
+          'Firebase Messaging の Service Worker 登録に失敗しました。ブラウザの設定を確認してください。',
+        );
       }
     })();
   }
 
-  return registrationPromise;
+  try {
+    return await registrationPromise;
+  } catch (error) {
+    registrationPromise = null;
+    throw error;
+  }
 }
 
-export async function initializeMessaging(): Promise<Messaging | null> {
+export async function initializeMessaging(): Promise<Messaging> {
   if (messagingPromise) {
     return messagingPromise;
   }
 
   messagingPromise = (async () => {
     if (typeof window === 'undefined') {
-      return null;
+      throw new MessagingSupportError(
+        'service-worker-unsupported',
+        'ブラウザ環境でのみ Firebase Messaging を初期化できます。',
+      );
+    }
+
+    if (!window.isSecureContext) {
+      throw new MessagingSupportError(
+        'insecure-context',
+        '通知を利用するには HTTPS でアクセスしてください。',
+      );
+    }
+
+    if (!('Notification' in window)) {
+      throw new MessagingSupportError(
+        'push-unsupported',
+        'このブラウザは通知 API をサポートしていません。',
+      );
+    }
+
+    if (!('PushManager' in window)) {
+      throw new MessagingSupportError(
+        'push-unsupported',
+        'このブラウザはプッシュ通知に対応していません。',
+      );
+    }
+
+    if (!('serviceWorker' in navigator)) {
+      throw new MessagingSupportError(
+        'service-worker-unsupported',
+        'このブラウザでは Service Worker が無効化されているため、通知を利用できません。',
+      );
     }
 
     const supported = await isSupported().catch((error) => {
@@ -45,19 +116,23 @@ export async function initializeMessaging(): Promise<Messaging | null> {
     });
 
     if (!supported) {
-      console.info('このブラウザは Firebase Cloud Messaging をサポートしていません。');
-      return null;
+      throw new MessagingSupportError(
+        'messaging-unsupported',
+        'このブラウザは Firebase Cloud Messaging に対応していません。',
+      );
     }
 
-    const registration = await ensureServiceWorkerRegistration();
-    if (!registration) {
-      return null;
-    }
+    await ensureServiceWorkerRegistration();
 
     return getMessaging(getFirebaseApp());
   })();
 
-  return messagingPromise;
+  try {
+    return await messagingPromise;
+  } catch (error) {
+    messagingPromise = null;
+    throw error;
+  }
 }
 
 export async function getMessagingToken(messaging: Messaging): Promise<string | null> {

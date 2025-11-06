@@ -29,6 +29,7 @@ import { auth } from "@/lib/firebase/client";
 import {
   getMessagingToken,
   initializeMessaging,
+  MessagingSupportError,
   onForegroundMessage,
 } from "@/lib/firebase/messaging";
 import { ensureCalendarDataIsCached } from "@/lib/data/service/calendar.service";
@@ -98,15 +99,12 @@ function MobilePageContent() {
       }
 
       try {
-        const messaging = await initializeMessaging();
-        if (!messaging) {
-          return;
-        }
-
         if (!("Notification" in window)) {
           console.warn("このブラウザは通知に対応していません。");
           return;
         }
+
+        const messaging = await initializeMessaging();
 
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
@@ -125,7 +123,11 @@ function MobilePageContent() {
           console.info("フォアグラウンド通知を受信しました:", payload);
         });
       } catch (error) {
-        console.error("Firebase Messaging の初期化に失敗しました。", error);
+        if (error instanceof MessagingSupportError) {
+          console.info(`Firebase Messaging を初期化できませんでした: ${error.message}`);
+        } else {
+          console.error("Firebase Messaging の初期化に失敗しました。", error);
+        }
       }
     };
 
