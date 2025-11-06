@@ -767,15 +767,14 @@ function WeekSlide({
           const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
           const cellBackground = resolveBackgroundColor(academic?.backgroundColor);
 
-          const dateHeaderClassName = `inline-flex items-center gap-1 rounded px-2 py-[3px] ${
-            isToday ? todayHighlight.backgroundClass : ''
-          }`;
           const dateNumberClassName = `text-lg font-semibold ${
             isToday ? todayHighlight.textClass : accentClass
           }`;
           const weekdayClassName = `text-xs font-semibold ${
             isToday ? todayHighlight.textClass : accentClass
           }`;
+          const dateHeaderPaddingClassName = "px-2 pb-2 pt-1";
+          const todayHeaderHighlightClassName = `pointer-events-none absolute inset-0 rounded-none rounded-br-md ${todayHighlight.backgroundClass}`;
 
           const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;
           const showBottomBorder = index < totalCells - WEEK_COLUMN_COUNT;
@@ -805,14 +804,15 @@ function WeekSlide({
                 cursor: onDateSelect ? 'pointer' : undefined,
               }}
             >
-              <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-transparent px-2 pb-2 pt-1">
-                <div className="flex items-end gap-2">
-                  <div className={`${dateHeaderClassName} leading-none`}>
+              <div className="relative flex h-[40px] items-start justify-between gap-2 overflow-hidden bg-transparent">
+                <div className="relative inline-flex items-center self-start">
+                  {isToday ? <div className={todayHeaderHighlightClassName} /> : null}
+                  <div className={`relative z-[1] flex items-center gap-1 ${dateHeaderPaddingClassName} leading-none`}>
                     <span className={dateNumberClassName}>{dateNumber}</span>
                     <span className={weekdayClassName}>{weekdayLabel}</span>
                   </div>
                 </div>
-                <div className="flex min-w-0 flex-col items-end justify-end gap-[2px] text-right">
+                <div className="flex min-w-0 flex-col items-end justify-end gap-[2px] px-2 pb-2 pt-1 text-right">
                   <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-neutral-700">
                     {academic?.label ?? '-'}
                   </span>

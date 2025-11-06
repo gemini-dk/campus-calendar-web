@@ -330,9 +330,8 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                   const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
                   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
-                  const dateNumberClassName = `inline-flex h-[22px] min-w-[22px] items-center justify-center rounded px-1 text-[13px] font-semibold ${
-                    isToday ? `${todayHighlight.backgroundClass} ${todayHighlight.textClass}` : dateColorClass
-                  }`;
+                  const dateNumberClassName = `text-[13px] font-semibold leading-none ${dateColorClass}`;
+                  const todayBadgeClassName = `flex h-[18px] min-w-[32px] items-center justify-center rounded px-1.5 text-[12px] font-semibold leading-none ${todayHighlight.backgroundClass} ${todayHighlight.textClass}`;
 
                   const isClassDay = day?.type === "授業日";
                   const classOrder = academic?.classOrder;
@@ -366,16 +365,19 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                         boxShadow: hasNotificationAlert ? "inset 0 0 0 2px #1e3a8a" : undefined,
                       }}
                     >
-                      <div className="flex flex-shrink-0 items-start justify-between">
-                        <span className={dateNumberClassName}>{dateNumber}</span>
-                        {isClassDay && typeof classOrder === "number" ? (
-                          <span
-                            className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
-                            style={{ backgroundColor: weekdayColor }}
-                          >
-                            {classOrder}
-                          </span>
-                        ) : null}
+                      <div className="flex flex-shrink-0 items-start gap-1">
+                        {!isToday ? <span className={dateNumberClassName}>{dateNumber}</span> : null}
+                        <div className="ml-auto flex items-start gap-1">
+                          {isToday ? <span className={todayBadgeClassName}>{dateNumber}</span> : null}
+                          {isClassDay && typeof classOrder === "number" ? (
+                            <span
+                              className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
+                              style={{ backgroundColor: weekdayColor }}
+                            >
+                              {classOrder}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="mt-1.5 flex min-h-0 flex-1 flex-col items-center overflow-hidden">
