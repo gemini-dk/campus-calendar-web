@@ -1,5 +1,3 @@
-import { NextResponse } from 'next/server';
-
 import { firebaseConfig } from '@/lib/firebase/app';
 
 const firebaseConfigJson = JSON.stringify(firebaseConfig);
@@ -25,11 +23,12 @@ onBackgroundMessage(messaging, (payload) => {
 });
 `;
 
-export function GET(): NextResponse {
-  return new NextResponse(serviceWorkerSource, {
-    headers: {
-      'Content-Type': 'application/javascript',
-      'Cache-Control': 'no-store',
-    },
+export function GET(): Response {
+  const headers = new Headers({
+    'Content-Type': 'text/javascript; charset=UTF-8',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Service-Worker-Allowed': '/',
   });
+
+  return new Response(serviceWorkerSource, { headers });
 }
