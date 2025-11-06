@@ -102,6 +102,23 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
+type TodayHighlight = {
+  backgroundClass: string;
+  textClass: string;
+};
+
+function resolveTodayHighlight(accent: string | null | undefined): TodayHighlight {
+  if (accent === "holiday") {
+    return { backgroundClass: "bg-red-600", textClass: "text-white" };
+  }
+
+  if (accent === "saturday") {
+    return { backgroundClass: "bg-blue-600", textClass: "text-white" };
+  }
+
+  return { backgroundClass: "bg-neutral-900", textClass: "text-white" };
+}
+
 const BORDER_COLOR = 'var(--color-calendar-border, rgb(229 231 235))';
 
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
@@ -747,9 +764,17 @@ function WeekSlide({
           const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
           const weekdayLabel = general?.weekdayLabel ?? '-';
           const accentClass = resolveAccentColor(general?.dateTextColor);
-          const cellBackground = isToday
-            ? 'var(--color-calendar-today-background)'
-            : resolveBackgroundColor(academic?.backgroundColor);
+          const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
+          const cellBackground = resolveBackgroundColor(academic?.backgroundColor);
+
+          const dateNumberClassName = `text-lg font-semibold ${
+            isToday ? todayHighlight.textClass : accentClass
+          }`;
+          const weekdayClassName = `text-xs font-semibold ${
+            isToday ? todayHighlight.textClass : accentClass
+          }`;
+          const dateHeaderPaddingClassName = "px-2 pb-1 pt-1";
+          const todayHeaderHighlightClassName = `pointer-events-none absolute inset-0 rounded-none rounded-br-md ${todayHighlight.backgroundClass}`;
 
           const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;
           const showBottomBorder = index < totalCells - WEEK_COLUMN_COUNT;
@@ -779,14 +804,15 @@ function WeekSlide({
                 cursor: onDateSelect ? 'pointer' : undefined,
               }}
             >
-              <div className="flex h-[40px] items-end justify-between gap-2 overflow-hidden bg-transparent px-2 pb-2 pt-1">
-                <div className="flex items-end gap-2">
-                  <div className="flex items-end gap-1 leading-none">
-                    <span className={`text-lg font-semibold ${accentClass}`}>{dateNumber}</span>
-                    <span className={`text-xs font-semibold ${accentClass}`}>{weekdayLabel}</span>
+              <div className="relative flex h-[40px] items-start justify-between gap-2 overflow-hidden bg-transparent">
+                <div className="relative inline-flex items-center self-start">
+                  {isToday ? <div className={todayHeaderHighlightClassName} /> : null}
+                  <div className={`relative z-[1] flex items-center gap-1 ${dateHeaderPaddingClassName} leading-none`}>
+                    <span className={dateNumberClassName}>{dateNumber}</span>
+                    <span className={weekdayClassName}>{weekdayLabel}</span>
                   </div>
                 </div>
-                <div className="flex min-w-0 flex-col items-end justify-end gap-[2px] text-right">
+                <div className="flex min-w-0 flex-col items-end justify-end gap-[2px] px-2 pb-2 pt-1 text-right">
                   <span className="line-clamp-2 text-[11px] font-semibold leading-tight text-neutral-700">
                     {academic?.label ?? '-'}
                   </span>
