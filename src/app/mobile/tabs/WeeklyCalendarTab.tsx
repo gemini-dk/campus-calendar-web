@@ -773,7 +773,7 @@ function WeekSlide({
           const weekdayClassName = `text-xs font-semibold ${
             isToday ? todayHighlight.textClass : accentClass
           }`;
-          const dateHeaderPaddingClassName = "px-2 pb-2 pt-1";
+          const dateHeaderPaddingClassName = "px-2 pb-1 pt-1";
           const todayHeaderHighlightClassName = `pointer-events-none absolute inset-0 rounded-none rounded-br-md ${todayHighlight.backgroundClass}`;
 
           const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;

@@ -26,11 +26,6 @@ const ACCENT_COLOR_CLASS: Record<string, string> = {
   saturday: "text-blue-600",
 };
 
-type TodayHighlight = {
-  backgroundClass: string;
-  textClass: string;
-};
-
 const BACKGROUND_COLOR_MAP: Record<string, string> = {
   none: "var(--color-calendar-default-background)",
   sunday: "var(--color-my-background-dim)",
@@ -122,18 +117,6 @@ function resolveBackgroundColor(color: string | null | undefined): string {
     return BACKGROUND_COLOR_MAP.none;
   }
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
-}
-
-function resolveTodayHighlight(accent: string | null | undefined): TodayHighlight {
-  if (accent === "holiday") {
-    return { backgroundClass: "bg-red-600", textClass: "text-white" };
-  }
-
-  if (accent === "saturday") {
-    return { backgroundClass: "bg-blue-600", textClass: "text-white" };
-  }
-
-  return { backgroundClass: "bg-neutral-900", textClass: "text-white" };
 }
 
 function extractDayNumber(label: string | null | undefined): string {
@@ -327,11 +310,9 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
 
                   const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                   const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
-                  const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
                   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
                   const dateNumberClassName = `text-[13px] font-semibold leading-none ${dateColorClass}`;
-                  const todayBadgeClassName = `flex h-[18px] w-[18px] items-center justify-center text-[11px] font-bold leading-none ${todayHighlight.backgroundClass} ${todayHighlight.textClass}`;
 
                   const isClassDay = day?.type === "授業日";
                   const classOrder = academic?.classOrder;
@@ -366,11 +347,7 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                       }}
                     >
                       <div className="flex flex-shrink-0 items-start gap-1">
-                        {isToday ? (
-                          <span className={todayBadgeClassName}>{dateNumber}</span>
-                        ) : (
-                          <span className={dateNumberClassName}>{dateNumber}</span>
-                        )}
+                        <span className={dateNumberClassName}>{dateNumber}</span>
                         <div className="ml-auto flex items-start gap-1">
                           {isClassDay && typeof classOrder === "number" ? (
                             <span
@@ -519,12 +496,9 @@ function GridCalendarView({ dataset }: GridCalendarViewProps) {
 
                     const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                     const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
-                    const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
                     const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
 
-                    const dateNumberClassName = `inline-flex h-[20px] min-w-[20px] items-center justify-center rounded px-1 text-xs font-semibold ${
-                      isToday ? `${todayHighlight.backgroundClass} ${todayHighlight.textClass}` : dateColorClass
-                    }`;
+                    const dateNumberClassName = `inline-flex h-[20px] min-w-[20px] items-center justify-center rounded px-1 text-xs font-semibold ${dateColorClass}`;
 
                     const isClassDay = day?.type === "授業日";
                     const classOrder = academic?.classOrder;
