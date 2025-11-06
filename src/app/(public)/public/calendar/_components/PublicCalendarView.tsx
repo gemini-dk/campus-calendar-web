@@ -26,6 +26,11 @@ const ACCENT_COLOR_CLASS: Record<string, string> = {
   saturday: "text-blue-600",
 };
 
+type TodayHighlight = {
+  backgroundClass: string;
+  textClass: string;
+};
+
 const BACKGROUND_COLOR_MAP: Record<string, string> = {
   none: "var(--color-calendar-default-background)",
   sunday: "var(--color-my-background-dim)",
@@ -117,6 +122,18 @@ function resolveBackgroundColor(color: string | null | undefined): string {
     return BACKGROUND_COLOR_MAP.none;
   }
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
+}
+
+function resolveTodayHighlight(accent: string | null | undefined): TodayHighlight {
+  if (accent === "holiday") {
+    return { backgroundClass: "bg-red-600", textClass: "text-white" };
+  }
+
+  if (accent === "saturday") {
+    return { backgroundClass: "bg-blue-600", textClass: "text-white" };
+  }
+
+  return { backgroundClass: "bg-neutral-900", textClass: "text-white" };
 }
 
 function extractDayNumber(label: string | null | undefined): string {
@@ -310,10 +327,12 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
 
                   const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                   const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
+                  const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
                   const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
-                  const cellBackgroundColor = isToday
-                    ? "var(--color-calendar-today-background)"
-                    : backgroundColor;
+
+                  const dateNumberClassName = `inline-flex h-[22px] min-w-[22px] items-center justify-center rounded px-1 text-[13px] font-semibold ${
+                    isToday ? `${todayHighlight.backgroundClass} ${todayHighlight.textClass}` : dateColorClass
+                  }`;
 
                   const isClassDay = day?.type === "授業日";
                   const classOrder = academic?.classOrder;
@@ -339,7 +358,7 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                         isToday ? "" : "hover:bg-neutral-200/60"
                       }`}
                       style={{
-                        backgroundColor: cellBackgroundColor,
+                        backgroundColor,
                         borderRightWidth: showRightBorder ? 1 : 0,
                         borderBottomWidth: showBottomBorder ? 1 : 0,
                         borderColor: "rgba(212, 212, 216, 1)",
@@ -348,7 +367,7 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
                       }}
                     >
                       <div className="flex flex-shrink-0 items-start justify-between">
-                        <span className={`text-[13px] font-semibold ${dateColorClass}`}>{dateNumber}</span>
+                        <span className={dateNumberClassName}>{dateNumber}</span>
                         {isClassDay && typeof classOrder === "number" ? (
                           <span
                             className="flex h-[18px] min-w-[18px] items-center justify-center text-[11px] font-bold text-white"
@@ -495,10 +514,12 @@ function GridCalendarView({ dataset }: GridCalendarViewProps) {
 
                     const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
                     const dateColorClass = resolveAccentColorClass(general?.dateTextColor);
+                    const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
                     const backgroundColor = resolveBackgroundColor(academic?.backgroundColor);
-                    const cellBackgroundColor = isToday
-                      ? "var(--color-calendar-today-background)"
-                      : backgroundColor;
+
+                    const dateNumberClassName = `inline-flex h-[20px] min-w-[20px] items-center justify-center rounded px-1 text-xs font-semibold ${
+                      isToday ? `${todayHighlight.backgroundClass} ${todayHighlight.textClass}` : dateColorClass
+                    }`;
 
                     const isClassDay = day?.type === "授業日";
                     const classOrder = academic?.classOrder;
@@ -524,7 +545,7 @@ function GridCalendarView({ dataset }: GridCalendarViewProps) {
                           isToday ? "" : "hover:bg-neutral-200/60"
                         }`}
                         style={{
-                          backgroundColor: cellBackgroundColor,
+                          backgroundColor,
                           borderRightWidth: showRightBorder ? 1 : 0,
                           borderBottomWidth: showBottomBorder ? 1 : 0,
                           borderColor: "rgba(212, 212, 216, 1)",
@@ -533,7 +554,7 @@ function GridCalendarView({ dataset }: GridCalendarViewProps) {
                         }}
                       >
                         <div className="flex flex-shrink-0 items-start justify-between">
-                          <span className={`text-xs font-semibold ${dateColorClass}`}>{dateNumber}</span>
+                          <span className={dateNumberClassName}>{dateNumber}</span>
                           {isClassDay && typeof classOrder === "number" ? (
                             <span
                               className="flex h-[16px] min-w-[16px] items-center justify-center text-[10px] font-bold text-white"
