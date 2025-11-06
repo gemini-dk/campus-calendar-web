@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { doc, setDoc } from 'firebase/firestore';
 
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
+import { db } from '@/lib/firebase/client';
+import { getMessagingToken, initializeMessaging } from '@/lib/firebase/messaging';
 
 type UserMenuContentProps = {
   className?: string;
@@ -42,6 +45,11 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
   const [changingDefault, setChangingDefault] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
+  const [isSavingMessagingToken, setIsSavingMessagingToken] = useState(false);
+  const [messagingTokenFeedback, setMessagingTokenFeedback] = useState<
+    { type: 'success' | 'error' | 'info'; text: string }
+    | null
+  >(null);
 
   useEffect(() => {
     setEntries(toEditableEntries(settings.calendar.entries));
@@ -169,6 +177,112 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     },
     [setActiveCalendar],
   );
+
+  const handleSaveMessagingToken = useCallback(async () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (isSavingMessagingToken) {
+      return;
+    }
+
+    setMessagingTokenFeedback(null);
+
+    if (!profile?.uid) {
+      setMessagingTokenFeedback({ type: 'error', text: 'ユーザ情報を取得できませんでした。' });
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      setMessagingTokenFeedback({ type: 'error', text: 'この端末は通知機能に対応していません。' });
+      return;
+    }
+
+    setIsSavingMessagingToken(true);
+
+    try {
+      const messaging = await initializeMessaging();
+      if (!messaging) {
+        setMessagingTokenFeedback({
+          type: 'error',
+          text: 'Firebase Messaging を初期化できませんでした。対応ブラウザか確認してください。',
+        });
+        return;
+      }
+
+      if (Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          setMessagingTokenFeedback({
+            type: 'error',
+            text: '通知が許可されませんでした。ブラウザの設定を確認してください。',
+          });
+          return;
+        }
+      } else if (Notification.permission !== 'granted') {
+        setMessagingTokenFeedback({
+          type: 'error',
+          text: '通知がブロックされています。ブラウザの通知設定を変更してください。',
+        });
+        return;
+      }
+
+      const token = await getMessagingToken(messaging);
+      if (!token) {
+        setMessagingTokenFeedback({
+          type: 'error',
+          text: 'FCM トークンを取得できませんでした。時間をおいて再度お試しください。',
+        });
+        return;
+      }
+
+      const input = window.prompt(
+        'Firestore に保存する端末名を入力してください。\n例: iPhone 15, Pixel 8 など',
+        '',
+      );
+
+      if (input === null) {
+        setMessagingTokenFeedback({ type: 'info', text: '保存をキャンセルしました。' });
+        return;
+      }
+
+      const trimmed = input.trim();
+      if (!trimmed) {
+        setMessagingTokenFeedback({ type: 'error', text: '端末名が入力されませんでした。' });
+        return;
+      }
+
+      const sanitizedKey = trimmed
+        .replace(/[~*/\[\]]/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      if (!sanitizedKey) {
+        setMessagingTokenFeedback({ type: 'error', text: '端末名に利用できる文字が含まれていません。' });
+        return;
+      }
+
+      await setDoc(
+        doc(db, 'users', profile.uid),
+        { messagingTokens: { [sanitizedKey]: token } },
+        { merge: true },
+      );
+
+      setMessagingTokenFeedback({
+        type: 'success',
+        text: `端末「${sanitizedKey}」の通知トークンを保存しました。`,
+      });
+    } catch (error) {
+      console.error('Failed to save messaging token', error);
+      setMessagingTokenFeedback({
+        type: 'error',
+        text: '通知トークンの保存に失敗しました。時間をおいて再度お試しください。',
+      });
+    } finally {
+      setIsSavingMessagingToken(false);
+    }
+  }, [isSavingMessagingToken, profile?.uid]);
 
   const renderCalendarEntries = () => {
     if (!initialized) {
@@ -337,6 +451,37 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
           </div>
         )}
       </section>
+      {profile?.uid ? (
+        <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold text-neutral-900">通知設定</h2>
+            <p className="text-sm text-neutral-600">
+              この端末の Firebase Cloud Messaging トークンを取得し、Firestore のユーザドキュメントに保存します。
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleSaveMessagingToken}
+            disabled={isSavingMessagingToken}
+            className="mt-4 w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+          >
+            {isSavingMessagingToken ? '保存中...' : 'この端末の通知を登録'}
+          </button>
+          {messagingTokenFeedback ? (
+            <p
+              className={`mt-2 text-xs ${
+                messagingTokenFeedback.type === 'success'
+                  ? 'text-green-600'
+                  : messagingTokenFeedback.type === 'info'
+                    ? 'text-neutral-600'
+                    : 'text-red-600'
+              }`}
+            >
+              {messagingTokenFeedback.text}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-1">
