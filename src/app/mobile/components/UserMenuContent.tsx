@@ -48,7 +48,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     syncNow: syncGoogleCalendarNow,
   } = useGoogleCalendarIntegration();
 
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = process.env.VERCEL_ENV === 'production';
 
   const [entries, setEntries] = useState<EditableCalendarEntry[]>([]);
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
