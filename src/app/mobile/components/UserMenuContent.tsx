@@ -48,6 +48,8 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     syncNow: syncGoogleCalendarNow,
   } = useGoogleCalendarIntegration();
 
+  const isProduction = process.env.NODE_ENV === 'production';
+
   const [entries, setEntries] = useState<EditableCalendarEntry[]>([]);
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
   const [changingDefault, setChangingDefault] = useState(false);
@@ -357,7 +359,9 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         </div>
 
         <div className="mt-4 flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
-          {googleCalendarLoading ? (
+          {isProduction ? (
+            <p className="text-neutral-600">Googleカレンダー連携は現在準備中です。</p>
+          ) : googleCalendarLoading ? (
             <p className="text-neutral-600">連携状況を確認しています...</p>
           ) : googleCalendarIntegration?.refreshToken ? (
             <>
@@ -404,7 +408,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
               </button>
             </>
           )}
-          {googleCalendarError ? (
+          {!isProduction && googleCalendarError ? (
             <p className="text-xs text-red-600">{googleCalendarError}</p>
           ) : null}
         </div>
