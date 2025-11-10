@@ -320,7 +320,16 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
           )}
         </section>
         <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-3 pb-16 pt-6">
-          <section className="rounded-2xl bg-white p-4 shadow-sm">
+          <DailyClassesSection
+            userId={profile?.uid ?? null}
+            fiscalYear={settings.calendar.fiscalYear}
+            dateId={normalizedDateId}
+            authInitializing={authInitializing}
+            isAuthenticated={isAuthenticated}
+            onSelectClass={handleSelectClassSession}
+          />
+
+          <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-neutral-900">Googleカレンダー</h2>
               <span className="text-xs text-neutral-500">{normalizedDateId}</span>
@@ -360,17 +369,6 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
               )}
             </div>
           </section>
-
-          <div className="mt-6">
-            <DailyClassesSection
-              userId={profile?.uid ?? null}
-              fiscalYear={settings.calendar.fiscalYear}
-              dateId={normalizedDateId}
-              authInitializing={authInitializing}
-              isAuthenticated={isAuthenticated}
-              onSelectClass={handleSelectClassSession}
-            />
-          </div>
         </div>
       </div>
       <ClassActivityOverlay
