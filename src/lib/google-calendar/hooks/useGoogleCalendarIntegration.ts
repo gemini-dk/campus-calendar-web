@@ -9,17 +9,13 @@ import { useAuth } from '@/lib/useAuth';
 
 import { GOOGLE_CALENDAR_SCOPES } from '../constants';
 import { getIntegrationDocRef, removeAllGoogleCalendarEvents } from '../firestore';
-import { clearOAuthSession, loadOAuthSession, saveOAuthSession } from '../oauthStorage';
+import { saveOAuthSession } from '../oauthStorage';
 import { generateCodeVerifier, deriveCodeChallenge } from '../pkce';
 import { ensureIntegrationDocument, loadIntegrationDocument, syncGoogleCalendar } from '../sync';
 import type { GoogleCalendarIntegrationDoc, GoogleCalendarSyncState } from '../types';
 import { getGoogleCalendarClientId, getGoogleCalendarRedirectUri } from '../config';
 
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
-const POPUP_FEATURES = 'width=520,height=720,menubar=no,toolbar=no,status=no,scrollbars=yes';
-const MESSAGE_EVENT_TYPE = 'google-calendar-oauth';
-const OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
-
 export type GoogleCalendarIntegrationState = {
   integration: GoogleCalendarIntegrationDoc | null;
   loading: boolean;
@@ -135,11 +131,14 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
       const codeChallenge = await deriveCodeChallenge(codeVerifier);
       const origin = window.location.origin;
       const redirectUri = getGoogleCalendarRedirectUri(origin);
+      const returnUrl = window.location.href;
       saveOAuthSession({
         state: stateToken,
         codeVerifier,
         redirectUri,
         createdAt: Date.now(),
+        userId,
+        returnUrl,
       });
 
       const authUrl = new URL(AUTH_ENDPOINT);
@@ -154,19 +153,8 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
       authUrl.searchParams.set('code_challenge', codeChallenge);
       authUrl.searchParams.set('code_challenge_method', 'S256');
 
-      const popup = window.open(authUrl.toString(), MESSAGE_EVENT_TYPE, POPUP_FEATURES);
-      if (!popup) {
-        throw new Error('ポップアップがブロックされました。ブラウザの設定を確認してください。');
-      }
-
-      const tokenPayload = await waitForOAuthResponse(stateToken);
-      await exchangeAuthorizationCode({
-        userId,
-        stateToken,
-        codeVerifier,
-        redirectUri,
-        code: tokenPayload.code,
-      });
+      window.location.assign(authUrl.toString());
+      return;
     } catch (connectError) {
       console.error('Google カレンダー連携に失敗しました。', connectError);
       if (connectError instanceof Error) {
@@ -280,141 +268,9 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
   );
 }
 
-type OAuthResponsePayload = {
-  code: string;
-};
-
-type ExchangePayload = {
-  userId: string;
-  stateToken: string;
-  codeVerifier: string;
-  redirectUri: string;
-  code: string;
-};
-
 function generateStateToken(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
   }
   return `st_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function waitForOAuthResponse(stateToken: string): Promise<OAuthResponsePayload> {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined') {
-      reject(new Error('ブラウザ環境でのみ利用できます。'));
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      cleanup();
-      reject(new Error('Googleカレンダー連携がタイムアウトしました。')); 
-    }, OAUTH_TIMEOUT_MS);
-
-    function handleMessage(event: MessageEvent) {
-      if (event.origin !== window.location.origin) {
-        return;
-      }
-      const data = event.data as { type?: string; state?: string; code?: string; error?: string; error_description?: string };
-      if (!data || data.type !== MESSAGE_EVENT_TYPE || data.state !== stateToken) {
-        return;
-      }
-      cleanup();
-      if (data.error) {
-        reject(new Error(data.error_description ?? data.error));
-        return;
-      }
-      if (!data.code) {
-        reject(new Error('Googleカレンダーから認可コードを取得できませんでした。'));
-        return;
-      }
-      resolve({ code: data.code });
-    }
-
-    function cleanup() {
-      window.clearTimeout(timeoutId);
-      window.removeEventListener('message', handleMessage);
-    }
-
-    window.addEventListener('message', handleMessage);
-  });
-}
-
-async function exchangeAuthorizationCode(payload: ExchangePayload): Promise<void> {
-  const session = loadOAuthSession(payload.stateToken);
-  if (!session) {
-    throw new Error('OAuthセッション情報が見つかりませんでした。');
-  }
-  clearOAuthSession(payload.stateToken);
-
-  const response = await fetch('/api/google-calendar/oauth/token', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      code: payload.code,
-      codeVerifier: payload.codeVerifier,
-      redirectUri: payload.redirectUri,
-    }),
-  });
-
-  const responseText = await response.text();
-  let tokenPayload: {
-    access_token?: string;
-    refresh_token?: string;
-    token_type?: string;
-    scope?: string;
-    expires_in?: number;
-    error?: string;
-    error_description?: string;
-  };
-
-  try {
-    tokenPayload = JSON.parse(responseText) as typeof tokenPayload;
-  } catch (parseError) {
-    console.error('Google カレンダーのトークンレスポンスの解析に失敗しました。', parseError);
-    throw new Error('Googleカレンダーのトークン取得に失敗しました。');
-  }
-
-  if (!response.ok) {
-    const message =
-      typeof tokenPayload.error_description === 'string'
-        ? tokenPayload.error_description
-        : typeof tokenPayload.error === 'string'
-          ? tokenPayload.error
-          : 'Googleカレンダーのトークン取得に失敗しました。';
-    throw new Error(`Googleカレンダーのトークン取得に失敗しました: ${message}`);
-  }
-
-  if (!tokenPayload.access_token) {
-    throw new Error('Googleカレンダーのアクセストークンが取得できませんでした。');
-  }
-
-  if (!tokenPayload.refresh_token) {
-    throw new Error(
-      'Googleカレンダーのリフレッシュトークンが取得できませんでした。連携を再度お試しください。',
-    );
-  }
-
-  const expiresAt = Date.now() + (tokenPayload.expires_in ?? 3600) * 1000;
-
-  const ref = getIntegrationDocRef(db, payload.userId);
-  await setDoc(
-    ref,
-    {
-      accessToken: tokenPayload.access_token,
-      refreshToken: tokenPayload.refresh_token,
-      tokenType: tokenPayload.token_type ?? 'Bearer',
-      scope: tokenPayload.scope ?? GOOGLE_CALENDAR_SCOPES.join(' '),
-      expiresAt,
-      syncTokens: null,
-      lastSyncedAt: null,
-      calendarList: null,
-      lastSyncStatus: 'idle',
-      lastSyncError: null,
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
 }

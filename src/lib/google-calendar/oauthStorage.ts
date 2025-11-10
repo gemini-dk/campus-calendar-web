@@ -5,6 +5,8 @@ export type OAuthSessionRecord = {
   codeVerifier: string;
   redirectUri: string;
   createdAt: number;
+  userId: string;
+  returnUrl: string;
 };
 
 export function saveOAuthSession(record: OAuthSessionRecord): void {
@@ -37,6 +39,9 @@ export function loadOAuthSession(state: string): OAuthSessionRecord | null {
       return null;
     }
     if (typeof parsed.redirectUri !== 'string' || typeof parsed.createdAt !== 'number') {
+      return null;
+    }
+    if (typeof parsed.userId !== 'string' || typeof parsed.returnUrl !== 'string') {
       return null;
     }
     return parsed as OAuthSessionRecord;
