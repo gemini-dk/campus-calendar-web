@@ -22,6 +22,8 @@ import {
   useCalendarClassEntries,
   type ClassEntriesByDateMap,
 } from './calendarShared';
+import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
+import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
 const WEEKDAY_ACCENT_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -47,6 +49,12 @@ function formatDateId(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function getMonthKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
 }
 
 function startOfWeek(date: Date): Date {
@@ -696,6 +704,36 @@ function WeekSlide({
   todayId,
   onDateSelect,
 }: WeekSlideProps) {
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
+  const primaryMonthKey = getMonthKey(weekStart);
+  const secondaryMonthKey = getMonthKey(weekEnd);
+  const { eventsByDay: primaryEventsByDay } = useGoogleCalendarEventsForMonth(primaryMonthKey);
+  const { eventsByDay: secondaryEventsByDay } = useGoogleCalendarEventsForMonth(secondaryMonthKey);
+  const googleEventsByDay = useMemo(() => {
+    if (primaryMonthKey === secondaryMonthKey) {
+      return primaryEventsByDay;
+    }
+    const merged: Record<string, GoogleCalendarEventRecord[]> = {};
+    const mergeSource = (source: Record<string, GoogleCalendarEventRecord[]>) => {
+      Object.keys(source).forEach((key) => {
+        const list = source[key];
+        if (!list || list.length === 0) {
+          return;
+        }
+        if (!merged[key]) {
+          merged[key] = [...list];
+        } else {
+          merged[key] = [...merged[key], ...list];
+        }
+      });
+    };
+    mergeSource(primaryEventsByDay);
+    mergeSource(secondaryEventsByDay);
+    Object.keys(merged).forEach((key) => {
+      merged[key].sort((a, b) => a.startTimestamp - b.startTimestamp);
+    });
+    return merged;
+  }, [primaryEventsByDay, primaryMonthKey, secondaryEventsByDay, secondaryMonthKey]);
   const rawDates = weekState?.dates ?? generateWeekDates(weekStart);
   const rawDateIds = weekState?.dateIds ?? rawDates.map((date) => formatDateId(date));
 
@@ -759,6 +797,7 @@ function WeekSlide({
           const general = info?.calendar ?? null;
           const academic = info?.academic ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
+          const googleEvents = googleEventsByDay[dateId] ?? [];
 
           const isToday = dateId === todayId;
           const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);
@@ -837,6 +876,24 @@ function WeekSlide({
                     </div>
                   );
                 })}
+                {googleEvents.length > 0 ? (
+                  <div className="mt-1 flex flex-col gap-[2px]">
+                    {googleEvents.slice(0, 3).map((event: GoogleCalendarEventRecord) => (
+                      <div
+                        key={event.eventUid}
+                        className="flex min-h-[16px] items-start gap-[6px] text-[11px] leading-tight text-blue-700"
+                      >
+                        <span className="flex-shrink-0">●</span>
+                        <span className="flex-1 truncate">{event.summary || '予定'}</span>
+                      </div>
+                    ))}
+                    {googleEvents.length > 3 ? (
+                      <span className="pl-[14px] text-[10px] font-medium text-blue-500">
+                        他 {googleEvents.length - 3} 件
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
           );

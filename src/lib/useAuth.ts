@@ -1,9 +1,10 @@
 'use client';
 
 import {
-  linkWithPopup,
+  getRedirectResult,
+  linkWithRedirect,
   onIdTokenChanged,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
   type User,
 } from 'firebase/auth';
@@ -149,6 +150,61 @@ export function useAuth(): UseAuthState {
     };
   }, [profile?.uid]);
 
+  useEffect(() => {
+    let canceled = false;
+
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (!result) {
+          return;
+        }
+
+        setIsProcessing(true);
+
+        if (result.operationType === 'link') {
+          await result.user.reload();
+          const updatedUser = auth.currentUser ?? result.user;
+          await updateUserDocumentProfile(updatedUser);
+          const cookiePayload = await buildCookiePayload(updatedUser);
+          if (!canceled) {
+            setAuthCookie(cookiePayload);
+            setProfile(extractProfile(cookiePayload));
+            const displayName = updatedUser.displayName ?? 'Googleアカウント';
+            setSuccessMessage(`${displayName} さんとしてサインインしました。`);
+          }
+          return;
+        }
+
+        await updateUserDocumentProfile(result.user);
+        if (!canceled) {
+          const displayName = result.user.displayName ?? 'ゲスト';
+          setSuccessMessage(`${displayName} さんとしてサインインしました。`);
+        }
+      } catch (err) {
+        if (!canceled) {
+          if (err instanceof FirebaseError) {
+            setError(err.message);
+          } else if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('リダイレクト後のサインイン処理に失敗しました。時間をおいて再度お試しください。');
+          }
+        }
+      } finally {
+        if (!canceled) {
+          setIsProcessing(false);
+        }
+      }
+    };
+
+    void handleRedirectResult();
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
     setError(null);
     setSuccessMessage(null);
@@ -158,29 +214,16 @@ export function useAuth(): UseAuthState {
       const currentUser = auth.currentUser;
 
       if (currentUser && currentUser.isAnonymous) {
-        const credential = await linkWithPopup(currentUser, googleProvider);
-        const linkedUser = credential.user;
-        await linkedUser.reload();
-        const updatedUser = auth.currentUser ?? linkedUser;
-        await updateUserDocumentProfile(updatedUser);
-        const cookiePayload = await buildCookiePayload(updatedUser);
-        setAuthCookie(cookiePayload);
-        setProfile(extractProfile(cookiePayload));
-
-        const displayName = updatedUser.displayName ?? 'Googleアカウント';
-        setSuccessMessage(`${displayName} さんとしてサインインしました。`);
+        await linkWithRedirect(currentUser, googleProvider);
         return;
       }
 
-      const result = await signInWithPopup(auth, googleProvider);
-      await updateUserDocumentProfile(result.user);
-      const displayName = result.user.displayName ?? 'ゲスト';
-      setSuccessMessage(`${displayName} さんとしてサインインしました。`);
+      await signInWithRedirect(auth, googleProvider);
     } catch (err) {
       if (err instanceof FirebaseError) {
         if (err.code === 'auth/credential-already-in-use') {
           setError('このGoogleアカウントは既に別のユーザにリンクされています。別のアカウントをご利用ください。');
-        } else if (err.code !== 'auth/popup-closed-by-user') {
+        } else {
           setError(err.message);
         }
       } else if (err instanceof Error) {
