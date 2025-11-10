@@ -16,7 +16,6 @@ import type { GoogleCalendarIntegrationDoc, GoogleCalendarSyncState } from '../t
 import { getGoogleCalendarClientId, getGoogleCalendarRedirectUri } from '../config';
 
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
-const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const POPUP_FEATURES = 'width=520,height=720,menubar=no,toolbar=no,status=no,scrollbars=yes';
 const MESSAGE_EVENT_TYPE = 'google-calendar-oauth';
 const OAUTH_TIMEOUT_MS = 5 * 60 * 1000;
@@ -348,35 +347,45 @@ async function exchangeAuthorizationCode(payload: ExchangePayload): Promise<void
   }
   clearOAuthSession(payload.stateToken);
 
-  const params = new URLSearchParams({
-    code: payload.code,
-    code_verifier: payload.codeVerifier,
-    redirect_uri: payload.redirectUri,
-    client_id: getGoogleCalendarClientId(),
-    grant_type: 'authorization_code',
-    access_type: 'offline',
-  });
-
-  const response = await fetch(TOKEN_ENDPOINT, {
+  const response = await fetch('/api/google-calendar/oauth/token', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
     },
-    body: params.toString(),
+    body: JSON.stringify({
+      code: payload.code,
+      codeVerifier: payload.codeVerifier,
+      redirectUri: payload.redirectUri,
+    }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Googleカレンダーのトークン取得に失敗しました: ${errorText}`);
-  }
-
-  const tokenPayload = (await response.json()) as {
+  const responseText = await response.text();
+  let tokenPayload: {
     access_token?: string;
     refresh_token?: string;
     token_type?: string;
     scope?: string;
     expires_in?: number;
+    error?: string;
+    error_description?: string;
   };
+
+  try {
+    tokenPayload = JSON.parse(responseText) as typeof tokenPayload;
+  } catch (parseError) {
+    console.error('Google カレンダーのトークンレスポンスの解析に失敗しました。', parseError);
+    throw new Error('Googleカレンダーのトークン取得に失敗しました。');
+  }
+
+  if (!response.ok) {
+    const message =
+      typeof tokenPayload.error_description === 'string'
+        ? tokenPayload.error_description
+        : typeof tokenPayload.error === 'string'
+          ? tokenPayload.error
+          : 'Googleカレンダーのトークン取得に失敗しました。';
+    throw new Error(`Googleカレンダーのトークン取得に失敗しました: ${message}`);
+  }
 
   if (!tokenPayload.access_token) {
     throw new Error('Googleカレンダーのアクセストークンが取得できませんでした。');
