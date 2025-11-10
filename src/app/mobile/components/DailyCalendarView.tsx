@@ -19,6 +19,8 @@ import DailyClassesSection, {
   type DailyClassSession,
 } from '../tabs/HomeTab/DailyClassesSection';
 import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
+import { useGoogleCalendarEventsForDay } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
+import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -96,10 +98,38 @@ function extractDayNumber(label: string): string {
   return String(Number(match[3]));
 }
 
+function formatEventTime(event: GoogleCalendarEventRecord): string {
+  if (event.allDay) {
+    return '終日';
+  }
+  const start = formatEventTimeLabel(event.startRaw.dateTime, event.startRaw.timeZone);
+  const end = formatEventTimeLabel(event.endRaw.dateTime, event.endRaw.timeZone);
+  return `${start} - ${end}`;
+}
+
+function formatEventTimeLabel(dateTime: string | null, timeZone: string | null): string {
+  if (!dateTime) {
+    return '--:--';
+  }
+  try {
+    const date = new Date(dateTime);
+    const formatter = new Intl.DateTimeFormat('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: timeZone ?? undefined,
+    });
+    return formatter.format(date);
+  } catch {
+    return '--:--';
+  }
+}
+
 export default function DailyCalendarView({ dateId, onClose }: DailyCalendarViewProps) {
   const normalizedDateId = useMemo(() => normalizeDateId(dateId), [dateId]);
   const { settings, initialized: settingsInitialized } = useUserSettings();
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
+  const { events: googleEvents, loading: googleEventsLoading } = useGoogleCalendarEventsForDay(normalizedDateId);
   const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -290,14 +320,57 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
           )}
         </section>
         <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 px-3 pb-16 pt-6">
-          <DailyClassesSection
-            userId={profile?.uid ?? null}
-            fiscalYear={settings.calendar.fiscalYear}
-            dateId={normalizedDateId}
-            authInitializing={authInitializing}
-            isAuthenticated={isAuthenticated}
-            onSelectClass={handleSelectClassSession}
-          />
+          <section className="rounded-2xl bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-neutral-900">Googleカレンダー</h2>
+              <span className="text-xs text-neutral-500">{normalizedDateId}</span>
+            </div>
+            <div className="mt-3 flex flex-col gap-3">
+              {googleEventsLoading ? (
+                <p className="text-sm text-neutral-600">予定を読み込み中です...</p>
+              ) : googleEvents.length === 0 ? (
+                <p className="text-sm text-neutral-500">この日のGoogleカレンダーの予定はありません。</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {googleEvents.map((event) => (
+                    <li
+                      key={event.eventUid}
+                      className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-neutral-800"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-xs font-semibold text-blue-700">{formatEventTime(event)}</span>
+                        {event.htmlLink ? (
+                          <a
+                            href={event.htmlLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-blue-600 underline"
+                          >
+                            開く
+                          </a>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm font-semibold text-neutral-900">{event.summary || '予定'}</p>
+                      {event.location ? (
+                        <p className="mt-1 text-xs text-neutral-500">場所: {event.location}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+
+          <div className="mt-6">
+            <DailyClassesSection
+              userId={profile?.uid ?? null}
+              fiscalYear={settings.calendar.fiscalYear}
+              dateId={normalizedDateId}
+              authInitializing={authInitializing}
+              isAuthenticated={isAuthenticated}
+              onSelectClass={handleSelectClassSession}
+            />
+          </div>
         </div>
       </div>
       <ClassActivityOverlay
