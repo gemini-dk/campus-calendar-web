@@ -17,6 +17,8 @@ import {
   useCalendarClassEntries,
   type ClassEntriesByDateMap,
 } from './calendarShared';
+import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
+import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
 const WEEKDAY_HEADERS = [
   { label: 'Sun', shortLabel: '日', color: '#f87171' },
@@ -679,6 +681,8 @@ function CalendarMonthSlide({
   onRetry,
   onDateSelect,
 }: CalendarMonthSlideProps) {
+  const monthKey = getMonthKey(monthDate);
+  const { eventsByDay: googleEventsByDay } = useGoogleCalendarEventsForMonth(monthKey);
   const rawDates = monthState?.dates ?? generateMonthDates(monthDate);
   const rawDateIds = monthState?.dateIds ?? rawDates.map((date) => formatDateId(date));
 
@@ -699,6 +703,7 @@ function CalendarMonthSlide({
           const academic = info?.academic;
           const day = info?.day ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
+          const googleEvents = googleEventsByDay[dateId] ?? [];
 
           const isCurrentMonth =
             date.getFullYear() === monthDate.getFullYear() &&
@@ -759,7 +764,7 @@ function CalendarMonthSlide({
               </div>
 
               <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">
-                <div className="flex flex-1 flex-col gap-[1px] overflow-hidden">
+                <div className="flex flex-col gap-[1px] overflow-hidden">
                   {classEntries.map((entry) => {
                     const { icon, className: iconColorClass } = resolveSessionIcon(
                       entry.classType,
@@ -782,6 +787,24 @@ function CalendarMonthSlide({
                     );
                   })}
                 </div>
+                {googleEvents.length > 0 ? (
+                  <div className="mt-[2px] flex flex-col gap-[1px]">
+                    {googleEvents.slice(0, 2).map((event: GoogleCalendarEventRecord) => (
+                      <div
+                        key={event.eventUid}
+                        className="flex min-h-[14px] items-start gap-[4px] pl-[3px] text-[10px] leading-[1.08] text-blue-700"
+                      >
+                        <span className="flex-shrink-0">●</span>
+                        <span className="flex-1 truncate">{event.summary || '予定'}</span>
+                      </div>
+                    ))}
+                    {googleEvents.length > 2 ? (
+                      <span className="pl-[14px] text-[9px] font-medium text-blue-500">
+                        他 {googleEvents.length - 2} 件
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </button>
           );
