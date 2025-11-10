@@ -4,6 +4,9 @@ import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvi
 import { useAuth } from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
 
+const IS_PRODUCTION =
+  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
+
 type UserMenuContentProps = {
   className?: string;
   showInstallPromotion?: boolean;
@@ -46,9 +49,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     connect: connectGoogleCalendar,
     disconnect: disconnectGoogleCalendar,
     syncNow: syncGoogleCalendarNow,
-  } = useGoogleCalendarIntegration();
-
-  const isProduction = process.env.VERCEL_ENV === 'production';
+  } = useGoogleCalendarIntegration({ enabled: !IS_PRODUCTION });
 
   const [entries, setEntries] = useState<EditableCalendarEntry[]>([]);
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
@@ -350,69 +351,72 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         )}
       </section>
 
+      {!IS_PRODUCTION ? (
+        <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold text-neutral-900">Googleカレンダー連携</h2>
+            <p className="text-sm text-neutral-600">
+              Googleカレンダーの予定を同期して、学事カレンダーとあわせて確認できます。
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
+            {googleCalendarLoading ? (
+              <p className="text-neutral-600">連携状況を確認しています...</p>
+            ) : googleCalendarIntegration?.refreshToken ? (
+              <>
+                <p className="text-neutral-800">Googleカレンダーが連携されています。</p>
+                <p className="text-xs text-neutral-500">
+                  最終同期:
+                  {googleSyncState.lastSyncedAt
+                    ? ` ${new Date(googleSyncState.lastSyncedAt).toLocaleString('ja-JP')}`
+                    : ' 未同期'}
+                </p>
+                {googleSyncState.error ? (
+                  <p className="text-xs text-red-600">{googleSyncState.error}</p>
+                ) : null}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={syncGoogleCalendarNow}
+                    disabled={googleSyncState.inProgress}
+                    className="rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+                  >
+                    {googleSyncState.inProgress ? '同期中...' : '今すぐ同期'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={disconnectGoogleCalendar}
+                    className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100"
+                  >
+                    連携を解除
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-neutral-800">Googleカレンダーは未連携です。</p>
+                <p className="text-xs text-neutral-500">
+                  連携すると授業予定とあわせてGoogleカレンダーの予定が表示されます。
+                </p>
+                <button
+                  type="button"
+                  onClick={connectGoogleCalendar}
+                  className="mt-2 w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
+                >
+                  Googleカレンダーと連携
+                </button>
+              </>
+            )}
+            {googleCalendarError ? (
+              <p className="text-xs text-red-600">{googleCalendarError}</p>
+            ) : null}
+          </div>
+
+        </section>
+      ) : null}
+
       <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold text-neutral-900">Googleカレンダー連携</h2>
-          <p className="text-sm text-neutral-600">
-            Googleカレンダーの予定を同期して、学事カレンダーとあわせて確認できます。
-          </p>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm">
-          {isProduction ? (
-            <p className="text-neutral-600">Googleカレンダー連携は現在準備中です。</p>
-          ) : googleCalendarLoading ? (
-            <p className="text-neutral-600">連携状況を確認しています...</p>
-          ) : googleCalendarIntegration?.refreshToken ? (
-            <>
-              <p className="text-neutral-800">Googleカレンダーが連携されています。</p>
-              <p className="text-xs text-neutral-500">
-                最終同期:
-                {googleSyncState.lastSyncedAt
-                  ? ` ${new Date(googleSyncState.lastSyncedAt).toLocaleString('ja-JP')}`
-                  : ' 未同期'}
-              </p>
-              {googleSyncState.error ? (
-                <p className="text-xs text-red-600">{googleSyncState.error}</p>
-              ) : null}
-              <div className="flex flex-wrap gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={syncGoogleCalendarNow}
-                  disabled={googleSyncState.inProgress}
-                  className="rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
-                >
-                  {googleSyncState.inProgress ? '同期中...' : '今すぐ同期'}
-                </button>
-                <button
-                  type="button"
-                  onClick={disconnectGoogleCalendar}
-                  className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100"
-                >
-                  連携を解除
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-neutral-800">Googleカレンダーは未連携です。</p>
-              <p className="text-xs text-neutral-500">
-                連携すると授業予定とあわせてGoogleカレンダーの予定が表示されます。
-              </p>
-              <button
-                type="button"
-                onClick={connectGoogleCalendar}
-                className="mt-2 w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500"
-              >
-                Googleカレンダーと連携
-              </button>
-            </>
-          )}
-          {!isProduction && googleCalendarError ? (
-            <p className="text-xs text-red-600">{googleCalendarError}</p>
-          ) : null}
-        </div>
-
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold text-neutral-900">学事カレンダー設定</h2>
           <p className="text-sm text-neutral-600">
