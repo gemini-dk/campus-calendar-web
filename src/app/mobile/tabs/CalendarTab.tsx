@@ -20,6 +20,8 @@ import {
 import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
+const IS_PRODUCTION = process.env.VERCEL_ENV === 'production';
+
 const WEEKDAY_HEADERS = [
   { label: 'Sun', shortLabel: '日', color: '#f87171' },
   { label: 'Mon', shortLabel: '月', color: '#fb923c' },
@@ -682,7 +684,9 @@ function CalendarMonthSlide({
   onDateSelect,
 }: CalendarMonthSlideProps) {
   const monthKey = getMonthKey(monthDate);
-  const { eventsByDay: googleEventsByDay } = useGoogleCalendarEventsForMonth(monthKey);
+  const { eventsByDay: googleEventsByDay } = useGoogleCalendarEventsForMonth(monthKey, {
+    enabled: !IS_PRODUCTION,
+  });
   const rawDates = monthState?.dates ?? generateMonthDates(monthDate);
   const rawDateIds = monthState?.dateIds ?? rawDates.map((date) => formatDateId(date));
 
@@ -703,7 +707,7 @@ function CalendarMonthSlide({
           const academic = info?.academic;
           const day = info?.day ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
-          const googleEvents = googleEventsByDay[dateId] ?? [];
+          const googleEvents = IS_PRODUCTION ? [] : (googleEventsByDay[dateId] ?? []);
 
           const isCurrentMonth =
             date.getFullYear() === monthDate.getFullYear() &&

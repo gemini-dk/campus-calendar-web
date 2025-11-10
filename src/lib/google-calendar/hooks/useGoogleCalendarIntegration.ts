@@ -40,11 +40,18 @@ const DEFAULT_INTEGRATION_STATE: GoogleCalendarIntegrationDoc = {
   updatedAt: 0,
 };
 
-export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
+type UseGoogleCalendarIntegrationOptions = {
+  enabled?: boolean;
+};
+
+export function useGoogleCalendarIntegration(
+  options?: UseGoogleCalendarIntegrationOptions,
+): GoogleCalendarIntegrationState {
   const { profile } = useAuth();
   const userId = profile?.uid ?? null;
+  const isEnabled = options?.enabled ?? true;
   const [integration, setIntegration] = useState<GoogleCalendarIntegrationDoc | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(isEnabled);
   const [error, setError] = useState<string | null>(null);
   const [syncState, setSyncState] = useState<GoogleCalendarSyncState>({
     inProgress: false,
@@ -52,6 +59,14 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
     error: null,
   });
   useEffect(() => {
+    if (!isEnabled) {
+      setIntegration(null);
+      setLoading(false);
+      setError(null);
+      setSyncState({ inProgress: false, lastSyncedAt: null, error: null });
+      return;
+    }
+
     if (!userId) {
       setIntegration(null);
       setLoading(false);
@@ -117,9 +132,12 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
       cancelled = true;
       unsubscribe();
     };
-  }, [userId]);
+  }, [isEnabled, userId]);
 
   const connect = useCallback(async () => {
+    if (!isEnabled) {
+      return;
+    }
     if (!userId) {
       setError('Googleカレンダー連携にはログインが必要です。');
       return;
@@ -163,9 +181,12 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
         setError('Googleカレンダー連携に失敗しました。時間をおいて再度お試しください。');
       }
     }
-  }, [userId]);
+  }, [isEnabled, userId]);
 
   const disconnect = useCallback(async () => {
+    if (!isEnabled) {
+      return;
+    }
     if (!userId) {
       return;
     }
@@ -185,10 +206,10 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
       console.error('Google カレンダー連携の解除に失敗しました。', disconnectError);
       setError('Googleカレンダー連携の解除に失敗しました。時間をおいて再度お試しください。');
     }
-  }, [userId]);
+  }, [isEnabled, userId]);
 
   const syncNow = useCallback(async () => {
-    if (!userId || !integration) {
+    if (!isEnabled || !userId || !integration) {
       return;
     }
     try {
@@ -236,7 +257,7 @@ export function useGoogleCalendarIntegration(): GoogleCalendarIntegrationState {
         );
       }
     }
-  }, [integration, userId]);
+  }, [integration, isEnabled, userId]);
 
   useEffect(() => {
     if (!integration) {
