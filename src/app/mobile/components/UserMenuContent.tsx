@@ -4,7 +4,8 @@ import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvi
 import { useAuth } from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
 
-const IS_PRODUCTION = process.env.VERCEL_ENV === 'production';
+const IS_PRODUCTION =
+  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 type UserMenuContentProps = {
   className?: string;
