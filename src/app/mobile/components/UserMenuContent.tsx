@@ -2,11 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useToast } from '@/components/ui/ToastProvider';
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
-import {
-  AUTH_REDIRECT_ERROR_EVENT,
-  consumeAuthRedirectErrorParam,
-  useAuth,
-} from '@/lib/useAuth';
+import { useAuth } from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
 
 const IS_PRODUCTION =
@@ -60,7 +56,6 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
   const [changingDefault, setChangingDefault] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
-  const { showToast } = useToast();
 
   useEffect(() => {
     setEntries(toEditableEntries(settings.calendar.entries));
@@ -69,36 +64,6 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   useEffect(() => {
     setCalendarError(null);
   }, [entries]);
-
-  useEffect(() => {
-    const notifyRedirectError = () => {
-      const message = consumeAuthRedirectErrorParam();
-      if (!message) {
-        return;
-      }
-
-      showToast({
-        tone: 'error',
-        message: `${message} 既に他のアカウントと連携済のため、連携できません。このアカウントをご利用になるには一度ログアウトしてからログインし直してください。`,
-      });
-    };
-
-    notifyRedirectError();
-
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const handleRedirectError: EventListener = () => {
-      notifyRedirectError();
-    };
-
-    window.addEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
-
-    return () => {
-      window.removeEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
-    };
-  }, [showToast]);
 
   const activeEntry = useMemo(() => {
     return entries.find((entry) => entry.defaultFlag) ?? entries[0] ?? null;
