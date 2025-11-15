@@ -7,6 +7,7 @@ import {
   signInWithRedirect,
   signOut,
   type User,
+  type UserCredential,
 } from 'firebase/auth';
 import { useCallback, useEffect, useState } from 'react';
 import { FirebaseError } from 'firebase/app';
@@ -165,6 +166,13 @@ export function useAuth(): UseAuthState {
         }
 
         setIsProcessing(true);
+
+        const tokenResponseError = extractTokenResponseErrorMessage(result);
+        if (tokenResponseError) {
+          setError(tokenResponseError);
+          setAuthRedirectErrorParam(tokenResponseError);
+          return;
+        }
 
         if (result.operationType === 'link') {
           await result.user.reload();
@@ -426,4 +434,27 @@ export function consumeAuthRedirectErrorParam(): string | null {
 function extractProfile(payload: AuthCookiePayload): AuthUserProfile {
   const { uid, displayName, email, photoURL, isAnonymous } = payload;
   return { uid, displayName, email, photoURL, isAnonymous };
+}
+
+function extractTokenResponseErrorMessage(result: UserCredential | null): string | null {
+  if (!result) {
+    return null;
+  }
+
+  type TokenResponseWithError = {
+    errorMessage?: string;
+  };
+
+  const tokenResponse = (result as UserCredential & { _tokenResponse?: TokenResponseWithError | null })._tokenResponse;
+  if (!tokenResponse?.errorMessage) {
+    return null;
+  }
+
+  const { errorMessage } = tokenResponse;
+  switch (errorMessage) {
+    case 'FEDERATED_USER_ID_ALREADY_LINKED':
+      return 'このGoogleアカウントは既に別のユーザにリンクされています。別のアカウントをご利用ください。';
+    default:
+      return `Google認証に失敗しました（${errorMessage}）。時間をおいて再度お試しください。`;
+  }
 }
