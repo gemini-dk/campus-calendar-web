@@ -37,9 +37,12 @@ export function ToastProvider({ children }: PropsWithChildren) {
       const id = Date.now() + Math.random();
       setToasts((prev) => [...prev, { id, message, tone, durationMs }]);
 
-      window.setTimeout(() => {
-        removeToast(id);
-      }, durationMs);
+      // エラーメッセージの場合は自動削除しない
+      if (tone !== 'error') {
+        window.setTimeout(() => {
+          removeToast(id);
+        }, durationMs);
+      }
     },
     [removeToast],
   );
