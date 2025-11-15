@@ -99,7 +99,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   }, [entries]);
 
   const redirectAuthErrorMessage = redirectAuthError
-    ? `${redirectAuthError} 一度サインアウトしてから再度ログインすると解消する場合があります。`
+    ? `${redirectAuthError} 既に他のアカウントと連携済のため、連携できません。このアカウントをご利用になるには一度ログアウトしてからログインし直してください。`
     : null;
 
   const feedbackMessage = error
@@ -326,6 +326,8 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 今はゲストとして利用中です。ブラウザを閉じたりキャッシュを消すと、保存したデータがなくなる可能性があります。
                 <br />
                 安心して使い続けるために、Googleアカウントとの連携をお願いします。
+                <br />
+                なお、すでに連携済のアカウントがある場合は、<b>ログアウトしてから</b>そのアカウントでログインし直してください。
               </p>
             </div>
             <button
