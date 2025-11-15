@@ -160,10 +160,11 @@ export function useAuth(): UseAuthState {
     const handleRedirectResult = async () => {
       try {
         const result = await getRedirectResult(auth);
-        clearAuthRedirectErrorParam();
         if (!result) {
           return;
         }
+
+        clearAuthRedirectErrorParam();
 
         setIsProcessing(true);
 
