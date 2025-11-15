@@ -20,8 +20,8 @@ import {
 import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
-const IS_PRODUCTION =
-  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
+const IS_PRODUCTION = false;
+//  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 const WEEKDAY_HEADERS = [
   { label: 'Sun', shortLabel: '日', color: '#f87171' },

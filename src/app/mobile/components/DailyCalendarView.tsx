@@ -22,8 +22,8 @@ import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
 import { useGoogleCalendarEventsForDay } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
-const IS_PRODUCTION =
-  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
+const IS_PRODUCTION = false;
+//  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
