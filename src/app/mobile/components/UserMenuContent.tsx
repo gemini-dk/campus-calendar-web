@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useToast } from '@/components/ui/ToastProvider';
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import {
   AUTH_REDIRECT_ERROR_EVENT,
@@ -59,7 +60,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
   const [changingDefault, setChangingDefault] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
-  const [redirectAuthError, setRedirectAuthError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     setEntries(toEditableEntries(settings.calendar.entries));
@@ -70,21 +71,26 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   }, [entries]);
 
   useEffect(() => {
-    const applyRedirectErrorMessage = () => {
+    const notifyRedirectError = () => {
       const message = consumeAuthRedirectErrorParam();
-      if (message) {
-        setRedirectAuthError(message);
+      if (!message) {
+        return;
       }
+
+      showToast({
+        tone: 'error',
+        message: `${message} 既に他のアカウントと連携済のため、連携できません。このアカウントをご利用になるには一度ログアウトしてからログインし直してください。`,
+      });
     };
 
-    applyRedirectErrorMessage();
+    notifyRedirectError();
 
     if (typeof window === 'undefined') {
       return;
     }
 
     const handleRedirectError: EventListener = () => {
-      applyRedirectErrorMessage();
+      notifyRedirectError();
     };
 
     window.addEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
@@ -92,23 +98,17 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     return () => {
       window.removeEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
     };
-  }, []);
+  }, [showToast]);
 
   const activeEntry = useMemo(() => {
     return entries.find((entry) => entry.defaultFlag) ?? entries[0] ?? null;
   }, [entries]);
 
-  const redirectAuthErrorMessage = redirectAuthError
-    ? `${redirectAuthError} 既に他のアカウントと連携済のため、連携できません。このアカウントをご利用になるには一度ログアウトしてからログインし直してください。`
-    : null;
-
   const feedbackMessage = error
     ? { text: error, className: 'text-red-600' }
-    : redirectAuthErrorMessage
-      ? { text: redirectAuthErrorMessage, className: 'text-red-600' }
-      : successMessage
-        ? { text: successMessage, className: 'text-green-600' }
-        : null;
+    : successMessage
+      ? { text: successMessage, className: 'text-green-600' }
+      : null;
 
   const containerClassName = [
     'flex min-h-full flex-col gap-6 bg-neutral-50 p-4 text-neutral-800',
