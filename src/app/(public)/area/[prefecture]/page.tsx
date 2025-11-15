@@ -10,6 +10,7 @@ import {
   type PrefectureDefinition,
 } from '@/lib/prefectures';
 import { UniversityCardGrid, type UniversityWithColor } from '../../_components/university-grid';
+import GlobalFooter from '@/components/ui/GlobalFooter';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +102,7 @@ export default async function PrefecturePage({ params }: PrefecturePageProps) {
           </div>
         </aside>
       </div>
+      <GlobalFooter />
     </main>
   );
 }
