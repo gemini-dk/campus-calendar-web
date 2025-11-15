@@ -234,7 +234,7 @@ function SingleMonthCalendarView({ dataset, initialMonth }: SingleMonthCalendarV
   const errorMessage = isConfigReady ? null : "年度またはカレンダーIDが指定されていません。";
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center bg-neutral-100 px-4 py-8">
+    <div className="flex min-h-screen w-full items-center justify-center bg-neutral-100 px-4 py-8">
       <div className="flex w-full max-w-5xl flex-1 flex-col rounded-lg bg-white px-5 py-6 shadow">
         <header className="flex h-16 w-full items-end justify-end">
           <div className="flex h-full w-full max-w-xs flex-col justify-end">

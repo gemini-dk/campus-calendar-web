@@ -94,13 +94,27 @@ function mapEventSnapshot(snapshot: QueryDocumentSnapshot<DocumentData>): Google
   } satisfies GoogleCalendarEventRecord;
 }
 
-export function useGoogleCalendarEventsForMonth(monthKey: string) {
+type UseGoogleCalendarEventsOptions = {
+  enabled?: boolean;
+};
+
+export function useGoogleCalendarEventsForMonth(
+  monthKey: string,
+  options?: UseGoogleCalendarEventsOptions,
+) {
   const { profile } = useAuth();
   const userId = profile?.uid ?? null;
   const [events, setEvents] = useState<GoogleCalendarEventRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const isEnabled = options?.enabled ?? true;
+  const [loading, setLoading] = useState(isEnabled);
 
   useEffect(() => {
+    if (!isEnabled) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
+
     if (!userId || !monthKey) {
       setEvents([]);
       setLoading(false);
@@ -134,7 +148,7 @@ export function useGoogleCalendarEventsForMonth(monthKey: string) {
     return () => {
       unsubscribe();
     };
-  }, [monthKey, userId]);
+  }, [isEnabled, monthKey, userId]);
 
   const eventsByDay = useMemo(() => {
     const map: Record<string, GoogleCalendarEventRecord[]> = {};
@@ -155,13 +169,23 @@ export function useGoogleCalendarEventsForMonth(monthKey: string) {
   return { events, eventsByDay, loading } as const;
 }
 
-export function useGoogleCalendarEventsForDay(dateId: string) {
+export function useGoogleCalendarEventsForDay(
+  dateId: string,
+  options?: UseGoogleCalendarEventsOptions,
+) {
   const { profile } = useAuth();
   const userId = profile?.uid ?? null;
   const [events, setEvents] = useState<GoogleCalendarEventRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const isEnabled = options?.enabled ?? true;
+  const [loading, setLoading] = useState(isEnabled);
 
   useEffect(() => {
+    if (!isEnabled) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
+
     if (!userId || !dateId) {
       setEvents([]);
       setLoading(false);
@@ -195,7 +219,7 @@ export function useGoogleCalendarEventsForDay(dateId: string) {
     return () => {
       unsubscribe();
     };
-  }, [dateId, userId]);
+  }, [dateId, isEnabled, userId]);
 
   return { events, loading } as const;
 }

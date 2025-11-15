@@ -10,6 +10,7 @@ import { buildUniversityCalendarCanonicalUrl, buildUniversityCalendarYearUrl } f
 import { extractSchoolColor } from "@/lib/university-color";
 import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
 import type { UniversityCalendar } from "@/lib/data/schema/university";
+import GlobalFooter from "@/components/ui/GlobalFooter";
 
 const KEYWORD_VARIANTS = [
   "学事予定",
@@ -353,7 +354,7 @@ export default async function Page({ params }: PageProps) {
     .filter((item): item is { id: string; comment: string } => Boolean(item.comment));
 
   return (
-    <main className="relative flex min-h-screen w-full flex-1 flex-col bg-neutral-100 pb-40">
+    <main className="relative flex min-h-screen w-full flex-1 flex-col bg-neutral-100 pb-0">
       <div className="flex w-full min-[1024px]:pr-0">
         <div className="flex w-full justify-center py-12 min-[1024px]:pr-[300px]">
           <div className="w-full max-w-[724px] min-[1280px]:max-w-[980px] 2xl:max-w-[1236px]">
@@ -425,6 +426,9 @@ export default async function Page({ params }: PageProps) {
                 universityName={university.name}
                 horizontalPaddingClassName={contentHorizontalPadding}
               />
+              <div className="flex w-full pb-10">
+                <GlobalFooter />
+              </div>              
             </div>
           </div>
         </div>
