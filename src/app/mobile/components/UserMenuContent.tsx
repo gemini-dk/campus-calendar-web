@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
-import {
-  AUTH_REDIRECT_ERROR_EVENT,
-  consumeAuthRedirectErrorParam,
-  useAuth,
-} from '@/lib/useAuth';
+import { useAuth } from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
 
 const IS_PRODUCTION =
@@ -59,7 +55,6 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
   const [changingDefault, setChangingDefault] = useState(false);
   const [calendarError, setCalendarError] = useState<string | null>(null);
-  const [redirectAuthError, setRedirectAuthError] = useState<string | null>(null);
 
   useEffect(() => {
     setEntries(toEditableEntries(settings.calendar.entries));
@@ -69,46 +64,15 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     setCalendarError(null);
   }, [entries]);
 
-  useEffect(() => {
-    const applyRedirectErrorMessage = () => {
-      const message = consumeAuthRedirectErrorParam();
-      if (message) {
-        setRedirectAuthError(message);
-      }
-    };
-
-    applyRedirectErrorMessage();
-
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const handleRedirectError: EventListener = () => {
-      applyRedirectErrorMessage();
-    };
-
-    window.addEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
-
-    return () => {
-      window.removeEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
-    };
-  }, []);
-
   const activeEntry = useMemo(() => {
     return entries.find((entry) => entry.defaultFlag) ?? entries[0] ?? null;
   }, [entries]);
 
-  const redirectAuthErrorMessage = redirectAuthError
-    ? `${redirectAuthError} 既に他のアカウントと連携済のため、連携できません。このアカウントをご利用になるには一度ログアウトしてからログインし直してください。`
-    : null;
-
   const feedbackMessage = error
     ? { text: error, className: 'text-red-600' }
-    : redirectAuthErrorMessage
-      ? { text: redirectAuthErrorMessage, className: 'text-red-600' }
-      : successMessage
-        ? { text: successMessage, className: 'text-green-600' }
-        : null;
+    : successMessage
+      ? { text: successMessage, className: 'text-green-600' }
+      : null;
 
   const containerClassName = [
     'flex min-h-full flex-col gap-6 bg-neutral-50 p-4 text-neutral-800',
