@@ -14,6 +14,9 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 import { auth, db, googleProvider } from '@/lib/firebase/client';
 
+const AUTH_REDIRECT_ERROR_PARAM = 'authRedirectError';
+export const AUTH_REDIRECT_ERROR_EVENT = 'campus-calendar:auth-redirect-error';
+
 const AUTH_COOKIE_NAME = 'campus-calendar-auth';
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -156,6 +159,7 @@ export function useAuth(): UseAuthState {
     const handleRedirectResult = async () => {
       try {
         const result = await getRedirectResult(auth);
+        clearAuthRedirectErrorParam();
         if (!result) {
           return;
         }
@@ -185,10 +189,15 @@ export function useAuth(): UseAuthState {
         if (!canceled) {
           if (err instanceof FirebaseError) {
             setError(err.message);
+            setAuthRedirectErrorParam(err.message);
           } else if (err instanceof Error) {
             setError(err.message);
+            setAuthRedirectErrorParam(err.message);
           } else {
-            setError('リダイレクト後のサインイン処理に失敗しました。時間をおいて再度お試しください。');
+            const fallbackMessage =
+              'リダイレクト後のサインイン処理に失敗しました。時間をおいて再度お試しください。';
+            setError(fallbackMessage);
+            setAuthRedirectErrorParam(fallbackMessage);
           }
         }
       } finally {
@@ -363,6 +372,55 @@ function clearAuthCookie() {
   }
 
   document.cookie = `${AUTH_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+}
+
+function setAuthRedirectErrorParam(message: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.set(AUTH_REDIRECT_ERROR_PARAM, message);
+  window.history.replaceState(window.history.state, '', url);
+
+  window.setTimeout(() => {
+    window.dispatchEvent(
+      new CustomEvent(AUTH_REDIRECT_ERROR_EVENT, {
+        detail: message,
+      }),
+    );
+  }, 0);
+}
+
+export function clearAuthRedirectErrorParam() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(AUTH_REDIRECT_ERROR_PARAM)) {
+    return;
+  }
+
+  url.searchParams.delete(AUTH_REDIRECT_ERROR_PARAM);
+  window.history.replaceState(window.history.state, '', url);
+}
+
+export function consumeAuthRedirectErrorParam(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const url = new URL(window.location.href);
+  const message = url.searchParams.get(AUTH_REDIRECT_ERROR_PARAM);
+  if (!message) {
+    return null;
+  }
+
+  url.searchParams.delete(AUTH_REDIRECT_ERROR_PARAM);
+  window.history.replaceState(window.history.state, '', url);
+
+  return message;
 }
 
 function extractProfile(payload: AuthCookiePayload): AuthUserProfile {
