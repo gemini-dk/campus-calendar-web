@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
-import { consumeAuthRedirectErrorParam, useAuth } from '@/lib/useAuth';
+import {
+  AUTH_REDIRECT_ERROR_EVENT,
+  consumeAuthRedirectErrorParam,
+  useAuth,
+} from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
 
 const IS_PRODUCTION =
@@ -66,10 +70,28 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   }, [entries]);
 
   useEffect(() => {
-    const message = consumeAuthRedirectErrorParam();
-    if (message) {
-      setRedirectAuthError(message);
+    const applyRedirectErrorMessage = () => {
+      const message = consumeAuthRedirectErrorParam();
+      if (message) {
+        setRedirectAuthError(message);
+      }
+    };
+
+    applyRedirectErrorMessage();
+
+    if (typeof window === 'undefined') {
+      return;
     }
+
+    const handleRedirectError: EventListener = () => {
+      applyRedirectErrorMessage();
+    };
+
+    window.addEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
+
+    return () => {
+      window.removeEventListener(AUTH_REDIRECT_ERROR_EVENT, handleRedirectError);
+    };
   }, []);
 
   const activeEntry = useMemo(() => {
