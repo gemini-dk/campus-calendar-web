@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useToast } from '@/components/ui/ToastProvider';
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
