@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback } from "react";
 
-import SupportDialog from "../[webId]/calendar/_components/SupportDialog";
-import { DEFAULT_FISCAL_YEAR } from "@/lib/constants/fiscal-year";
+import { openSupportForm } from "../[webId]/calendar/_components/supportForm";
 
 export default function TopPageAdvertisementSection() {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const handleAdvertisementClick = useCallback(() => {
+    openSupportForm({
+      type: "誤り報告",
+      college: "全大学横断",
+      message: "大学のインカレ団体の紹介などを掲載しませんか？お気軽にご連絡ください。",
+    });
+  }, []);
 
   return (
     <>
@@ -19,22 +24,12 @@ export default function TopPageAdvertisementSection() {
         </p>
         <button
           type="button"
-          onClick={() => setIsDialogOpen(true)}
+          onClick={handleAdvertisementClick}
           className="inline-flex h-11 w-full items-center justify-center rounded border border-amber-500 bg-amber-500/10 px-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-500/20"
         >
           広告掲載の相談をする
         </button>
       </div>
-      {isDialogOpen ? (
-        <SupportDialog
-          type="advertisement"
-          onClose={() => setIsDialogOpen(false)}
-          activeFiscalYear={DEFAULT_FISCAL_YEAR}
-          universityName="全大学横断"
-          webId="top-page"
-          calendar={null}
-        />
-      ) : null}
     </>
   );
 }
