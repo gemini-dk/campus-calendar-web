@@ -36,6 +36,10 @@ import {
   ActivityDialogProvider,
   useActivityDialog,
 } from "@/app/mobile/components/ActivityDialogProvider";
+import {
+  ScheduleAdjustmentDialogProvider,
+  useScheduleAdjustmentDialog,
+} from "@/app/mobile/components/ScheduleAdjustmentDialogProvider";
 import type { Activity } from "@/app/mobile/features/activities/types";
 import CreateClassDialog, { type EditClassInitialData } from "@/app/mobile/tabs/classes/CreateClassDialog";
 import type { CalendarOption } from "@/app/mobile/tabs/classes/TermSettingsDialog";
@@ -802,10 +806,13 @@ function SessionRecordItem({
   updating: boolean;
 }) {
   const dateLabel = formatMonthDayLabel(record.classDate);
+  const cardBackgroundClass = record.isCancelled ? "bg-neutral-100" : "bg-white";
 
   return (
     <li className="py-1">
-      <article className="flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+      <article
+        className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 px-4 py-3 shadow-sm ${cardBackgroundClass}`.trim()}
+      >
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
@@ -895,6 +902,9 @@ function ActivityRecordItem({
 type UpcomingSession = {
   id: string;
   classDate: string;
+  periods: (number | "OD")[];
+  isCancelled: boolean;
+  isTest: boolean;
 };
 
 type UpcomingAssignmentTimelineItem = {
@@ -922,11 +932,13 @@ function UpcomingActivityPanel({
   isHybridClass,
   onSelectActivity,
   onToggleAssignmentStatus,
+  onRequestScheduleChange,
 }: {
   items: UpcomingTimelineItem[];
   isHybridClass: boolean;
   onSelectActivity?: (activity: ActivityDoc) => void;
   onToggleAssignmentStatus?: (activity: ActivityDoc) => void;
+  onRequestScheduleChange?: (session: UpcomingSession) => void;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-neutral-600">今後の活動はありません。</p>;
@@ -940,6 +952,7 @@ function UpcomingActivityPanel({
             key={`session-${item.id}`}
             session={item.session}
             showHybridSelector={isHybridClass}
+            onRequestScheduleChange={onRequestScheduleChange}
           />
         ) : (
           <UpcomingAssignmentItem
@@ -958,34 +971,50 @@ function UpcomingActivityPanel({
 function UpcomingSessionItem({
   session,
   showHybridSelector,
+  onRequestScheduleChange,
 }: {
   session: UpcomingSession;
   showHybridSelector: boolean;
+  onRequestScheduleChange?: (session: UpcomingSession) => void;
 }) {
   const dateLabel = formatMonthDayCompact(session.classDate);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("in_person");
+  const cardBackgroundClass = session.isCancelled ? "bg-neutral-100" : "bg-white";
 
   return (
-    <li className="flex w-full items-center justify-between gap-3 py-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-sm font-semibold text-neutral-900">授業({dateLabel})</span>
-      </div>
-      <div className="flex items-center gap-2">
-        {showHybridSelector ? (
-          <DeliveryToggleGroup
-            value={deliveryType}
-            onChange={setDeliveryType}
-            labels={{ remote: "ハイブリッド" }}
-          />
-        ) : null}
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
-          aria-label="日程変更"
-        >
-          <FontAwesomeIcon icon={faCalendarDays} className="text-base" aria-hidden="true" />
-        </button>
-      </div>
+    <li className="py-1">
+      <article
+        className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 px-4 py-3 shadow-sm ${cardBackgroundClass}`.trim()}
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
+            {session.isTest ? (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
+            ) : null}
+            {session.isCancelled ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {showHybridSelector ? (
+            <DeliveryToggleGroup
+              value={deliveryType}
+              onChange={setDeliveryType}
+              labels={{ remote: "ハイブリッド" }}
+            />
+          ) : null}
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+            aria-label="日程変更"
+            onClick={() => onRequestScheduleChange?.(session)}
+          >
+            <FontAwesomeIcon icon={faCalendarDays} className="text-base" aria-hidden="true" />
+          </button>
+        </div>
+      </article>
     </li>
   );
 }
@@ -1094,6 +1123,7 @@ export function ClassActivityContent({
   const { settings } = useUserSettings();
   const router = useRouter();
   const { openCreateDialog, openEditDialog } = useActivityDialog();
+  const { openDialog: openScheduleDialog } = useScheduleAdjustmentDialog();
 
   const normalizedClassId = useMemo(() => {
     if (classId == null) {
@@ -1130,6 +1160,26 @@ export function ClassActivityContent({
   const [updatingAttendanceId, setUpdatingAttendanceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"history" | "upcoming">("history");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const handleScheduleChangeRequest = useCallback(
+    (session: UpcomingSession) => {
+      if (!normalizedClassId || !fiscalYear) {
+        return;
+      }
+      const label = classDetail?.className?.trim()?.length
+        ? classDetail.className.trim()
+        : "授業";
+      openScheduleDialog({
+        classId: normalizedClassId,
+        className: label,
+        classDateId: session.id,
+        classDate: session.classDate,
+        periods: session.periods,
+        fiscalYear,
+      });
+    },
+    [classDetail?.className, fiscalYear, normalizedClassId, openScheduleDialog],
+  );
 
   const handleAttendanceChange = useCallback(
     async (classDateId: string, status: AttendanceStatus) => {
@@ -1184,7 +1234,13 @@ export function ClassActivityContent({
       .map((date) => ({
         kind: "session" as const,
         id: date.id,
-        session: { id: date.id, classDate: date.classDate },
+        session: {
+          id: date.id,
+          classDate: date.classDate,
+          periods: date.periods,
+          isCancelled: date.isCancelled,
+          isTest: date.isTest,
+        },
         dueTimestamp: parseDueTimestamp(date.classDate) ?? Number.POSITIVE_INFINITY,
       }));
 
@@ -1573,6 +1629,7 @@ export function ClassActivityContent({
                 isHybridClass={classDetail?.classType === "hybrid"}
                 onSelectActivity={handleSelectActivity}
                 onToggleAssignmentStatus={handleToggleAssignmentStatus}
+                onRequestScheduleChange={handleScheduleChangeRequest}
               />
             )}
           </div>
@@ -1611,11 +1668,13 @@ export default function ClassActivityPage() {
   const fiscalYearParam = searchParams.get("fiscalYear");
 
   return (
-    <ActivityDialogProvider>
-      <ClassActivityContent
-        classId={classIdParam}
-        fiscalYearOverride={fiscalYearParam}
-      />
-    </ActivityDialogProvider>
+    <ScheduleAdjustmentDialogProvider>
+      <ActivityDialogProvider>
+        <ClassActivityContent
+          classId={classIdParam}
+          fiscalYearOverride={fiscalYearParam}
+        />
+      </ActivityDialogProvider>
+    </ScheduleAdjustmentDialogProvider>
   );
 }

@@ -18,6 +18,10 @@ import ClassActivityOverlay, {
 import DailyClassesSection, {
   type DailyClassSession,
 } from '../tabs/HomeTab/DailyClassesSection';
+import {
+  ScheduleAdjustmentDialogProvider,
+  useScheduleAdjustmentDialog,
+} from './ScheduleAdjustmentDialogProvider';
 import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
 import { useGoogleCalendarEventsForDay } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
@@ -127,6 +131,14 @@ function formatEventTimeLabel(dateTime: string | null, timeZone: string | null):
 }
 
 export default function DailyCalendarView({ dateId, onClose }: DailyCalendarViewProps) {
+  return (
+    <ScheduleAdjustmentDialogProvider>
+      <DailyCalendarViewContent dateId={dateId} onClose={onClose} />
+    </ScheduleAdjustmentDialogProvider>
+  );
+}
+
+function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
   const normalizedDateId = useMemo(() => normalizeDateId(dateId), [dateId]);
   const { settings, initialized: settingsInitialized } = useUserSettings();
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
@@ -137,6 +149,7 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ClassActivityOverlaySession | null>(null);
+  const { openDialog: openScheduleDialog } = useScheduleAdjustmentDialog();
 
   const activeCalendarEntry = useMemo(() => {
     return (
@@ -149,6 +162,24 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
   }, [settings.calendar.calendarId, settings.calendar.entries, settings.calendar.fiscalYear]);
 
   const hasSaturdayClasses = activeCalendarEntry?.hasSaturdayClasses ?? true;
+
+  const handleRequestScheduleChange = useCallback(
+    (session: DailyClassSession) => {
+      const activeFiscalYear = settings.calendar.fiscalYear?.trim();
+      if (!activeFiscalYear) {
+        return;
+      }
+      openScheduleDialog({
+        classId: session.classId,
+        className: session.className,
+        classDateId: session.classDateId,
+        classDate: session.classDate,
+        periods: session.periods,
+        fiscalYear: activeFiscalYear,
+      });
+    },
+    [openScheduleDialog, settings.calendar.fiscalYear],
+  );
 
   useEffect(() => {
     let active = true;
@@ -330,6 +361,7 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
             authInitializing={authInitializing}
             isAuthenticated={isAuthenticated}
             onSelectClass={handleSelectClassSession}
+            onRequestScheduleChange={handleRequestScheduleChange}
           />
 
           {(googleEventsLoading || googleEvents.length > 0) ? (
