@@ -107,6 +107,7 @@ type DailyClassesSectionProps = {
   authInitializing: boolean;
   isAuthenticated: boolean;
   onSelectClass?: (session: DailyClassSession) => void;
+  onRequestScheduleChange?: (session: DailyClassSession) => void;
 };
 
 const CLASS_TYPE_ICON: Record<ClassType, IconDefinition> = {
@@ -555,6 +556,7 @@ export default function DailyClassesSection({
   authInitializing,
   isAuthenticated,
   onSelectClass,
+  onRequestScheduleChange,
 }: DailyClassesSectionProps) {
   const { loading, error, sessions, requiresSetup, updateAttendanceStatus, updateDeliveryType } =
     useDailyClassSessions({ userId, fiscalYear, dateId });
@@ -610,6 +612,7 @@ export default function DailyClassesSection({
               onSelectClass={onSelectClass}
               userId={userId}
               fiscalYear={fiscalYear}
+              onRequestScheduleChange={onRequestScheduleChange}
             />
           ))}
         </ul>
@@ -633,6 +636,7 @@ type DailyClassCardProps = {
   onSelectClass?: (session: DailyClassSession) => void;
   userId: string | null;
   fiscalYear: string | null;
+  onRequestScheduleChange?: (session: DailyClassSession) => void;
 };
 
 function DailyClassCard({
@@ -642,6 +646,7 @@ function DailyClassCard({
   onSelectClass,
   userId,
   fiscalYear,
+  onRequestScheduleChange,
 }: DailyClassCardProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [attendanceUpdating, setAttendanceUpdating] = useState(false);
@@ -722,6 +727,14 @@ function DailyClassCard({
   const handleInteractiveClick = useCallback((event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
   }, []);
+
+  const handleScheduleButtonClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      onRequestScheduleChange?.(session);
+    },
+    [onRequestScheduleChange, session],
+  );
 
   const navigateToActivityForm = useCallback(
     (
@@ -895,7 +908,7 @@ function DailyClassCard({
                 icon={faCalendarDays}
                 label="日程変更"
                 variant="neutral"
-                onClick={handleInteractiveClick}
+                onClick={handleScheduleButtonClick}
               />
             ) : null}
           </div>

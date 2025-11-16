@@ -36,6 +36,10 @@ import {
   ActivityDialogProvider,
   useActivityDialog,
 } from "@/app/mobile/components/ActivityDialogProvider";
+import {
+  ScheduleAdjustmentDialogProvider,
+  useScheduleAdjustmentDialog,
+} from "@/app/mobile/components/ScheduleAdjustmentDialogProvider";
 import type { Activity } from "@/app/mobile/features/activities/types";
 import CreateClassDialog, { type EditClassInitialData } from "@/app/mobile/tabs/classes/CreateClassDialog";
 import type { CalendarOption } from "@/app/mobile/tabs/classes/TermSettingsDialog";
@@ -895,6 +899,7 @@ function ActivityRecordItem({
 type UpcomingSession = {
   id: string;
   classDate: string;
+  periods: (number | "OD")[];
 };
 
 type UpcomingAssignmentTimelineItem = {
@@ -922,11 +927,13 @@ function UpcomingActivityPanel({
   isHybridClass,
   onSelectActivity,
   onToggleAssignmentStatus,
+  onRequestScheduleChange,
 }: {
   items: UpcomingTimelineItem[];
   isHybridClass: boolean;
   onSelectActivity?: (activity: ActivityDoc) => void;
   onToggleAssignmentStatus?: (activity: ActivityDoc) => void;
+  onRequestScheduleChange?: (session: UpcomingSession) => void;
 }) {
   if (items.length === 0) {
     return <p className="text-sm text-neutral-600">今後の活動はありません。</p>;
@@ -940,6 +947,7 @@ function UpcomingActivityPanel({
             key={`session-${item.id}`}
             session={item.session}
             showHybridSelector={isHybridClass}
+            onRequestScheduleChange={onRequestScheduleChange}
           />
         ) : (
           <UpcomingAssignmentItem
@@ -958,9 +966,11 @@ function UpcomingActivityPanel({
 function UpcomingSessionItem({
   session,
   showHybridSelector,
+  onRequestScheduleChange,
 }: {
   session: UpcomingSession;
   showHybridSelector: boolean;
+  onRequestScheduleChange?: (session: UpcomingSession) => void;
 }) {
   const dateLabel = formatMonthDayCompact(session.classDate);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("in_person");
@@ -982,6 +992,7 @@ function UpcomingSessionItem({
           type="button"
           className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
           aria-label="日程変更"
+          onClick={() => onRequestScheduleChange?.(session)}
         >
           <FontAwesomeIcon icon={faCalendarDays} className="text-base" aria-hidden="true" />
         </button>
@@ -1094,6 +1105,7 @@ export function ClassActivityContent({
   const { settings } = useUserSettings();
   const router = useRouter();
   const { openCreateDialog, openEditDialog } = useActivityDialog();
+  const { openDialog: openScheduleDialog } = useScheduleAdjustmentDialog();
 
   const normalizedClassId = useMemo(() => {
     if (classId == null) {
@@ -1130,6 +1142,26 @@ export function ClassActivityContent({
   const [updatingAttendanceId, setUpdatingAttendanceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"history" | "upcoming">("history");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const handleScheduleChangeRequest = useCallback(
+    (session: UpcomingSession) => {
+      if (!normalizedClassId || !fiscalYear) {
+        return;
+      }
+      const label = classDetail?.className?.trim()?.length
+        ? classDetail.className.trim()
+        : "授業";
+      openScheduleDialog({
+        classId: normalizedClassId,
+        className: label,
+        classDateId: session.id,
+        classDate: session.classDate,
+        periods: session.periods,
+        fiscalYear,
+      });
+    },
+    [classDetail?.className, fiscalYear, normalizedClassId, openScheduleDialog],
+  );
 
   const handleAttendanceChange = useCallback(
     async (classDateId: string, status: AttendanceStatus) => {
@@ -1184,7 +1216,7 @@ export function ClassActivityContent({
       .map((date) => ({
         kind: "session" as const,
         id: date.id,
-        session: { id: date.id, classDate: date.classDate },
+        session: { id: date.id, classDate: date.classDate, periods: date.periods },
         dueTimestamp: parseDueTimestamp(date.classDate) ?? Number.POSITIVE_INFINITY,
       }));
 
@@ -1573,6 +1605,7 @@ export function ClassActivityContent({
                 isHybridClass={classDetail?.classType === "hybrid"}
                 onSelectActivity={handleSelectActivity}
                 onToggleAssignmentStatus={handleToggleAssignmentStatus}
+                onRequestScheduleChange={handleScheduleChangeRequest}
               />
             )}
           </div>
@@ -1611,11 +1644,13 @@ export default function ClassActivityPage() {
   const fiscalYearParam = searchParams.get("fiscalYear");
 
   return (
-    <ActivityDialogProvider>
-      <ClassActivityContent
-        classId={classIdParam}
-        fiscalYearOverride={fiscalYearParam}
-      />
-    </ActivityDialogProvider>
+    <ScheduleAdjustmentDialogProvider>
+      <ActivityDialogProvider>
+        <ClassActivityContent
+          classId={classIdParam}
+          fiscalYearOverride={fiscalYearParam}
+        />
+      </ActivityDialogProvider>
+    </ScheduleAdjustmentDialogProvider>
   );
 }

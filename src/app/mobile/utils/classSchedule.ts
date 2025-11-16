@@ -93,7 +93,7 @@ export function computeAttendanceSummary(
   let totalCount = 0;
 
   for (const item of items) {
-    if (item.isExcludedFromSummary || item.isCancelled) {
+    if (item.isExcludedFromSummary) {
       continue;
     }
 
