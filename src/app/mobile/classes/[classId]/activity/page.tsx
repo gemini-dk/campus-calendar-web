@@ -806,10 +806,13 @@ function SessionRecordItem({
   updating: boolean;
 }) {
   const dateLabel = formatMonthDayLabel(record.classDate);
+  const cardBackgroundClass = record.isCancelled ? "bg-neutral-100" : "bg-white";
 
   return (
     <li className="py-1">
-      <article className="flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 shadow-sm">
+      <article
+        className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 px-4 py-3 shadow-sm ${cardBackgroundClass}`.trim()}
+      >
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
@@ -900,6 +903,8 @@ type UpcomingSession = {
   id: string;
   classDate: string;
   periods: (number | "OD")[];
+  isCancelled: boolean;
+  isTest: boolean;
 };
 
 type UpcomingAssignmentTimelineItem = {
@@ -974,29 +979,42 @@ function UpcomingSessionItem({
 }) {
   const dateLabel = formatMonthDayCompact(session.classDate);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("in_person");
+  const cardBackgroundClass = session.isCancelled ? "bg-neutral-100" : "bg-white";
 
   return (
-    <li className="flex w-full items-center justify-between gap-3 py-3">
-      <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-sm font-semibold text-neutral-900">授業({dateLabel})</span>
-      </div>
-      <div className="flex items-center gap-2">
-        {showHybridSelector ? (
-          <DeliveryToggleGroup
-            value={deliveryType}
-            onChange={setDeliveryType}
-            labels={{ remote: "ハイブリッド" }}
-          />
-        ) : null}
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
-          aria-label="日程変更"
-          onClick={() => onRequestScheduleChange?.(session)}
-        >
-          <FontAwesomeIcon icon={faCalendarDays} className="text-base" aria-hidden="true" />
-        </button>
-      </div>
+    <li className="py-1">
+      <article
+        className={`flex w-full items-center justify-between gap-3 rounded-2xl border border-neutral-200 px-4 py-3 shadow-sm ${cardBackgroundClass}`.trim()}
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="truncate text-sm font-semibold text-neutral-900">授業 ({dateLabel})</span>
+            {session.isTest ? (
+              <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-600">試験</span>
+            ) : null}
+            {session.isCancelled ? (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-600">休講</span>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {showHybridSelector ? (
+            <DeliveryToggleGroup
+              value={deliveryType}
+              onChange={setDeliveryType}
+              labels={{ remote: "ハイブリッド" }}
+            />
+          ) : null}
+          <button
+            type="button"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100"
+            aria-label="日程変更"
+            onClick={() => onRequestScheduleChange?.(session)}
+          >
+            <FontAwesomeIcon icon={faCalendarDays} className="text-base" aria-hidden="true" />
+          </button>
+        </div>
+      </article>
     </li>
   );
 }
@@ -1216,7 +1234,13 @@ export function ClassActivityContent({
       .map((date) => ({
         kind: "session" as const,
         id: date.id,
-        session: { id: date.id, classDate: date.classDate, periods: date.periods },
+        session: {
+          id: date.id,
+          classDate: date.classDate,
+          periods: date.periods,
+          isCancelled: date.isCancelled,
+          isTest: date.isTest,
+        },
         dueTimestamp: parseDueTimestamp(date.classDate) ?? Number.POSITIVE_INFINITY,
       }));
 
