@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
 
 import PublicCalendarView from "@/app/(public)/public/calendar/_components/PublicCalendarView";
 import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
@@ -69,6 +69,34 @@ const UniversityCalendarContent = forwardRef<
   const withHorizontalPadding = (className: string) =>
     horizontalPaddingClassName ? `${className} ${horizontalPaddingClassName}` : className;
 
+  const openSupportForm = useCallback((params: Record<string, string>) => {
+    const url = new URL("https://campus-calendar.launchfy.support/ja/supportform");
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+    window.open(url.toString(), "_blank", "noopener,noreferrer");
+  }, []);
+
+  const handleReportClick = useCallback(() => {
+    if (!activeCalendar) {
+      return;
+    }
+    openSupportForm({
+      type: "誤り報告",
+      college: universityName,
+      calendar: activeCalendar.name,
+    });
+  }, [activeCalendar, openSupportForm, universityName]);
+
+  const handleRequestClick = useCallback(() => {
+    openSupportForm({
+      type: "カレンダー追加依頼",
+      college: universityName,
+      message:
+        "対応して欲しい学事予定の内容が記載されている公式ページのURLを教えてもらえると対応がしやすいです。",
+    });
+  }, [openSupportForm, universityName]);
+
   return (
     <>
       <div className="flex w-full flex-col gap-6 pb-36 md:pb-32">
@@ -125,15 +153,15 @@ const UniversityCalendarContent = forwardRef<
         <div className={withHorizontalPadding("flex w-full justify-end gap-2")}>
           <button
             type="button"
-            onClick={() => setSupportDialogType("report")}
+            onClick={handleReportClick}
             disabled={!activeCalendar}
             className="inline-flex items-center justify-center rounded border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-800 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            間違い報告
+            誤り報告
           </button>
           <button
             type="button"
-            onClick={() => setSupportDialogType("request")}
+            onClick={handleRequestClick}
             className="inline-flex items-center justify-center rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700"
           >
             カレンダー追加依頼
