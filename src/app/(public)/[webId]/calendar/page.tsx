@@ -7,6 +7,6 @@ type PageProps = {
 };
 
 export default async function Page({ params }: PageProps) {
-  const { webId } = params;
+  const { webId } = await params;
   permanentRedirect(`/${encodeURIComponent(webId)}/calendar/${DEFAULT_FISCAL_YEAR}`);
 }

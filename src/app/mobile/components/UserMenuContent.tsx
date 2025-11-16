@@ -5,8 +5,8 @@ import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvi
 import { useAuth } from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
 
-const IS_PRODUCTION = false;
-//  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
+const IS_PRODUCTION = 
+  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 type UserMenuContentProps = {
   className?: string;
@@ -448,6 +448,57 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
             カレンダーを追加
           </a>
         </div>
+      </section>
+
+      <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold text-neutral-900">サポート</h2>
+          <p className="text-sm text-neutral-600">
+            操作に関する質問やお問い合わせは、以下のサポートページをご確認ください。
+          </p>
+        </div>
+        <ul className="mt-4 flex flex-col gap-2 text-sm">
+          <li>
+            <a
+              href="https://campus-calendar.launchfy.support/ja/page/faq"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline-offset-2 hover:underline"
+            >
+              FAQ
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://campus-calendar.launchfy.support/ja/page/supportform"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline-offset-2 hover:underline"
+            >
+              お問い合わせ
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://campus-calendar.launchfy.support/ja/page/eula"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline-offset-2 hover:underline"
+            >
+              利用規約
+            </a>
+          </li>
+          <li>
+            <a
+              href="https://campus-calendar.launchfy.support/ja/page/privacypolicy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline-offset-2 hover:underline"
+            >
+              プライバシーポリシー
+            </a>
+          </li>
+        </ul>
       </section>
 
     </div>
