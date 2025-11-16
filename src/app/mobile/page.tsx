@@ -29,6 +29,19 @@ import { ensureCalendarDataIsCached } from "@/lib/data/service/calendar.service"
 import { CalendarConflictError, useUserSettings } from "@/lib/settings/UserSettingsProvider";
 import { useAuth } from "@/lib/useAuth";
 
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+function setGoogleAnalyticsUserProperties(properties: Record<string, string>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.gtag?.("set", "user_properties", properties);
+}
+
 const TAB_ICON_SIZE = 24;
 
 const renderDefaultTabIcon = (icon: IconDefinition) => (
@@ -82,6 +95,36 @@ function MobilePageContent() {
       console.error("学事カレンダーのキャッシュ生成に失敗しました。", error);
     });
   }, [settings.calendar.calendarId, settings.calendar.fiscalYear, settingsInitialized]);
+
+  useEffect(() => {
+    if (!settingsInitialized) {
+      return;
+    }
+
+    const entries = settings.calendar.entries ?? [];
+    const activeEntry =
+      entries.find((entry) => entry.defaultFlag) ??
+      entries.find(
+        (entry) =>
+          entry.fiscalYear === settings.calendar.fiscalYear &&
+          entry.calendarId === settings.calendar.calendarId,
+      ) ??
+      null;
+
+    const universityName = activeEntry?.universityName?.trim();
+    if (!universityName) {
+      return;
+    }
+
+    setGoogleAnalyticsUserProperties({
+      university_name: universityName,
+    });
+  }, [
+    settings.calendar.calendarId,
+    settings.calendar.entries,
+    settings.calendar.fiscalYear,
+    settingsInitialized,
+  ]);
 
   const tabFromParams = useMemo<TabId>(() => {
     const param = searchParams.get("tab");
