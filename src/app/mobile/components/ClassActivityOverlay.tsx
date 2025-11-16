@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
 
 import { ClassActivityContent } from '@/app/mobile/classes/[classId]/activity/page';
+import { ScheduleAdjustmentDialogProvider } from '@/app/mobile/components/ScheduleAdjustmentDialogProvider';
 
 export type ClassActivityOverlaySession = {
   classId: string;
@@ -65,7 +66,9 @@ export default function ClassActivityOverlay({
         </div>
       </header>
       <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-100">
-        <ClassActivityContent classId={session.classId} fiscalYearOverride={fiscalYear} />
+        <ScheduleAdjustmentDialogProvider>
+          <ClassActivityContent classId={session.classId} fiscalYearOverride={fiscalYear} />
+        </ScheduleAdjustmentDialogProvider>
       </div>
     </div>
   );
