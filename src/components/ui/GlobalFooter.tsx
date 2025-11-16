@@ -3,7 +3,7 @@ import Link from 'next/link';
 export default function GlobalFooter() {
   return (
     <footer className="w-full bg-slate-900 text-white ">
-      <div className="mx-auto max-w-7xl px-4 py-12 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-4 lg:px-8">
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 justify-items-center text-center md:text-left">
           {/* 左側：Campus Calendar */}
           <div className="space-y-4">
@@ -80,7 +80,7 @@ export default function GlobalFooter() {
         </div>
 
         {/* 最下部：コピーライト */}
-        <div className="mt-8 border-t border-slate-700 pt-8">
+        <div className="mt-4 border-t border-slate-700 pt-2">
           <p className="text-center text-sm text-slate-400">
             ©2025 BrainApp
           </p>

@@ -426,13 +426,13 @@ export default async function Page({ params }: PageProps) {
                 universityName={university.name}
                 horizontalPaddingClassName={contentHorizontalPadding}
               />
-              <div className="flex w-full pb-10">
-                <GlobalFooter />
-              </div>              
             </div>
           </div>
         </div>
       </div>
+      <div className="flex w-full pb-[100px] pr-[300px]">
+        <GlobalFooter />
+      </div>        
     </main>
   );
 }

@@ -51,7 +51,7 @@ export default async function AreaIndexPage() {
               </p>
             </section>
 
-            <div className="mt-12 w-full">
+            <div className="mt-12 w-full mb-12">
               <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {PREFECTURES.map((prefecture) => {
                   const count = universityCountBySlug.get(prefecture.slug) ?? 0;
@@ -73,9 +73,6 @@ export default async function AreaIndexPage() {
                   );
                 })}
               </div>
-              <div className="flex w-full pt-20">
-                <GlobalFooter />
-              </div>              
             </div>
           </div>
         </div>
@@ -88,6 +85,9 @@ export default async function AreaIndexPage() {
           </div>
         </aside>        
       </div>
+      <div className="flex w-full pr-[300px]">
+        <GlobalFooter />
+      </div>        
     </main>
   );
 }
