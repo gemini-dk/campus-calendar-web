@@ -215,7 +215,7 @@ export function ScheduleAdjustmentDialogProvider({ children }: ScheduleAdjustmen
                   </button>
                 </div>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6">
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6">
                 {activeTab === "reschedule" ? (
                   <ScheduleRescheduleTab
                     target={target}
@@ -226,11 +226,6 @@ export function ScheduleAdjustmentDialogProvider({ children }: ScheduleAdjustmen
                     selectedPeriods={selectedPeriods}
                     onChangePeriods={(values) => setSelectedPeriods(values)}
                     actionError={actionError}
-                    submitting={submitting}
-                    onSubmitError={setActionError}
-                    onSubmitStart={() => setSubmitting(true)}
-                    onSubmitEnd={() => setSubmitting(false)}
-                    onClose={closeDialog}
                     userId={profile?.uid ?? null}
                     lessonsPerDayEntries={settings.calendar.entries}
                   />
@@ -240,13 +235,80 @@ export function ScheduleAdjustmentDialogProvider({ children }: ScheduleAdjustmen
                     mode={cancellationMode}
                     onChangeMode={(value) => setCancellationMode(value)}
                     actionError={actionError}
-                    submitting={submitting}
-                    onSubmitError={setActionError}
-                    onSubmitStart={() => setSubmitting(true)}
-                    onSubmitEnd={() => setSubmitting(false)}
-                    onClose={closeDialog}
                     userId={profile?.uid ?? null}
                   />
+                )}
+              </div>
+              <div className="flex w-full items-center justify-center border-t border-neutral-200 px-6 py-4">
+                {activeTab === "reschedule" ? (
+                  <button
+                    type="button"
+                    className={`flex h-10 w-full items-center justify-center rounded-full text-sm font-semibold transition ${
+                      profile?.uid && selectedDate && selectedPeriods.length > 0 && !submitting
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-neutral-200 text-neutral-500"
+                    }`}
+                    onClick={async () => {
+                      if (!profile?.uid || !selectedDate || selectedPeriods.length === 0) {
+                        return;
+                      }
+                      setActionError(null);
+                      setSubmitting(true);
+                      try {
+                        await updateClassDateSchedule({
+                          userId: profile.uid,
+                          fiscalYear: target.fiscalYear,
+                          classId: target.classId,
+                          classDateId: target.classDateId,
+                          classDate: selectedDate,
+                          periods: selectedPeriods,
+                        });
+                        closeDialog();
+                      } catch (err) {
+                        console.error("Failed to update schedule", err);
+                        setActionError("日程の更新に失敗しました。時間をおいて再度お試しください。");
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={!profile?.uid || !selectedDate || selectedPeriods.length === 0 || submitting}
+                  >
+                    {submitting ? "変更中..." : "この内容で変更"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`flex h-10 w-full items-center justify-center rounded-full text-sm font-semibold transition ${
+                      profile?.uid && !submitting
+                        ? "bg-red-600 text-white hover:bg-red-700"
+                        : "bg-neutral-200 text-neutral-500"
+                    }`}
+                    onClick={async () => {
+                      if (!profile?.uid) {
+                        return;
+                      }
+                      setActionError(null);
+                      setSubmitting(true);
+                      try {
+                        await updateClassDateCancellation({
+                          userId: profile.uid,
+                          fiscalYear: target.fiscalYear,
+                          classId: target.classId,
+                          classDateId: target.classDateId,
+                          mode: cancellationMode,
+                        });
+                        closeDialog();
+                      } catch (err) {
+                        console.error("Failed to cancel class session", err);
+                        setActionError("休講の処理に失敗しました。時間をおいて再度お試しください。");
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={!profile?.uid || submitting}
+                  >
+                    {submitting ? "処理中..." : "休講にする"}
+                  </button>
                 )}
               </div>
             </div>
@@ -267,11 +329,6 @@ type ScheduleRescheduleTabProps = {
   selectedPeriods: PeriodValue[];
   onChangePeriods: (values: PeriodValue[]) => void;
   actionError: string | null;
-  submitting: boolean;
-  onSubmitError: (message: string | null) => void;
-  onSubmitStart: () => void;
-  onSubmitEnd: () => void;
-  onClose: () => void;
   userId: string | null;
   lessonsPerDayEntries: CalendarEntry[];
 };
@@ -285,11 +342,6 @@ function ScheduleRescheduleTab({
   selectedPeriods,
   onChangePeriods,
   actionError,
-  submitting,
-  onSubmitError,
-  onSubmitStart,
-  onSubmitEnd,
-  onClose,
   userId,
   lessonsPerDayEntries,
 }: ScheduleRescheduleTabProps) {
@@ -344,42 +396,6 @@ function ScheduleRescheduleTab({
     [onChangePeriods, selectedPeriods],
   );
 
-  const canSubmit = Boolean(userId && selectedDate && selectedPeriods.length > 0 && !submitting);
-
-  const handleSubmit = useCallback(async () => {
-    if (!userId || !selectedDate || selectedPeriods.length === 0) {
-      return;
-    }
-    onSubmitError(null);
-    onSubmitStart();
-    try {
-      await updateClassDateSchedule({
-        userId,
-        fiscalYear: target.fiscalYear,
-        classId: target.classId,
-        classDateId: target.classDateId,
-        classDate: selectedDate,
-        periods: selectedPeriods,
-      });
-      onClose();
-    } catch (err) {
-      console.error("Failed to update schedule", err);
-      onSubmitError("日程の更新に失敗しました。時間をおいて再度お試しください。");
-    } finally {
-      onSubmitEnd();
-    }
-  }, [
-    onClose,
-    onSubmitEnd,
-    onSubmitError,
-    onSubmitStart,
-    selectedDate,
-    selectedPeriods,
-    target.classDateId,
-    target.classId,
-    target.fiscalYear,
-    userId,
-  ]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -463,19 +479,6 @@ function ScheduleRescheduleTab({
       {actionError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{actionError}</div>
       ) : null}
-
-      <button
-        type="button"
-        className={`flex h-12 w-full items-center justify-center rounded-full text-sm font-semibold transition ${
-          canSubmit
-            ? "bg-blue-600 text-white hover:bg-blue-700"
-            : "bg-neutral-200 text-neutral-500"
-        }`}
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-      >
-        {submitting ? "変更中..." : "この内容で変更"}
-      </button>
     </div>
   );
 }
@@ -485,11 +488,6 @@ type ScheduleCancellationTabProps = {
   mode: "present" | "absent" | "exclude";
   onChangeMode: (mode: "present" | "absent" | "exclude") => void;
   actionError: string | null;
-  submitting: boolean;
-  onSubmitError: (value: string | null) => void;
-  onSubmitStart: () => void;
-  onSubmitEnd: () => void;
-  onClose: () => void;
   userId: string | null;
 };
 
@@ -531,49 +529,10 @@ function ScheduleCancellationTab({
   mode,
   onChangeMode,
   actionError,
-  submitting,
-  onSubmitError,
-  onSubmitStart,
-  onSubmitEnd,
-  onClose,
   userId,
 }: ScheduleCancellationTabProps) {
   const periodLabel = useMemo(() => formatPeriodLabel(target.periods), [target.periods]);
   const dateLabel = useMemo(() => formatFullDate(target.classDate), [target.classDate]);
-  const canSubmit = Boolean(userId && !submitting);
-
-  const handleSubmit = useCallback(async () => {
-    if (!userId) {
-      return;
-    }
-    onSubmitError(null);
-    onSubmitStart();
-    try {
-      await updateClassDateCancellation({
-        userId,
-        fiscalYear: target.fiscalYear,
-        classId: target.classId,
-        classDateId: target.classDateId,
-        mode,
-      });
-      onClose();
-    } catch (err) {
-      console.error("Failed to cancel class session", err);
-      onSubmitError("休講の処理に失敗しました。時間をおいて再度お試しください。");
-    } finally {
-      onSubmitEnd();
-    }
-  }, [
-    mode,
-    onClose,
-    onSubmitEnd,
-    onSubmitError,
-    onSubmitStart,
-    target.classDateId,
-    target.classId,
-    target.fiscalYear,
-    userId,
-  ]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -611,19 +570,6 @@ function ScheduleCancellationTab({
       {actionError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{actionError}</div>
       ) : null}
-
-      <button
-        type="button"
-        className={`flex h-12 w-full items-center justify-center rounded-full text-sm font-semibold transition ${
-          canSubmit
-            ? "bg-red-600 text-white hover:bg-red-700"
-            : "bg-neutral-200 text-neutral-500"
-        }`}
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-      >
-        {submitting ? "処理中..." : "休講にする"}
-      </button>
     </div>
   );
 }
@@ -665,4 +611,3 @@ function PeriodRow({
     </div>
   );
 }
-
