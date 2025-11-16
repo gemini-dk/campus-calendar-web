@@ -107,6 +107,7 @@ type DailyClassesSectionProps = {
   authInitializing: boolean;
   isAuthenticated: boolean;
   onSelectClass?: (session: DailyClassSession) => void;
+  onRequestScheduleChange?: (session: DailyClassSession) => void;
 };
 
 const CLASS_TYPE_ICON: Record<ClassType, IconDefinition> = {
@@ -555,6 +556,7 @@ export default function DailyClassesSection({
   authInitializing,
   isAuthenticated,
   onSelectClass,
+  onRequestScheduleChange,
 }: DailyClassesSectionProps) {
   const { loading, error, sessions, requiresSetup, updateAttendanceStatus, updateDeliveryType } =
     useDailyClassSessions({ userId, fiscalYear, dateId });
@@ -610,6 +612,7 @@ export default function DailyClassesSection({
               onSelectClass={onSelectClass}
               userId={userId}
               fiscalYear={fiscalYear}
+              onRequestScheduleChange={onRequestScheduleChange}
             />
           ))}
         </ul>
@@ -633,6 +636,7 @@ type DailyClassCardProps = {
   onSelectClass?: (session: DailyClassSession) => void;
   userId: string | null;
   fiscalYear: string | null;
+  onRequestScheduleChange?: (session: DailyClassSession) => void;
 };
 
 function DailyClassCard({
@@ -642,6 +646,7 @@ function DailyClassCard({
   onSelectClass,
   userId,
   fiscalYear,
+  onRequestScheduleChange,
 }: DailyClassCardProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [attendanceUpdating, setAttendanceUpdating] = useState(false);
@@ -722,6 +727,14 @@ function DailyClassCard({
   const handleInteractiveClick = useCallback((event: MouseEvent<HTMLElement>) => {
     event.stopPropagation();
   }, []);
+
+  const handleScheduleButtonClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      onRequestScheduleChange?.(session);
+    },
+    [onRequestScheduleChange, session],
+  );
 
   const navigateToActivityForm = useCallback(
     (
@@ -804,9 +817,11 @@ function DailyClassCard({
     ],
   );
 
+  const cardBackgroundClass = session.isCancelled ? 'bg-neutral-100' : 'bg-white';
+
   return (
     <li
-      className={`flex w-full flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm ${
+      className={`flex w-full flex-col gap-3 rounded-xl border border-neutral-200 ${cardBackgroundClass} p-2.5 shadow-sm ${
         onSelectClass ? 'cursor-pointer transition hover:border-blue-200 hover:shadow-md' : ''
       }`.trim()}
       onClick={onSelectClass ? handleCardClick : undefined}
@@ -895,7 +910,7 @@ function DailyClassCard({
                 icon={faCalendarDays}
                 label="日程変更"
                 variant="neutral"
-                onClick={handleInteractiveClick}
+                onClick={handleScheduleButtonClick}
               />
             ) : null}
           </div>

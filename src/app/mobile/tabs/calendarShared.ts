@@ -46,6 +46,7 @@ type CalendarDayClassEntry = {
   classType: ClassType;
   deliveryType: DeliveryType;
   periods: (number | "OD")[];
+  isCancelled: boolean;
 };
 
 export type ClassEntriesByDateMap = Record<string, CalendarDayClassEntry[]>;
@@ -292,6 +293,7 @@ export function useCalendarClassEntries(fiscalYear: string) {
           classType: summary.classType,
           deliveryType: item.deliveryType,
           periods: item.periods,
+          isCancelled: item.isCancelled,
         });
       });
     });
