@@ -798,6 +798,7 @@ function WeekSlide({
           const general = info?.calendar ?? null;
           const academic = info?.academic ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
+          const visibleClassEntries = classEntries.filter((entry) => !entry.isCancelled);
           const googleEvents = googleEventsByDay[dateId] ?? [];
 
           const isToday = dateId === todayId;
@@ -862,7 +863,7 @@ function WeekSlide({
                 </div>
               </div>
               <div className="flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto px-2 py-2 touch-pan-y">
-                {classEntries.map((entry) => {
+                {visibleClassEntries.map((entry) => {
                   const { icon, className: iconClass } = resolveSessionIcon(
                     entry.classType,
                     entry.deliveryType,

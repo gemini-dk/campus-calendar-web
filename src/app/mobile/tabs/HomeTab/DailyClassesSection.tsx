@@ -817,9 +817,11 @@ function DailyClassCard({
     ],
   );
 
+  const cardBackgroundClass = session.isCancelled ? 'bg-neutral-100' : 'bg-white';
+
   return (
     <li
-      className={`flex w-full flex-col gap-3 rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm ${
+      className={`flex w-full flex-col gap-3 rounded-xl border border-neutral-200 ${cardBackgroundClass} p-2.5 shadow-sm ${
         onSelectClass ? 'cursor-pointer transition hover:border-blue-200 hover:shadow-md' : ''
       }`.trim()}
       onClick={onSelectClass ? handleCardClick : undefined}

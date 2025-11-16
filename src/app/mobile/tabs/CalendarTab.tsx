@@ -704,6 +704,7 @@ function CalendarMonthSlide({
           const academic = info?.academic;
           const day = info?.day ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
+          const visibleClassEntries = classEntries.filter((entry) => !entry.isCancelled);
           const googleEvents = googleEventsByDay[dateId] ?? [];
 
           const isCurrentMonth =
@@ -766,7 +767,7 @@ function CalendarMonthSlide({
 
               <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">
                 <div className="flex flex-col gap-[1px] overflow-hidden">
-                  {classEntries.map((entry) => {
+                  {visibleClassEntries.map((entry) => {
                     const { icon, className: iconColorClass } = resolveSessionIcon(
                       entry.classType,
                       entry.deliveryType,
