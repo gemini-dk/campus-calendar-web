@@ -81,10 +81,10 @@ export default function AppInstallFooter({
             スマホに最適化したアプリでもっと便利に！
           </p>
         </div>
-        <div className="flex w-full flex-col gap-3 md:w-2/5 md:flex-row md:justify-end">
+        <div className="flex w-full flex-row gap-3 md:w-2/5 md:justify-end">
           <button
             type="button"
-            className={`${actionButtonClassName} bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 md:w-auto md:min-w-[220px]`}
+            className={`${actionButtonClassName} bg-blue-600 hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 flex-1 md:flex-none md:w-auto md:min-w-[220px]`}
             onClick={handleOpenMobileApp}
             disabled={!isActionAvailable}
           >
@@ -94,7 +94,7 @@ export default function AppInstallFooter({
             href="https://campus-calendar.launchfy.support/ja/page/faq"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-200 hover:bg-neutral-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-200 hover:bg-neutral-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 flex-shrink-0"
             aria-label="FAQページを開く"
           >
             <span className="text-lg font-bold text-neutral-600">?</span>

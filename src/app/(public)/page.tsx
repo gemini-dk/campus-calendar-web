@@ -62,7 +62,7 @@ export default async function HomePage() {
           </div>
         </aside>
       </div>
-      <div className="w-full pr-[300px]"><GlobalFooter/></div>
+      <div className="w-full min-[1024px]:pr-[300px]"><GlobalFooter/></div>
     </main>
   );
 }

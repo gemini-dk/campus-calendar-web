@@ -430,9 +430,7 @@ export default async function Page({ params }: PageProps) {
           </div>
         </div>
       </div>
-      <div className="flex w-full pb-[100px] pr-[300px]">
-        <GlobalFooter />
-      </div>        
+      <div className="w-full pb-[100px] min-[1024px]:pr-[300px]"><GlobalFooter/></div>      
     </main>
   );
 }

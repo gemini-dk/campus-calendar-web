@@ -85,9 +85,7 @@ export default async function AreaIndexPage() {
           </div>
         </aside>        
       </div>
-      <div className="flex w-full pr-[300px]">
-        <GlobalFooter />
-      </div>        
+      <div className="w-full min-[1024px]:pr-[300px]"><GlobalFooter/></div>
     </main>
   );
 }
