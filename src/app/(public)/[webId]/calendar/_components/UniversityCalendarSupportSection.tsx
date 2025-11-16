@@ -1,26 +1,26 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 
-import UniversityCalendarContent, {
-  type UniversityCalendarContentHandle,
-  type UniversityCalendarContentProps,
-} from "./UniversityCalendarContent";
+import UniversityCalendarContent, { type UniversityCalendarContentProps } from "./UniversityCalendarContent";
+import { openSupportForm } from "./supportForm";
 
 export type UniversityCalendarSupportSectionProps = UniversityCalendarContentProps;
 
 export default function UniversityCalendarSupportSection(
   props: UniversityCalendarSupportSectionProps,
 ) {
-  const contentRef = useRef<UniversityCalendarContentHandle>(null);
-
   const handleAdvertisementClick = useCallback(() => {
-    contentRef.current?.openSupportDialog("advertisement");
-  }, []);
+    openSupportForm({
+      type: "誤り報告",
+      college: props.universityName,
+      message: "大学のインカレ団体の紹介などを掲載しませんか？お気軽にご連絡ください。",
+    });
+  }, [props.universityName]);
 
   return (
     <>
-      <UniversityCalendarContent ref={contentRef} {...props} />
+      <UniversityCalendarContent {...props} />
       <aside className="hidden fixed right-0 top-0 z-10 flex h-full w-[300px] flex-col overflow-y-auto border-l border-neutral-300 bg-white min-[1024px]:flex">
         <div className="flex h-full w-full flex-col items-center justify-center gap-4 px-6 text-center text-sm text-neutral-600">
           <div className="text-sm font-semibold text-neutral-700">広告枠</div>
