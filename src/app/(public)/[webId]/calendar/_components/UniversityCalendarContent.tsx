@@ -8,6 +8,7 @@ import type { UniversityCalendar } from "@/lib/data/schema/university";
 
 import AppInstallFooter from "./AppInstallFooter";
 import SupportDialog, { type SupportDialogType } from "./SupportDialog";
+import { openSupportForm } from "./supportForm";
 
 type PrefetchedUniversityCalendar = UniversityCalendar & {
   calendarDays: CalendarDay[];
@@ -68,14 +69,6 @@ const UniversityCalendarContent = forwardRef<
   const hasCalendars = calendars.length > 0;
   const withHorizontalPadding = (className: string) =>
     horizontalPaddingClassName ? `${className} ${horizontalPaddingClassName}` : className;
-
-  const openSupportForm = useCallback((params: Record<string, string>) => {
-    const url = new URL("https://campus-calendar.launchfy.support/ja/supportform");
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.set(key, value);
-    });
-    window.open(url.toString(), "_blank", "noopener,noreferrer");
-  }, []);
 
   const handleReportClick = useCallback(() => {
     if (!activeCalendar) {
