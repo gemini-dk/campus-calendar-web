@@ -29,7 +29,7 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: PrefecturePageProps): Promise<Metadata> {
-  const prefecture = getPrefectureBySlug(params.prefecture);
+  const prefecture = getPrefectureBySlug((await params).prefecture);
   if (!prefecture) {
     return {
       title: '都道府県別大学一覧 | 全国大学別 学事予定まとめ',
@@ -43,7 +43,7 @@ export async function generateMetadata({ params }: PrefecturePageProps): Promise
 }
 
 export default async function PrefecturePage({ params }: PrefecturePageProps) {
-  const prefecture = getPrefectureBySlug(params.prefecture);
+  const prefecture = getPrefectureBySlug((await params).prefecture);
   if (!prefecture) {
     notFound();
   }

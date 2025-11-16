@@ -210,7 +210,7 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { webId, fiscalYear: rawFiscalYear } = params;
+  const { webId, fiscalYear: rawFiscalYear } = await params;
   const fiscalYear = toFiscalYear(rawFiscalYear) ?? DEFAULT_FISCAL_YEAR;
   const canonicalUrl = buildUniversityCalendarCanonicalUrl(webId);
   const yearUrl = buildUniversityCalendarYearUrl(webId, fiscalYear);
@@ -271,7 +271,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function Page({ params }: PageProps) {
-  const { webId, fiscalYear: rawFiscalYear } = params;
+  const { webId, fiscalYear: rawFiscalYear } = await params;
   const fiscalYear = toFiscalYear(rawFiscalYear);
   if (!fiscalYear) {
     redirect(`/${encodeURIComponent(webId)}/calendar/${DEFAULT_FISCAL_YEAR}`);

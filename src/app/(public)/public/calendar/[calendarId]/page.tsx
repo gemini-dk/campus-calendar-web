@@ -34,13 +34,15 @@ export default async function Page({ params, searchParams }: PageProps) {
     : rawHasSaturdayClasses;
   const hasSaturdayClasses = parseBooleanLike(typeof hasSaturdayClassesParam === "string" ? hasSaturdayClassesParam : undefined);
 
+  const { calendarId } = await params;
+
   let days: CalendarDay[] = [];
   let terms: CalendarTerm[] = [];
 
   if (fiscalYear.trim().length > 0) {
     [days, terms] = await Promise.all([
-      getCalendarDays(fiscalYear, params.calendarId),
-      getCalendarTerms(fiscalYear, params.calendarId),
+      getCalendarDays(fiscalYear, calendarId),
+      getCalendarTerms(fiscalYear, calendarId),
     ]);
   }
 
@@ -48,7 +50,7 @@ export default async function Page({ params, searchParams }: PageProps) {
     <PublicCalendarView
       dataset={{
         fiscalYear,
-        calendarId: params.calendarId,
+        calendarId,
         hasSaturdayClasses,
         days,
         terms,
