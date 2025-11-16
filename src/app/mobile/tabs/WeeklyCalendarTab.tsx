@@ -25,8 +25,6 @@ import {
 import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
-const IS_PRODUCTION = false;
-//  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 const WEEKDAY_ACCENT_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -710,16 +708,9 @@ function WeekSlide({
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const primaryMonthKey = getMonthKey(weekStart);
   const secondaryMonthKey = getMonthKey(weekEnd);
-  const { eventsByDay: primaryEventsByDay } = useGoogleCalendarEventsForMonth(primaryMonthKey, {
-    enabled: !IS_PRODUCTION,
-  });
-  const { eventsByDay: secondaryEventsByDay } = useGoogleCalendarEventsForMonth(secondaryMonthKey, {
-    enabled: !IS_PRODUCTION,
-  });
+  const { eventsByDay: primaryEventsByDay } = useGoogleCalendarEventsForMonth(primaryMonthKey);
+  const { eventsByDay: secondaryEventsByDay } = useGoogleCalendarEventsForMonth(secondaryMonthKey);
   const googleEventsByDay = useMemo<Record<string, GoogleCalendarEventRecord[]>>(() => {
-    if (IS_PRODUCTION) {
-      return {};
-    }
     if (primaryMonthKey === secondaryMonthKey) {
       return primaryEventsByDay;
     }
@@ -807,7 +798,7 @@ function WeekSlide({
           const general = info?.calendar ?? null;
           const academic = info?.academic ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
-          const googleEvents = IS_PRODUCTION ? [] : (googleEventsByDay[dateId] ?? []);
+          const googleEvents = googleEventsByDay[dateId] ?? [];
 
           const isToday = dateId === todayId;
           const dateNumber = extractDayNumber(general?.dateLabel ?? dateId);

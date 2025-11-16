@@ -22,8 +22,6 @@ import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
 import { useGoogleCalendarEventsForDay } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
-const IS_PRODUCTION = false;
-//  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -134,7 +132,6 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
   const { profile, initializing: authInitializing, isAuthenticated } = useAuth();
   const { events: googleEvents, loading: googleEventsLoading } = useGoogleCalendarEventsForDay(
     normalizedDateId,
-    { enabled: !IS_PRODUCTION },
   );
   const [displayInfo, setDisplayInfo] = useState<CalendarDisplayInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -335,7 +332,7 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
             onSelectClass={handleSelectClassSession}
           />
 
-          {!IS_PRODUCTION ? (
+          {(googleEventsLoading || googleEvents.length > 0) ? (
             <section className="mt-6 rounded-2xl bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold text-neutral-900">Googleカレンダー</h2>
@@ -344,8 +341,6 @@ export default function DailyCalendarView({ dateId, onClose }: DailyCalendarView
               <div className="mt-3 flex flex-col gap-3">
                 {googleEventsLoading ? (
                   <p className="text-sm text-neutral-600">予定を読み込み中です...</p>
-                ) : googleEvents.length === 0 ? (
-                  <p className="text-sm text-neutral-500">この日のGoogleカレンダーの予定はありません。</p>
                 ) : (
                   <ul className="flex flex-col gap-2">
                     {googleEvents.map((event) => (
