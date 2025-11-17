@@ -47,6 +47,8 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
 
 const CALENDAR_CELL_COUNT = 42;
 const DRAG_DETECTION_THRESHOLD = 6;
+const ROW_GAP_PX = 1;
+const FALLBACK_MAX_VISIBLE_ROWS = 2;
 
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
 
@@ -694,8 +696,79 @@ function CalendarMonthSlide({
   const errorMessage = monthState?.errorMessage ?? null;
   const isCalendarSettingsError = errorMessage === CALENDAR_SETTINGS_ERROR_MESSAGE;
 
+  const [cellContentHeight, setCellContentHeight] = useState<number | null>(null);
+  const [rowHeight, setRowHeight] = useState<number | null>(null);
+  const cellContentObserverRef = useRef<ResizeObserver | null>(null);
+  const rowMeasureObserverRef = useRef<ResizeObserver | null>(null);
+
+  const handleCellContentRef = useCallback((element: HTMLDivElement | null) => {
+    cellContentObserverRef.current?.disconnect();
+    cellContentObserverRef.current = null;
+
+    if (!element || typeof window === 'undefined' || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      setCellContentHeight(entry.contentRect.height);
+    });
+
+    observer.observe(element);
+    cellContentObserverRef.current = observer;
+  }, []);
+
+  const handleRowMeasureRef = useCallback((element: HTMLDivElement | null) => {
+    rowMeasureObserverRef.current?.disconnect();
+    rowMeasureObserverRef.current = null;
+
+    if (!element || typeof window === 'undefined' || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      setRowHeight(entry.contentRect.height);
+    });
+
+    observer.observe(element);
+    rowMeasureObserverRef.current = observer;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cellContentObserverRef.current?.disconnect();
+      rowMeasureObserverRef.current?.disconnect();
+    };
+  }, []);
+
+  const computedMaxRows = useMemo(() => {
+    if (cellContentHeight == null || rowHeight == null || rowHeight <= 0) {
+      return null;
+    }
+
+    return Math.max(0, Math.floor((cellContentHeight + ROW_GAP_PX) / (rowHeight + ROW_GAP_PX)));
+  }, [cellContentHeight, rowHeight]);
+
+  const maxVisibleRows = computedMaxRows ?? FALLBACK_MAX_VISIBLE_ROWS;
+
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="relative flex h-full w-full flex-col">
+      <div className="pointer-events-none absolute left-0 top-0 -z-10 h-0 w-0 overflow-hidden" aria-hidden>
+        <div
+          ref={handleRowMeasureRef}
+          className="flex min-h-[14px] items-center gap-1 pl-[3px] text-[10px] leading-[1.08]"
+        >
+          <span className="h-[10px] w-[10px]" />
+          <span className="text-[10px]">sample</span>
+        </div>
+      </div>
       <div className="grid w-full flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
         {dates.map((date, index) => {
           const dateId = dateIds[index];
@@ -731,6 +804,18 @@ function CalendarMonthSlide({
           const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
           const showBottomBorder = index < totalCells - WEEKDAY_HEADERS.length;
 
+          const classVisibleCount = Math.min(visibleClassEntries.length, maxVisibleRows);
+          const remainingRows = Math.max(maxVisibleRows - classVisibleCount, 0);
+          const googleVisibleCount = Math.min(googleEvents.length, remainingRows);
+          const hiddenClassCount = visibleClassEntries.length - classVisibleCount;
+          const hiddenGoogleCount = googleEvents.length - googleVisibleCount;
+          const hiddenTotalCount = hiddenClassCount + hiddenGoogleCount;
+
+          const visibleClasses =
+            classVisibleCount > 0 ? visibleClassEntries.slice(0, classVisibleCount) : [];
+          const visibleGoogleEvents =
+            googleVisibleCount > 0 ? googleEvents.slice(0, googleVisibleCount) : [];
+
           return (
             <button
               key={dateId}
@@ -765,9 +850,12 @@ function CalendarMonthSlide({
                 </div>
               </div>
 
-              <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">
+              <div
+                className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden"
+                ref={index === 0 ? handleCellContentRef : undefined}
+              >
                 <div className="flex flex-col gap-[1px] overflow-hidden">
-                  {visibleClassEntries.map((entry) => {
+                  {visibleClasses.map((entry) => {
                     const { icon, className: iconColorClass } = resolveSessionIcon(
                       entry.classType,
                       entry.deliveryType,
@@ -789,9 +877,9 @@ function CalendarMonthSlide({
                     );
                   })}
                 </div>
-                {googleEvents.length > 0 ? (
+                {visibleGoogleEvents.length > 0 ? (
                   <div className="mt-[2px] flex flex-col gap-[1px]">
-                    {googleEvents.slice(0, 2).map((event: GoogleCalendarEventRecord) => (
+                    {visibleGoogleEvents.map((event: GoogleCalendarEventRecord) => (
                       <div
                         key={event.eventUid}
                         className="flex min-h-[14px] items-start gap-[4px] pl-[3px] text-[10px] leading-[1.08] text-blue-700"
@@ -800,12 +888,12 @@ function CalendarMonthSlide({
                         <span className="flex-1 truncate">{event.summary || '予定'}</span>
                       </div>
                     ))}
-                    {googleEvents.length > 2 ? (
-                      <span className="pl-[14px] text-[9px] font-medium text-blue-500">
-                        他 {googleEvents.length - 2} 件
-                      </span>
-                    ) : null}
                   </div>
+                ) : null}
+                {hiddenTotalCount > 0 ? (
+                  <span className="mt-[2px] pl-[14px] text-[9px] font-medium text-blue-500">
+                    他 {hiddenTotalCount} 件
+                  </span>
                 ) : null}
               </div>
             </button>
