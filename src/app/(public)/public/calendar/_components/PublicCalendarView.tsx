@@ -435,11 +435,11 @@ function GridCalendarView({ dataset }: GridCalendarViewProps) {
           </div>
         ) : null}
 
-        <div className="mt-4 grid w-full grid-cols-1 justify-items-center gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="mt-4 grid w-full grid-cols-1 justify-items-center gap-4 min-[900px]:grid-cols-2 min-[1400px]:grid-cols-3 min-[1700px]:grid-cols-4">
           {monthConfigs.map((config) => (
             <section
               key={`${config.displayYear}-${config.month}`}
-              className="flex h-full min-h-[340px] w-full max-w-[320px] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm"
+              className="flex h-full min-h-[340px] w-full max-w-[800px] flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm"
             >
               <div className="flex h-12 w-full items-center justify-between border-b border-neutral-200 bg-neutral-50 px-3">
                 <div className="flex flex-col">

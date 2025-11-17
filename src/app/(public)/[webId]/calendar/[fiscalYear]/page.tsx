@@ -357,7 +357,7 @@ export default async function Page({ params }: PageProps) {
     <main className="relative flex min-h-screen w-full flex-1 flex-col bg-neutral-100 pb-0">
       <div className="flex w-full min-[1024px]:pr-0">
         <div className="flex w-full justify-center py-12 min-[1024px]:pr-[300px]">
-          <div className="w-full max-w-[724px] min-[1280px]:max-w-[980px] 2xl:max-w-[1236px]">
+          <div className="w-full">
             <div className="flex w-full flex-col gap-8">
               <div className={contentHorizontalPadding}>
                 <header className="flex w-full flex-col gap-4">
@@ -426,13 +426,11 @@ export default async function Page({ params }: PageProps) {
                 universityName={university.name}
                 horizontalPaddingClassName={contentHorizontalPadding}
               />
-              <div className="flex w-full pb-10">
-                <GlobalFooter />
-              </div>              
             </div>
           </div>
         </div>
       </div>
+      <div className="w-full pb-[100px] min-[1024px]:pr-[300px]"><GlobalFooter/></div>      
     </main>
   );
 }
