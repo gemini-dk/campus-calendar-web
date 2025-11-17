@@ -796,7 +796,6 @@ function CalendarMonthSlide({
                         key={event.eventUid}
                         className="flex min-h-[14px] items-start gap-[4px] pl-[3px] text-[10px] leading-[1.08] text-blue-700"
                       >
-                        <span className="flex-shrink-0">●</span>
                         <span className="flex-1 truncate">{event.summary || '予定'}</span>
                       </div>
                     ))}
