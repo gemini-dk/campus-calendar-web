@@ -835,7 +835,7 @@ function WeekSlide({
           const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
           const cellBackground = resolveBackgroundColor(academic?.backgroundColor);
 
-          const dateNumberClassName = `text-lg font-semibold ${
+          const dateNumberClassName = `text-xl font-semibold ${
             isToday ? todayHighlight.textClass : accentClass
           }`;
           const weekdayClassName = `text-xs font-semibold ${
@@ -899,7 +899,7 @@ function WeekSlide({
                   return (
                     <div
                       key={entry.id}
-                      className="flex h-[15px] items-center gap-[2px] text-[13px] leading-tight text-neutral-900"
+                      className="flex h-[18px] items-center gap-[2px] text-[14px] leading-tight text-neutral-900"
                     >
                       <span className="w-[37px] flex-shrink-0 font-bold text-neutral-500">
                         {primaryPeriodLabel || ''}
@@ -919,7 +919,7 @@ function WeekSlide({
                       return (
                         <div
                           key={event.eventUid}
-                          className="flex h-[17px] items-center gap-[2px] text-[13px] leading-tight text-blue-900"
+                          className="flex h-[18px] items-center gap-[2px] text-[14px] leading-tight text-blue-900"
                         >
                           <span className="w-[37px] flex-shrink-0 font-semibold text-neutral-500">
                             {startTimeLabel || ''}
