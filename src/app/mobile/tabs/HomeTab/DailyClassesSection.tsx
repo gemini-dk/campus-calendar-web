@@ -34,6 +34,8 @@ import AttendanceToggleGroup from '@/app/mobile/components/AttendanceToggleGroup
 import AttendanceSummary from '@/app/mobile/components/AttendanceSummary';
 import DeliveryToggleGroup from '@/app/mobile/components/DeliveryToggleGroup';
 import { useActivityDialog } from '@/app/mobile/components/ActivityDialogProvider';
+import type { Activity } from '@/app/mobile/features/activities/types';
+import { ActivityListItem } from '@/app/mobile/components/ActivityListItem';
 import type {
   AttendanceStatus,
   AttendanceSummary as AttendanceSummaryType,
@@ -558,8 +560,34 @@ export default function DailyClassesSection({
   onSelectClass,
   onRequestScheduleChange,
 }: DailyClassesSectionProps) {
+  const { assignments, classNameMap, openEditDialog, toggleAssignmentStatus } = useActivityDialog();
   const { loading, error, sessions, requiresSetup, updateAttendanceStatus, updateDeliveryType } =
     useDailyClassSessions({ userId, fiscalYear, dateId });
+
+  const dueAssignments = useMemo(
+    () =>
+      assignments.filter(
+        (activity) =>
+          activity.type === 'assignment' && typeof activity.dueDate === 'string' && activity.dueDate === dateId,
+      ),
+    [assignments, dateId],
+  );
+
+  const handleSelectAssignment = useCallback(
+    (activity: Activity) => {
+      openEditDialog(activity);
+    },
+    [openEditDialog],
+  );
+
+  const handleToggleAssignmentStatus = useCallback(
+    (activity: Activity) => {
+      if (activity.type === 'assignment') {
+        void toggleAssignmentStatus(activity);
+      }
+    },
+    [toggleAssignmentStatus],
+  );
 
   if (authInitializing) {
     return (
@@ -587,6 +615,26 @@ export default function DailyClassesSection({
 
   return (
     <div className="flex w-full flex-col gap-3">
+      {dueAssignments.length > 0 ? (
+        <section className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-neutral-900">今日が期限の課題</h2>
+            <span className="text-xs text-neutral-500">{dateId}</span>
+          </div>
+          <div className="flex flex-col gap-3">
+            {dueAssignments.map((assignment) => (
+              <ActivityListItem
+                key={assignment.id}
+                activity={assignment}
+                onSelect={handleSelectAssignment}
+                onToggleStatus={handleToggleAssignmentStatus}
+                classNameMap={classNameMap}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}

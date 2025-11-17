@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent, TransitionEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faListCheck } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -11,6 +12,8 @@ import {
 } from '@/lib/data/service/calendarDisplay.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
+import { useActivityDialog } from '../components/ActivityDialogProvider';
+import type { Activity } from '../features/activities/types';
 import {
   CALENDAR_SETTINGS_ERROR_MESSAGE,
   resolveSessionIcon,
@@ -65,6 +68,8 @@ type MonthStateMap = Record<string, MonthState>;
 type CalendarTabProps = {
   onDateSelect?: (dateId: string) => void;
 };
+
+type AssignmentsByDateMap = Record<string, Activity[]>;
 
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
@@ -151,6 +156,25 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
   const configKeyRef = useRef(configKey);
   const { classEntriesByDate } = useCalendarClassEntries(fiscalYear);
+  const { assignments } = useActivityDialog();
+  const assignmentsByDate = useMemo<AssignmentsByDateMap>(() => {
+    const map: AssignmentsByDateMap = {};
+    assignments.forEach((activity) => {
+      if (activity.type !== 'assignment') {
+        return;
+      }
+      const dueDate = typeof activity.dueDate === 'string' ? activity.dueDate.trim() : '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+        return;
+      }
+      if (!map[dueDate]) {
+        map[dueDate] = [activity];
+      } else {
+        map[dueDate] = [...map[dueDate], activity];
+      }
+    });
+    return map;
+  }, [assignments]);
 
   const activeCalendarEntry = useMemo(() => {
     if (!fiscalYear || !calendarId) {
@@ -643,6 +667,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
                         monthState={state}
                         infoMap={infoMap}
                         classEntriesByDate={classEntriesByDate}
+                        assignmentsByDate={assignmentsByDate}
                         todayId={todayId}
                         onRetry={handleRetry}
                         onDateSelect={onDateSelect}
@@ -670,6 +695,7 @@ type CalendarMonthSlideProps = {
   monthState: MonthState | undefined;
   infoMap: CalendarInfoMap;
   classEntriesByDate: ClassEntriesByDateMap;
+  assignmentsByDate: AssignmentsByDateMap;
   todayId: string;
   onRetry: (monthDate: Date) => void;
   onDateSelect?: (dateId: string) => void;
@@ -680,6 +706,7 @@ function CalendarMonthSlide({
   monthState,
   infoMap,
   classEntriesByDate,
+  assignmentsByDate,
   todayId,
   onRetry,
   onDateSelect,
@@ -784,6 +811,7 @@ function CalendarMonthSlide({
           const classEntries = classEntriesByDate[dateId] ?? [];
           const visibleClassEntries = classEntries.filter((entry) => !entry.isCancelled);
           const googleEvents = googleEventsByDay[dateId] ?? [];
+          const dueAssignments = assignmentsByDate[dateId] ?? [];
 
           const isCurrentMonth =
             date.getFullYear() === monthDate.getFullYear() &&
@@ -810,14 +838,27 @@ function CalendarMonthSlide({
           const showBottomBorder = index < totalCells - WEEKDAY_HEADERS.length;
 
           // 全てのアイテムを等価に扱うため、授業とGoogleカレンダーを統合
-          const allItems = [
-            ...visibleClassEntries.map(entry => ({ type: 'class' as const, data: entry })),
-            ...googleEvents.map(event => ({ type: 'google' as const, data: event }))
-          ];
+          const assignmentItems = dueAssignments.map((assignment) => ({
+            type: 'assignment' as const,
+            data: assignment,
+          }));
+          const classItems = visibleClassEntries.map((entry) => ({
+            type: 'class' as const,
+            data: entry,
+          }));
+          const googleItems = googleEvents.map((event) => ({
+            type: 'google' as const,
+            data: event,
+          }));
+
+          const allItems = [...assignmentItems, ...classItems, ...googleItems];
           
           const visibleItems = allItems.slice(0, maxVisibleRows);
           const hiddenTotalCount = Math.max(0, allItems.length - maxVisibleRows);
 
+          const visibleAssignments = visibleItems
+            .filter((item) => item.type === 'assignment')
+            .map((item) => item.data);
           const visibleClasses = visibleItems
             .filter(item => item.type === 'class')
             .map(item => item.data);
@@ -868,6 +909,20 @@ function CalendarMonthSlide({
                 ref={index === 0 ? handleCellContentRef : undefined}
               >
                 <div className="flex flex-col gap-[1px] overflow-hidden">
+                  {visibleAssignments.map((assignment) => (
+                    <div
+                      key={`assignment-${assignment.id}`}
+                      className="flex min-h-[14px] items-center gap-1 pl-[3px] text-[10px] leading-[1.08] text-orange-700"
+                    >
+                      <span className="flex min-w-[30px] justify-center rounded-full bg-orange-100 px-1 text-[9px] font-semibold text-orange-600">
+                        課題
+                      </span>
+                      <FontAwesomeIcon icon={faListCheck} fontSize={10} className="flex-shrink-0 text-orange-500" />
+                      <span className="flex-1 truncate text-[10px] text-orange-800">
+                        {assignment.title || '無題の項目'}
+                      </span>
+                    </div>
+                  ))}
                   {visibleClasses.map((entry) => {
                     const { icon, className: iconColorClass } = resolveSessionIcon(
                       entry.classType,
