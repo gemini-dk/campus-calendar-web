@@ -7,7 +7,7 @@ import { openSupportForm } from "../[webId]/calendar/_components/supportForm";
 export default function TopPageAdvertisementSection() {
   const handleAdvertisementClick = useCallback(() => {
     openSupportForm({
-      type: "誤り報告",
+      type: "広告掲載相談",
       college: "全大学横断",
       message: "大学のインカレ団体の紹介などを掲載しませんか？お気軽にご連絡ください。",
     });

@@ -389,6 +389,10 @@ function MobilePageContent() {
 
   const handleTabChange = useCallback(
     (nextTab: TabId) => {
+      if (dailyOverlayDateId !== null) {
+        setDailyOverlayDateId(null);
+      }
+
       if (nextTab === activeTab) {
         if (nextTab === "home") {
           const todayId = formatDateId(new Date());
@@ -409,7 +413,7 @@ function MobilePageContent() {
         params.set("tab", nextTab);
       });
     },
-    [activeTab, formatDateId, updateSearchParams],
+    [activeTab, dailyOverlayDateId, formatDateId, updateSearchParams],
   );
 
   const handleCalendarDateSelect = useCallback(
@@ -514,7 +518,7 @@ function MobilePageContent() {
       ) : null}
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
         <main className="flex flex-1 flex-col overflow-hidden pb-4">
-          <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50 pb-[120px]">
             {currentTab.id === "calendar" ? (
               <CalendarTab
                 key={calendarResetKey}
@@ -531,28 +535,30 @@ function MobilePageContent() {
           </div>
         </main>
 
-        <nav className="flex h-[80px] flex-shrink-0 items-center justify-center bg-transparent px-5 pb-5">
-          <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
-            {TABS.map((tab) => {
-              const isActive = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => handleTabChange(tab.id)}
-                  aria-label={tab.label}
-                  data-glitch="ﾓｼﾞﾊﾞｹ"
-                  data-active={isActive}
-                  className={`group flex h-[48px] flex-1 items-center justify-center rounded-full text-sm font-medium transition ${
-                    isActive
-                      ? "bg-blue-500 text-white shadow"
-                      : "text-neutral-600 hover:bg-neutral-100"
-                  }`}
-                >
-                  {tab.icon}
-                </button>
-              );
-            })}
+        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-transparent px-5 pb-5">
+          <div className="mx-auto flex h-[80px] w-full max-w-[800px] items-center justify-center">
+            <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
+              {TABS.map((tab) => {
+                const isActive = tab.id === activeTab;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => handleTabChange(tab.id)}
+                    aria-label={tab.label}
+                    data-glitch="ﾓｼﾞﾊﾞｹ"
+                    data-active={isActive}
+                    className={`group flex h-[48px] flex-1 items-center justify-center rounded-full text-sm font-medium transition ${
+                      isActive
+                        ? "bg-blue-500 text-white shadow"
+                        : "text-neutral-600 hover:bg-neutral-100"
+                    }`}
+                  >
+                    {tab.icon}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </nav>
       </div>
