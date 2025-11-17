@@ -45,6 +45,30 @@ const WEEKDAY_LABEL_JA = ['日', '月', '火', '水', '木', '金', '土'];
 const DRAG_DETECTION_THRESHOLD = 6;
 const WEEK_COLUMN_COUNT = 2;
 
+function formatPrimaryPeriodLabel(periods: (number | 'OD')[] | undefined): string | null {
+  if (!periods || periods.length === 0) {
+    return null;
+  }
+  const first = periods[0];
+  if (typeof first === 'number' && Number.isFinite(first)) {
+    return `${first}限`;
+  }
+  if (first === 'OD') {
+    return 'OD';
+  }
+  return null;
+}
+
+function formatGoogleEventStartTime(timestamp: number | null, allDay: boolean): string | null {
+  if (!timestamp || Number.isNaN(timestamp) || allDay) {
+    return null;
+  }
+  const date = new Date(timestamp);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -868,27 +892,42 @@ function WeekSlide({
                     entry.classType,
                     entry.deliveryType,
                   );
+                  const primaryPeriodLabel = formatPrimaryPeriodLabel(entry.periods);
                   return (
                     <div
                       key={entry.id}
-                      className="flex min-h-[18px] items-center gap-1 text-[12px] leading-[1.15] text-neutral-800"
+                      className="flex min-h-[18px] items-center gap-1 text-[13px] leading-[1.15] text-neutral-800"
                     >
-                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
+                      {primaryPeriodLabel ? (
+                        <span className="flex-shrink-0 font-bold text-neutral-900">{primaryPeriodLabel}</span>
+                      ) : null}
+                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={13} />
                       <span className="flex-1 truncate">{entry.className}</span>
                     </div>
                   );
                 })}
                 {googleEvents.length > 0 ? (
                   <div className="mt-1 flex flex-col gap-[2px]">
-                    {googleEvents.slice(0, 3).map((event: GoogleCalendarEventRecord) => (
-                      <div
-                        key={event.eventUid}
-                        className="flex min-h-[16px] items-start gap-[6px] text-[11px] leading-tight text-blue-700"
-                      >
-                        <span className="flex-shrink-0">●</span>
-                        <span className="flex-1 truncate">{event.summary || '予定'}</span>
-                      </div>
-                    ))}
+                    {googleEvents.slice(0, 3).map((event: GoogleCalendarEventRecord) => {
+                      const startTimeLabel = formatGoogleEventStartTime(
+                        event.startTimestamp ?? null,
+                        event.allDay,
+                      );
+                      return (
+                        <div
+                          key={event.eventUid}
+                          className="flex min-h-[16px] items-center gap-[6px] text-[13px] leading-tight text-blue-700"
+                        >
+                          <span className="flex-shrink-0">●</span>
+                          {startTimeLabel ? (
+                            <span className="flex-shrink-0 font-semibold text-neutral-700">
+                              {startTimeLabel}
+                            </span>
+                          ) : null}
+                          <span className="flex-1 truncate">{event.summary || '予定'}</span>
+                        </div>
+                      );
+                    })}
                     {googleEvents.length > 3 ? (
                       <span className="pl-[14px] text-[10px] font-medium text-blue-500">
                         他 {googleEvents.length - 3} 件
