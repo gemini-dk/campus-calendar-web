@@ -389,6 +389,10 @@ function MobilePageContent() {
 
   const handleTabChange = useCallback(
     (nextTab: TabId) => {
+      if (dailyOverlayDateId !== null) {
+        setDailyOverlayDateId(null);
+      }
+
       if (nextTab === activeTab) {
         if (nextTab === "home") {
           const todayId = formatDateId(new Date());
@@ -409,7 +413,7 @@ function MobilePageContent() {
         params.set("tab", nextTab);
       });
     },
-    [activeTab, formatDateId, updateSearchParams],
+    [activeTab, dailyOverlayDateId, formatDateId, updateSearchParams],
   );
 
   const handleCalendarDateSelect = useCallback(
