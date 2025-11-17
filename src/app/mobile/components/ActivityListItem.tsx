@@ -3,6 +3,7 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faNoteSticky } from '@fortawesome/free-solid-svg-icons';
 import { faSquare, faSquareCheck } from '@fortawesome/free-regular-svg-icons';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 
 import type { Activity, ActivityStatus, ActivityType } from '../features/activities/types';
 
@@ -33,7 +34,9 @@ function formatDateLabel(value: Date | null): string {
   }).format(value);
 }
 
-function resolveIcon(type: ActivityType, status: ActivityStatus) {
+type IconRenderResult = { icon: IconDefinition; className?: string };
+
+function resolveIcon(type: ActivityType, status: ActivityStatus): IconRenderResult {
   if (type === 'memo') {
     return { icon: faNoteSticky, className: 'text-neutral-500' };
   }
@@ -50,13 +53,16 @@ export function ActivityListItem({
   onSelect,
   onToggleStatus,
   classNameMap,
+  renderIcon,
 }: {
   activity: Activity;
   onSelect: (activity: Activity) => void;
   onToggleStatus?: (activity: Activity) => void;
   classNameMap?: Map<string, string>;
+  renderIcon?: (activity: Activity) => IconRenderResult | null;
 }) {
-  const { icon, className } = resolveIcon(activity.type, activity.status);
+  const renderedIcon = renderIcon?.(activity);
+  const { icon, className } = renderedIcon ?? resolveIcon(activity.type, activity.status);
   const dueLabel = activity.type === 'assignment' ? formatDueDateLabel(activity.dueDate) : null;
   const classId =
     typeof activity.classId === 'string' && activity.classId.trim().length > 0

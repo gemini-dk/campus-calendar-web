@@ -4,7 +4,7 @@ import type { PointerEvent as ReactPointerEvent, TransitionEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faListCheck } from '@fortawesome/free-solid-svg-icons';
+import { faCircleCheck } from '@fortawesome/free-regular-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -912,13 +912,10 @@ function CalendarMonthSlide({
                   {visibleAssignments.map((assignment) => (
                     <div
                       key={`assignment-${assignment.id}`}
-                      className="flex min-h-[14px] items-center gap-1 pl-[3px] text-[10px] leading-[1.08] text-orange-700"
+                      className="flex min-h-[14px] items-center gap-1 pl-[3px] text-[10px] leading-[1.08] text-red-600"
                     >
-                      <span className="flex min-w-[30px] justify-center rounded-full bg-orange-100 px-1 text-[9px] font-semibold text-orange-600">
-                        課題
-                      </span>
-                      <FontAwesomeIcon icon={faListCheck} fontSize={10} className="flex-shrink-0 text-orange-500" />
-                      <span className="flex-1 truncate text-[10px] text-orange-800">
+                      <FontAwesomeIcon icon={faCircleCheck} fontSize={10} className="flex-shrink-0 text-red-500" />
+                      <span className="flex-1 truncate text-[10px] text-red-600">
                         {assignment.title || '無題の項目'}
                       </span>
                     </div>

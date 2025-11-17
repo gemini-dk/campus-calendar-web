@@ -8,7 +8,8 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faListCheck, faVideo } from '@fortawesome/free-solid-svg-icons';
+import { faVideo } from '@fortawesome/free-solid-svg-icons';
+import { faCircleCheck } from '@fortawesome/free-regular-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -922,10 +923,11 @@ function WeekSlide({
                     {dueAssignments.map((assignment) => (
                       <div
                         key={assignment.id}
-                        className="flex min-h-[15px] items-center gap-[2px] text-[13px] leading-tight text-orange-700"
+                        className="flex min-h-[15px] items-center gap-[2px] text-[13px] leading-tight text-red-600"
                       >
-                        <span className="w-[37px] flex-shrink-0 font-bold text-orange-600">課題</span>
-                        <FontAwesomeIcon icon={faListCheck} className="flex-shrink-0 text-orange-500" fontSize={12} />
+                        <span className="flex w-[37px] flex-shrink-0 items-center justify-center">
+                          <FontAwesomeIcon icon={faCircleCheck} className="text-red-500" fontSize={12} />
+                        </span>
                         <span className="pl-[2px] flex-1 truncate">{assignment.title || '無題の項目'}</span>
                       </div>
                     ))}

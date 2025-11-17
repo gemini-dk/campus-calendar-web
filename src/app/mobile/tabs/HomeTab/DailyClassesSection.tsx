@@ -13,6 +13,7 @@ import {
   faPlus,
   faVideo,
 } from '@fortawesome/free-solid-svg-icons';
+import { faCircleCheck } from '@fortawesome/free-regular-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   collection,
@@ -589,6 +590,10 @@ export default function DailyClassesSection({
     [toggleAssignmentStatus],
   );
 
+  const renderCalendarAssignmentIcon = useCallback((_: Activity) => {
+    return { icon: faCircleCheck, className: 'text-red-500' };
+  }, []);
+
   if (authInitializing) {
     return (
       <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-neutral-300 bg-white/60 px-4 py-10 text-sm text-neutral-600">
@@ -616,23 +621,18 @@ export default function DailyClassesSection({
   return (
     <div className="flex w-full flex-col gap-3">
       {dueAssignments.length > 0 ? (
-        <section className="flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-neutral-900">今日が期限の課題</h2>
-            <span className="text-xs text-neutral-500">{dateId}</span>
-          </div>
-          <div className="flex flex-col gap-3">
-            {dueAssignments.map((assignment) => (
-              <ActivityListItem
-                key={assignment.id}
-                activity={assignment}
-                onSelect={handleSelectAssignment}
-                onToggleStatus={handleToggleAssignmentStatus}
-                classNameMap={classNameMap}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="flex w-full flex-col gap-3">
+          {dueAssignments.map((assignment) => (
+            <ActivityListItem
+              key={assignment.id}
+              activity={assignment}
+              onSelect={handleSelectAssignment}
+              onToggleStatus={handleToggleAssignmentStatus}
+              classNameMap={classNameMap}
+              renderIcon={renderCalendarAssignmentIcon}
+            />
+          ))}
+        </div>
       ) : null}
 
       {error ? (
