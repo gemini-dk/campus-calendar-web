@@ -4,7 +4,7 @@ import type { PointerEvent as ReactPointerEvent, TransitionEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCircleCheck } from '@fortawesome/free-regular-svg-icons';
+import { faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,

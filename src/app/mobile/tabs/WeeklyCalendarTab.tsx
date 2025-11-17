@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faVideo } from '@fortawesome/free-solid-svg-icons';
-import { faCircleCheck } from '@fortawesome/free-regular-svg-icons';
+import { faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -923,11 +923,12 @@ function WeekSlide({
                     {dueAssignments.map((assignment) => (
                       <div
                         key={assignment.id}
-                        className="flex min-h-[15px] items-center gap-[2px] text-[13px] leading-tight text-red-600"
+                        className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-red-600"
                       >
-                        <span className="flex w-[37px] flex-shrink-0 items-center justify-center">
-                          <FontAwesomeIcon icon={faCircleCheck} className="text-red-500" fontSize={12} />
+                        <span className="flex w-[40px] flex-shrink-0 font-bold text-red-400">
+                          課題
                         </span>
+                        <FontAwesomeIcon icon={faCircleCheck} className="text-red-500" fontSize={12} />
                         <span className="pl-[2px] flex-1 truncate">{assignment.title || '無題の項目'}</span>
                       </div>
                     ))}
@@ -942,9 +943,9 @@ function WeekSlide({
                   return (
                     <div
                       key={entry.id}
-                      className="flex h-[15px] items-center gap-[2px] text-[13px] leading-tight text-neutral-900"
+                      className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-neutral-900"
                     >
-                      <span className="w-[37px] flex-shrink-0 font-bold text-neutral-500">
+                      <span className="w-[40px] flex-shrink-0 font-bold text-neutral-500">
                         {primaryPeriodLabel || ''}
                       </span>
                       <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
@@ -962,9 +963,9 @@ function WeekSlide({
                       return (
                         <div
                           key={event.eventUid}
-                          className="flex h-[17px] items-center gap-[2px] text-[13px] leading-tight text-blue-900"
+                          className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-blue-900"
                         >
-                          <span className="w-[37px] flex-shrink-0 font-semibold text-neutral-500">
+                          <span className="w-[40px] flex-shrink-0 font-semibold text-neutral-500">
                             {startTimeLabel || ''}
                           </span>
                           <span className="flex-1 truncate">{event.summary || '予定'}</span>
