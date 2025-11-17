@@ -45,6 +45,33 @@ const WEEKDAY_LABEL_JA = ['日', '月', '火', '水', '木', '金', '土'];
 const DRAG_DETECTION_THRESHOLD = 6;
 const WEEK_COLUMN_COUNT = 2;
 
+function formatPrimaryPeriodLabel(periods: (number | 'OD')[] | undefined): string | null {
+  if (!periods || periods.length === 0) {
+    return null;
+  }
+  const first = periods[0];
+  if (typeof first === 'number' && Number.isFinite(first)) {
+    return `${first}限`;
+  }
+  if (first === 'OD') {
+    return 'OD';
+  }
+  return null;
+}
+
+function formatGoogleEventStartTime(timestamp: number | null, allDay: boolean): string | null {
+  if (allDay) {
+    return '終日';
+  }
+  if (!timestamp || Number.isNaN(timestamp)) {
+    return null;
+  }
+  const date = new Date(timestamp);
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -845,7 +872,7 @@ function WeekSlide({
                 cursor: onDateSelect ? 'pointer' : undefined,
               }}
             >
-              <div className="relative flex h-[40px] items-start justify-between gap-2 overflow-hidden bg-transparent">
+              <div className="relative flex h-[35px] items-start justify-between gap-2 overflow-hidden bg-transparent">
                 <div className="relative inline-flex items-center self-start">
                   {isToday ? <div className={todayHeaderHighlightClassName} /> : null}
                   <div className={`relative z-[1] flex items-center gap-1 ${dateHeaderPaddingClassName} leading-none`}>
@@ -868,32 +895,39 @@ function WeekSlide({
                     entry.classType,
                     entry.deliveryType,
                   );
+                  const primaryPeriodLabel = formatPrimaryPeriodLabel(entry.periods);
                   return (
                     <div
                       key={entry.id}
-                      className="flex min-h-[18px] items-center gap-1 text-[12px] leading-[1.15] text-neutral-800"
+                      className="flex h-[15px] items-center gap-[2px] text-[13px] leading-tight text-neutral-900"
                     >
+                      <span className="w-[37px] flex-shrink-0 font-bold text-neutral-500">
+                        {primaryPeriodLabel || ''}
+                      </span>
                       <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
-                      <span className="flex-1 truncate">{entry.className}</span>
+                      <span className="pl-[2px] flex-1 truncate">{entry.className}</span>
                     </div>
                   );
                 })}
                 {googleEvents.length > 0 ? (
-                  <div className="mt-1 flex flex-col gap-[2px]">
-                    {googleEvents.slice(0, 3).map((event: GoogleCalendarEventRecord) => (
-                      <div
-                        key={event.eventUid}
-                        className="flex min-h-[16px] items-start gap-[6px] text-[11px] leading-tight text-blue-700"
-                      >
-                        <span className="flex-shrink-0">●</span>
-                        <span className="flex-1 truncate">{event.summary || '予定'}</span>
-                      </div>
-                    ))}
-                    {googleEvents.length > 3 ? (
-                      <span className="pl-[14px] text-[10px] font-medium text-blue-500">
-                        他 {googleEvents.length - 3} 件
-                      </span>
-                    ) : null}
+                  <div className="mt-0 flex flex-col gap-[2px]">
+                    {googleEvents.map((event: GoogleCalendarEventRecord) => {
+                      const startTimeLabel = formatGoogleEventStartTime(
+                        event.startTimestamp ?? null,
+                        event.allDay,
+                      );
+                      return (
+                        <div
+                          key={event.eventUid}
+                          className="flex h-[17px] items-center gap-[2px] text-[13px] leading-tight text-blue-900"
+                        >
+                          <span className="w-[37px] flex-shrink-0 font-semibold text-neutral-500">
+                            {startTimeLabel || ''}
+                          </span>
+                          <span className="flex-1 truncate">{event.summary || '予定'}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : null}
               </div>
