@@ -753,10 +753,15 @@ function CalendarMonthSlide({
       return null;
     }
 
-    return Math.max(0, Math.floor((cellContentHeight + ROW_GAP_PX) / (rowHeight + ROW_GAP_PX)));
+    // 全ての高さをアイテム表示に使用した場合の最大行数を計算
+    const maxPossibleRows = Math.floor((cellContentHeight + ROW_GAP_PX) / (rowHeight + ROW_GAP_PX));
+    
+    // 「他N件」ラベル分として1行分を確保（隠れるアイテムがある場合に表示される）
+    return Math.max(0, maxPossibleRows - 1);
   }, [cellContentHeight, rowHeight]);
 
   const maxVisibleRows = computedMaxRows ?? FALLBACK_MAX_VISIBLE_ROWS;
+
 
   return (
     <div className="relative flex h-full w-full flex-col">
@@ -769,7 +774,7 @@ function CalendarMonthSlide({
           <span className="text-[10px]">sample</span>
         </div>
       </div>
-      <div className="grid w-full flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
+      <div className="grid w-full flex-1 grid-cols-7 grid-rows-6 border border-neutral-200" style={{ height: '100%' }}>
         {dates.map((date, index) => {
           const dateId = dateIds[index];
           const info = infoMap[dateId];
@@ -804,24 +809,29 @@ function CalendarMonthSlide({
           const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
           const showBottomBorder = index < totalCells - WEEKDAY_HEADERS.length;
 
-          const classVisibleCount = Math.min(visibleClassEntries.length, maxVisibleRows);
-          const remainingRows = Math.max(maxVisibleRows - classVisibleCount, 0);
-          const googleVisibleCount = Math.min(googleEvents.length, remainingRows);
-          const hiddenClassCount = visibleClassEntries.length - classVisibleCount;
-          const hiddenGoogleCount = googleEvents.length - googleVisibleCount;
-          const hiddenTotalCount = hiddenClassCount + hiddenGoogleCount;
+          // 全てのアイテムを等価に扱うため、授業とGoogleカレンダーを統合
+          const allItems = [
+            ...visibleClassEntries.map(entry => ({ type: 'class' as const, data: entry })),
+            ...googleEvents.map(event => ({ type: 'google' as const, data: event }))
+          ];
+          
+          const visibleItems = allItems.slice(0, maxVisibleRows);
+          const hiddenTotalCount = Math.max(0, allItems.length - maxVisibleRows);
 
-          const visibleClasses =
-            classVisibleCount > 0 ? visibleClassEntries.slice(0, classVisibleCount) : [];
-          const visibleGoogleEvents =
-            googleVisibleCount > 0 ? googleEvents.slice(0, googleVisibleCount) : [];
+          const visibleClasses = visibleItems
+            .filter(item => item.type === 'class')
+            .map(item => item.data);
+          const visibleGoogleEvents = visibleItems
+            .filter(item => item.type === 'google')
+            .map(item => item.data);
+
 
           return (
             <button
               key={dateId}
               type="button"
               onClick={() => onDateSelect?.(dateId)}
-              className={`flex h-full min-h-0 w-full flex-col overflow-hidden text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
+              className={`flex w-full flex-col text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
                 isCurrentMonth ? '' : 'opacity-50'
               } hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60`}
               style={{
@@ -830,6 +840,9 @@ function CalendarMonthSlide({
                 borderBottomWidth: showBottomBorder ? 1 : 0,
                 borderColor: 'rgba(212, 212, 216, 1)',
                 borderStyle: 'solid',
+                height: '100%',
+                minHeight: 0,
+                overflow: 'hidden',
               }}
             >
               <div className="flex flex-shrink-0 items-start gap-1">
@@ -884,7 +897,6 @@ function CalendarMonthSlide({
                         key={event.eventUid}
                         className="flex min-h-[14px] items-start gap-[4px] pl-[3px] text-[10px] leading-[1.08] text-blue-700"
                       >
-                        <span className="flex-shrink-0">●</span>
                         <span className="flex-1 truncate">{event.summary || '予定'}</span>
                       </div>
                     ))}
