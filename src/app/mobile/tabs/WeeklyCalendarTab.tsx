@@ -60,7 +60,10 @@ function formatPrimaryPeriodLabel(periods: (number | 'OD')[] | undefined): strin
 }
 
 function formatGoogleEventStartTime(timestamp: number | null, allDay: boolean): string | null {
-  if (!timestamp || Number.isNaN(timestamp) || allDay) {
+  if (allDay) {
+    return '終日';
+  }
+  if (!timestamp || Number.isNaN(timestamp)) {
     return null;
   }
   const date = new Date(timestamp);
@@ -869,7 +872,7 @@ function WeekSlide({
                 cursor: onDateSelect ? 'pointer' : undefined,
               }}
             >
-              <div className="relative flex h-[40px] items-start justify-between gap-2 overflow-hidden bg-transparent">
+              <div className="relative flex h-[35px] items-start justify-between gap-2 overflow-hidden bg-transparent">
                 <div className="relative inline-flex items-center self-start">
                   {isToday ? <div className={todayHeaderHighlightClassName} /> : null}
                   <div className={`relative z-[1] flex items-center gap-1 ${dateHeaderPaddingClassName} leading-none`}>
@@ -896,19 +899,19 @@ function WeekSlide({
                   return (
                     <div
                       key={entry.id}
-                      className="flex min-h-[18px] items-center gap-1 text-[13px] leading-[1.15] text-neutral-800"
+                      className="flex h-[15px] items-center gap-[2px] text-[13px] leading-tight text-neutral-900"
                     >
-                      {primaryPeriodLabel ? (
-                        <span className="flex-shrink-0 font-bold text-neutral-900">{primaryPeriodLabel}</span>
-                      ) : null}
-                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={13} />
-                      <span className="flex-1 truncate">{entry.className}</span>
+                      <span className="w-[37px] flex-shrink-0 font-bold text-neutral-500">
+                        {primaryPeriodLabel || ''}
+                      </span>
+                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
+                      <span className="pl-[2px] flex-1 truncate">{entry.className}</span>
                     </div>
                   );
                 })}
                 {googleEvents.length > 0 ? (
-                  <div className="mt-1 flex flex-col gap-[2px]">
-                    {googleEvents.slice(0, 3).map((event: GoogleCalendarEventRecord) => {
+                  <div className="mt-0 flex flex-col gap-[2px]">
+                    {googleEvents.map((event: GoogleCalendarEventRecord) => {
                       const startTimeLabel = formatGoogleEventStartTime(
                         event.startTimestamp ?? null,
                         event.allDay,
@@ -916,23 +919,15 @@ function WeekSlide({
                       return (
                         <div
                           key={event.eventUid}
-                          className="flex min-h-[16px] items-center gap-[6px] text-[13px] leading-tight text-blue-700"
+                          className="flex h-[17px] items-center gap-[2px] text-[13px] leading-tight text-blue-900"
                         >
-                          <span className="flex-shrink-0">●</span>
-                          {startTimeLabel ? (
-                            <span className="flex-shrink-0 font-semibold text-neutral-700">
-                              {startTimeLabel}
-                            </span>
-                          ) : null}
+                          <span className="w-[37px] flex-shrink-0 font-semibold text-neutral-500">
+                            {startTimeLabel || ''}
+                          </span>
                           <span className="flex-1 truncate">{event.summary || '予定'}</span>
                         </div>
                       );
                     })}
-                    {googleEvents.length > 3 ? (
-                      <span className="pl-[14px] text-[10px] font-medium text-blue-500">
-                        他 {googleEvents.length - 3} 件
-                      </span>
-                    ) : null}
                   </div>
                 ) : null}
               </div>
