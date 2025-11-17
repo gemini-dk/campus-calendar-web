@@ -13,6 +13,7 @@ import {
   faPlus,
   faVideo,
 } from '@fortawesome/free-solid-svg-icons';
+import { faCircleCheck } from '@fortawesome/free-regular-svg-icons';
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   collection,
@@ -34,6 +35,8 @@ import AttendanceToggleGroup from '@/app/mobile/components/AttendanceToggleGroup
 import AttendanceSummary from '@/app/mobile/components/AttendanceSummary';
 import DeliveryToggleGroup from '@/app/mobile/components/DeliveryToggleGroup';
 import { useActivityDialog } from '@/app/mobile/components/ActivityDialogProvider';
+import type { Activity } from '@/app/mobile/features/activities/types';
+import { ActivityListItem } from '@/app/mobile/components/ActivityListItem';
 import type {
   AttendanceStatus,
   AttendanceSummary as AttendanceSummaryType,
@@ -558,8 +561,38 @@ export default function DailyClassesSection({
   onSelectClass,
   onRequestScheduleChange,
 }: DailyClassesSectionProps) {
+  const { assignments, classNameMap, openEditDialog, toggleAssignmentStatus } = useActivityDialog();
   const { loading, error, sessions, requiresSetup, updateAttendanceStatus, updateDeliveryType } =
     useDailyClassSessions({ userId, fiscalYear, dateId });
+
+  const dueAssignments = useMemo(
+    () =>
+      assignments.filter(
+        (activity) =>
+          activity.type === 'assignment' && typeof activity.dueDate === 'string' && activity.dueDate === dateId,
+      ),
+    [assignments, dateId],
+  );
+
+  const handleSelectAssignment = useCallback(
+    (activity: Activity) => {
+      openEditDialog(activity);
+    },
+    [openEditDialog],
+  );
+
+  const handleToggleAssignmentStatus = useCallback(
+    (activity: Activity) => {
+      if (activity.type === 'assignment') {
+        void toggleAssignmentStatus(activity);
+      }
+    },
+    [toggleAssignmentStatus],
+  );
+
+  const renderCalendarAssignmentIcon = useCallback((_: Activity) => {
+    return { icon: faCircleCheck, className: 'text-red-500' };
+  }, []);
 
   if (authInitializing) {
     return (
@@ -587,6 +620,21 @@ export default function DailyClassesSection({
 
   return (
     <div className="flex w-full flex-col gap-3">
+      {dueAssignments.length > 0 ? (
+        <div className="flex w-full flex-col gap-3">
+          {dueAssignments.map((assignment) => (
+            <ActivityListItem
+              key={assignment.id}
+              activity={assignment}
+              onSelect={handleSelectAssignment}
+              onToggleStatus={handleToggleAssignmentStatus}
+              classNameMap={classNameMap}
+              renderIcon={renderCalendarAssignmentIcon}
+            />
+          ))}
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
