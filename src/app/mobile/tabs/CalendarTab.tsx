@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent, TransitionEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -11,6 +12,8 @@ import {
 } from '@/lib/data/service/calendarDisplay.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
+import { useActivityDialog } from '../components/ActivityDialogProvider';
+import type { Activity } from '../features/activities/types';
 import {
   CALENDAR_SETTINGS_ERROR_MESSAGE,
   resolveSessionIcon,
@@ -47,6 +50,8 @@ const BACKGROUND_COLOR_MAP: Record<string, string> = {
 
 const CALENDAR_CELL_COUNT = 42;
 const DRAG_DETECTION_THRESHOLD = 6;
+const ROW_GAP_PX = 1;
+const FALLBACK_MAX_VISIBLE_ROWS = 2;
 
 type CalendarInfoMap = Record<string, CalendarDisplayInfo>;
 
@@ -63,6 +68,8 @@ type MonthStateMap = Record<string, MonthState>;
 type CalendarTabProps = {
   onDateSelect?: (dateId: string) => void;
 };
+
+type AssignmentsByDateMap = Record<string, Activity[]>;
 
 function formatDateId(date: Date): string {
   const year = date.getFullYear();
@@ -149,6 +156,25 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
   const configKeyRef = useRef(configKey);
   const { classEntriesByDate } = useCalendarClassEntries(fiscalYear);
+  const { assignments } = useActivityDialog();
+  const assignmentsByDate = useMemo<AssignmentsByDateMap>(() => {
+    const map: AssignmentsByDateMap = {};
+    assignments.forEach((activity) => {
+      if (activity.type !== 'assignment') {
+        return;
+      }
+      const dueDate = typeof activity.dueDate === 'string' ? activity.dueDate.trim() : '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+        return;
+      }
+      if (!map[dueDate]) {
+        map[dueDate] = [activity];
+      } else {
+        map[dueDate] = [...map[dueDate], activity];
+      }
+    });
+    return map;
+  }, [assignments]);
 
   const activeCalendarEntry = useMemo(() => {
     if (!fiscalYear || !calendarId) {
@@ -641,6 +667,7 @@ export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
                         monthState={state}
                         infoMap={infoMap}
                         classEntriesByDate={classEntriesByDate}
+                        assignmentsByDate={assignmentsByDate}
                         todayId={todayId}
                         onRetry={handleRetry}
                         onDateSelect={onDateSelect}
@@ -668,6 +695,7 @@ type CalendarMonthSlideProps = {
   monthState: MonthState | undefined;
   infoMap: CalendarInfoMap;
   classEntriesByDate: ClassEntriesByDateMap;
+  assignmentsByDate: AssignmentsByDateMap;
   todayId: string;
   onRetry: (monthDate: Date) => void;
   onDateSelect?: (dateId: string) => void;
@@ -678,6 +706,7 @@ function CalendarMonthSlide({
   monthState,
   infoMap,
   classEntriesByDate,
+  assignmentsByDate,
   todayId,
   onRetry,
   onDateSelect,
@@ -694,9 +723,85 @@ function CalendarMonthSlide({
   const errorMessage = monthState?.errorMessage ?? null;
   const isCalendarSettingsError = errorMessage === CALENDAR_SETTINGS_ERROR_MESSAGE;
 
+  const [cellContentHeight, setCellContentHeight] = useState<number | null>(null);
+  const [rowHeight, setRowHeight] = useState<number | null>(null);
+  const cellContentObserverRef = useRef<ResizeObserver | null>(null);
+  const rowMeasureObserverRef = useRef<ResizeObserver | null>(null);
+
+  const handleCellContentRef = useCallback((element: HTMLDivElement | null) => {
+    cellContentObserverRef.current?.disconnect();
+    cellContentObserverRef.current = null;
+
+    if (!element || typeof window === 'undefined' || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      setCellContentHeight(entry.contentRect.height);
+    });
+
+    observer.observe(element);
+    cellContentObserverRef.current = observer;
+  }, []);
+
+  const handleRowMeasureRef = useCallback((element: HTMLDivElement | null) => {
+    rowMeasureObserverRef.current?.disconnect();
+    rowMeasureObserverRef.current = null;
+
+    if (!element || typeof window === 'undefined' || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      setRowHeight(entry.contentRect.height);
+    });
+
+    observer.observe(element);
+    rowMeasureObserverRef.current = observer;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      cellContentObserverRef.current?.disconnect();
+      rowMeasureObserverRef.current?.disconnect();
+    };
+  }, []);
+
+  const computedMaxRows = useMemo(() => {
+    if (cellContentHeight == null || rowHeight == null || rowHeight <= 0) {
+      return null;
+    }
+
+    // 全ての高さをアイテム表示に使用した場合の最大行数を計算
+    const maxPossibleRows = Math.floor((cellContentHeight + ROW_GAP_PX) / (rowHeight + ROW_GAP_PX));
+    
+    // 「他N件」ラベル分として1行分を確保（隠れるアイテムがある場合に表示される）
+    return Math.max(0, maxPossibleRows - 1);
+  }, [cellContentHeight, rowHeight]);
+
+  const maxVisibleRows = computedMaxRows ?? FALLBACK_MAX_VISIBLE_ROWS;
+
+
   return (
-    <div className="flex h-full w-full flex-col">
-      <div className="grid w-full flex-1 grid-cols-7 grid-rows-6 border border-neutral-200">
+    <div className="relative flex h-full w-full flex-col">
+      <div className="pointer-events-none absolute left-0 top-0 -z-10 h-0 w-0 overflow-hidden" aria-hidden>
+        <div
+          ref={handleRowMeasureRef}
+          className="flex min-h-[14px] items-center gap-1 pl-[3px] text-[10px] leading-[1.08]"
+        >
+          <span className="h-[10px] w-[10px]" />
+          <span className="text-[10px]">sample</span>
+        </div>
+      </div>
+      <div className="grid w-full flex-1 grid-cols-7 grid-rows-6 border border-neutral-200" style={{ height: '100%' }}>
         {dates.map((date, index) => {
           const dateId = dateIds[index];
           const info = infoMap[dateId];
@@ -706,6 +811,7 @@ function CalendarMonthSlide({
           const classEntries = classEntriesByDate[dateId] ?? [];
           const visibleClassEntries = classEntries.filter((entry) => !entry.isCancelled);
           const googleEvents = googleEventsByDay[dateId] ?? [];
+          const dueAssignments = assignmentsByDate[dateId] ?? [];
 
           const isCurrentMonth =
             date.getFullYear() === monthDate.getFullYear() &&
@@ -731,12 +837,42 @@ function CalendarMonthSlide({
           const showRightBorder = (index + 1) % WEEKDAY_HEADERS.length !== 0;
           const showBottomBorder = index < totalCells - WEEKDAY_HEADERS.length;
 
+          // 全てのアイテムを等価に扱うため、授業とGoogleカレンダーを統合
+          const assignmentItems = dueAssignments.map((assignment) => ({
+            type: 'assignment' as const,
+            data: assignment,
+          }));
+          const classItems = visibleClassEntries.map((entry) => ({
+            type: 'class' as const,
+            data: entry,
+          }));
+          const googleItems = googleEvents.map((event) => ({
+            type: 'google' as const,
+            data: event,
+          }));
+
+          const allItems = [...assignmentItems, ...classItems, ...googleItems];
+          
+          const visibleItems = allItems.slice(0, maxVisibleRows);
+          const hiddenTotalCount = Math.max(0, allItems.length - maxVisibleRows);
+
+          const visibleAssignments = visibleItems
+            .filter((item) => item.type === 'assignment')
+            .map((item) => item.data);
+          const visibleClasses = visibleItems
+            .filter(item => item.type === 'class')
+            .map(item => item.data);
+          const visibleGoogleEvents = visibleItems
+            .filter(item => item.type === 'google')
+            .map(item => item.data);
+
+
           return (
             <button
               key={dateId}
               type="button"
               onClick={() => onDateSelect?.(dateId)}
-              className={`flex h-full min-h-0 w-full flex-col overflow-hidden text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
+              className={`flex w-full flex-col text-left text-[11px] leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400 ${
                 isCurrentMonth ? '' : 'opacity-50'
               } hover:bg-neutral-200/60 focus-visible:bg-neutral-200/60`}
               style={{
@@ -745,6 +881,9 @@ function CalendarMonthSlide({
                 borderBottomWidth: showBottomBorder ? 1 : 0,
                 borderColor: 'rgba(212, 212, 216, 1)',
                 borderStyle: 'solid',
+                height: '100%',
+                minHeight: 0,
+                overflow: 'hidden',
               }}
             >
               <div className="flex flex-shrink-0 items-start gap-1">
@@ -765,9 +904,23 @@ function CalendarMonthSlide({
                 </div>
               </div>
 
-              <div className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden">
+              <div
+                className="mt-1 flex flex-1 min-h-0 flex-col overflow-hidden"
+                ref={index === 0 ? handleCellContentRef : undefined}
+              >
                 <div className="flex flex-col gap-[1px] overflow-hidden">
-                  {visibleClassEntries.map((entry) => {
+                  {visibleAssignments.map((assignment) => (
+                    <div
+                      key={`assignment-${assignment.id}`}
+                      className="flex min-h-[14px] items-center gap-1 pl-[3px] text-[10px] leading-[1.08] text-red-600"
+                    >
+                      <FontAwesomeIcon icon={faCircleCheck} fontSize={10} className="flex-shrink-0 text-red-500" />
+                      <span className="flex-1 truncate text-[10px] text-red-600">
+                        {assignment.title || '無題の項目'}
+                      </span>
+                    </div>
+                  ))}
+                  {visibleClasses.map((entry) => {
                     const { icon, className: iconColorClass } = resolveSessionIcon(
                       entry.classType,
                       entry.deliveryType,
@@ -789,23 +942,22 @@ function CalendarMonthSlide({
                     );
                   })}
                 </div>
-                {googleEvents.length > 0 ? (
+                {visibleGoogleEvents.length > 0 ? (
                   <div className="mt-[2px] flex flex-col gap-[1px]">
-                    {googleEvents.slice(0, 2).map((event: GoogleCalendarEventRecord) => (
+                    {visibleGoogleEvents.map((event: GoogleCalendarEventRecord) => (
                       <div
                         key={event.eventUid}
                         className="flex min-h-[14px] items-start gap-[4px] pl-[3px] text-[10px] leading-[1.08] text-blue-700"
                       >
-                        <span className="flex-shrink-0">●</span>
                         <span className="flex-1 truncate">{event.summary || '予定'}</span>
                       </div>
                     ))}
-                    {googleEvents.length > 2 ? (
-                      <span className="pl-[14px] text-[9px] font-medium text-blue-500">
-                        他 {googleEvents.length - 2} 件
-                      </span>
-                    ) : null}
                   </div>
+                ) : null}
+                {hiddenTotalCount > 0 ? (
+                  <span className="mt-[2px] pl-[14px] text-[9px] font-medium text-blue-500">
+                    他 {hiddenTotalCount} 件
+                  </span>
                 ) : null}
               </div>
             </button>

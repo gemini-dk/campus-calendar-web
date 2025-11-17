@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faVideo } from '@fortawesome/free-solid-svg-icons';
+import { faCircleCheck } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -16,6 +17,8 @@ import {
 } from '@/lib/data/service/calendarDisplay.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import UserHamburgerMenu from '../components/UserHamburgerMenu';
+import { useActivityDialog } from '../components/ActivityDialogProvider';
+import type { Activity } from '../features/activities/types';
 import {
   CALENDAR_SETTINGS_ERROR_MESSAGE,
   resolveSessionIcon,
@@ -194,14 +197,35 @@ type WeeklyCalendarTabProps = {
   onDateSelect?: (dateId: string) => void;
 };
 
+type AssignmentsByDateMap = Record<string, Activity[]>;
+
 export default function WeeklyCalendarTab({ onDateSelect }: WeeklyCalendarTabProps) {
   const { settings, initialized } = useUserSettings();
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
+  const { assignments } = useActivityDialog();
   const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
   const configKeyRef = useRef(configKey);
 
   const { classEntriesByDate, classSummaries } = useCalendarClassEntries(fiscalYear);
+  const assignmentsByDate = useMemo<AssignmentsByDateMap>(() => {
+    const map: AssignmentsByDateMap = {};
+    assignments.forEach((activity) => {
+      if (activity.type !== 'assignment') {
+        return;
+      }
+      const dueDate = typeof activity.dueDate === 'string' ? activity.dueDate.trim() : '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+        return;
+      }
+      if (!map[dueDate]) {
+        map[dueDate] = [activity];
+      } else {
+        map[dueDate] = [...map[dueDate], activity];
+      }
+    });
+    return map;
+  }, [assignments]);
 
   const activeCalendarEntry = useMemo(() => {
     if (!fiscalYear || !calendarId) {
@@ -693,6 +717,7 @@ export default function WeeklyCalendarTab({ onDateSelect }: WeeklyCalendarTabPro
                         classEntriesByDate={classEntriesByDate}
                         fullOnDemandClasses={fullOnDemandClasses}
                         todayId={todayId}
+                        assignmentsByDate={assignmentsByDate}
                         onDateSelect={onDateSelect}
                       />
                     </div>
@@ -720,6 +745,7 @@ type WeekSlideProps = {
   classEntriesByDate: ClassEntriesByDateMap;
   fullOnDemandClasses: FullOnDemandClass[];
   todayId: string;
+  assignmentsByDate: AssignmentsByDateMap;
   onDateSelect?: (dateId: string) => void;
 };
 
@@ -730,6 +756,7 @@ function WeekSlide({
   classEntriesByDate,
   fullOnDemandClasses,
   todayId,
+  assignmentsByDate,
   onDateSelect,
 }: WeekSlideProps) {
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
@@ -825,6 +852,7 @@ function WeekSlide({
           const general = info?.calendar ?? null;
           const academic = info?.academic ?? null;
           const classEntries = classEntriesByDate[dateId] ?? [];
+          const dueAssignments = assignmentsByDate[dateId] ?? [];
           const visibleClassEntries = classEntries.filter((entry) => !entry.isCancelled);
           const googleEvents = googleEventsByDay[dateId] ?? [];
 
@@ -890,6 +918,22 @@ function WeekSlide({
                 </div>
               </div>
               <div className="flex flex-1 min-h-0 flex-col gap-1 overflow-y-auto px-2 py-2 touch-pan-y">
+                {dueAssignments.length > 0 ? (
+                  <div className="flex flex-col gap-[2px]">
+                    {dueAssignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-red-600"
+                      >
+                        <span className="flex w-[40px] flex-shrink-0 font-bold text-red-400">
+                          課題
+                        </span>
+                        <FontAwesomeIcon icon={faCircleCheck} className="text-red-500" fontSize={12} />
+                        <span className="pl-[2px] flex-1 truncate">{assignment.title || '無題の項目'}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 {visibleClassEntries.map((entry) => {
                   const { icon, className: iconClass } = resolveSessionIcon(
                     entry.classType,
@@ -899,9 +943,9 @@ function WeekSlide({
                   return (
                     <div
                       key={entry.id}
-                      className="flex h-[15px] items-center gap-[2px] text-[13px] leading-tight text-neutral-900"
+                      className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-neutral-900"
                     >
-                      <span className="w-[37px] flex-shrink-0 font-bold text-neutral-500">
+                      <span className="w-[40px] flex-shrink-0 font-bold text-neutral-500">
                         {primaryPeriodLabel || ''}
                       </span>
                       <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
@@ -919,9 +963,9 @@ function WeekSlide({
                       return (
                         <div
                           key={event.eventUid}
-                          className="flex h-[17px] items-center gap-[2px] text-[13px] leading-tight text-blue-900"
+                          className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-blue-900"
                         >
-                          <span className="w-[37px] flex-shrink-0 font-semibold text-neutral-500">
+                          <span className="w-[40px] flex-shrink-0 font-semibold text-neutral-500">
                             {startTimeLabel || ''}
                           </span>
                           <span className="flex-1 truncate">{event.summary || '予定'}</span>
