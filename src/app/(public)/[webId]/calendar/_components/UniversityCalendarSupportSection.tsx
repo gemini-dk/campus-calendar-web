@@ -12,7 +12,7 @@ export default function UniversityCalendarSupportSection(
 ) {
   const handleAdvertisementClick = useCallback(() => {
     openSupportForm({
-      type: "誤り報告",
+      type: "広告掲載",
       college: props.universityName,
       message: "大学のインカレ団体の紹介などを掲載しませんか？お気軽にご連絡ください。",
     });
