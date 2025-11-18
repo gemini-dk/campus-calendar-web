@@ -606,6 +606,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
             </li>
           </ul>
         </section>
+        <div className='min-h-[300px]'></div>
       </div>
 
       {activePanel === 'academicCalendarSettings' ? (
