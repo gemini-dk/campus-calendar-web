@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faXmark } from '@fortawesome/free-solid-svg-icons';
+import { faPlus, faXmark } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -103,6 +103,22 @@ function extractDayNumber(label: string): string {
   return String(Number(match[3]));
 }
 
+function buildGoogleCalendarCreateUrl(dateId: string): string {
+  const normalized = normalizeDateId(dateId);
+  const startDate = normalized.replace(/-/g, '');
+  const endDateObject = new Date(`${normalized}T00:00:00Z`);
+  if (Number.isNaN(endDateObject.getTime())) {
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+  }
+  endDateObject.setUTCDate(endDateObject.getUTCDate() + 1);
+  const endDate = endDateObject.toISOString().slice(0, 10).replace(/-/g, '');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    dates: `${startDate}/${endDate}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 function formatEventTime(event: GoogleCalendarEventRecord): string {
   if (event.allDay) {
     return '終日';
@@ -150,6 +166,10 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ClassActivityOverlaySession | null>(null);
   const { openDialog: openScheduleDialog } = useScheduleAdjustmentDialog();
+  const googleCalendarCreateUrl = useMemo(
+    () => buildGoogleCalendarCreateUrl(normalizedDateId),
+    [normalizedDateId],
+  );
 
   const activeCalendarEntry = useMemo(() => {
     return (
@@ -400,6 +420,17 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
             </div>
           ) : null}
         </div>
+      </div>
+      <div className="pointer-events-none fixed bottom-24 right-6 z-20 flex w-full justify-end pr-1">
+        <a
+          href={googleCalendarCreateUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          aria-label="Googleカレンダーで予定を作成"
+        >
+          <FontAwesomeIcon icon={faPlus} fontSize={20} />
+        </a>
       </div>
       <ClassActivityOverlay
         open={Boolean(selectedActivity)}
