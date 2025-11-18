@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FirebaseError } from 'firebase/app';
 
 import { useToast } from '@/components/ui/ToastProvider';
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 import { useGoogleCalendarIntegration } from '@/lib/google-calendar/hooks/useGoogleCalendarIntegration';
 import { deleteAllUserData } from '@/lib/account/deleteAllUserData';
+import { auth } from '@/lib/firebase/client';
 
 const IS_PRODUCTION = 
   (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
@@ -433,6 +435,22 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     setDeleteAccountError(null);
     try {
       await deleteAllUserData(profile.uid);
+
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        try {
+          await currentUser.delete();
+        } catch (authError) {
+          if (authError instanceof FirebaseError && authError.code === 'auth/requires-recent-login') {
+            setDeleteAccountError('安全のため、再度ログインしてから退会を完了してください。ログアウトしました。');
+            await signOut();
+            return;
+          }
+
+          throw authError;
+        }
+      }
+
       showToast({ message: '全てのデータを削除しました。ご利用ありがとうございました。', tone: 'success' });
       await signOut();
       setActivePanel(null);
