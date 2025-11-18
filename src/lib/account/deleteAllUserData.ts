@@ -62,6 +62,7 @@ async function deleteAcademicYears(userId: string): Promise<void> {
     await deleteCollectionInBatches(collection(yearRef, 'timetable_classes'), {
       beforeDeleteDoc: async (classDoc) => {
         await deleteCollectionInBatches(collection(classDoc.ref, 'weekly_slots'));
+        await deleteCollectionInBatches(collection(classDoc.ref, 'class_dates'));
       },
     });
 
