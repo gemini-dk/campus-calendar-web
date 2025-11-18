@@ -460,7 +460,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         <ul className="mt-4 flex flex-col gap-2 text-sm">
           <li>
             <a
-              href="https://campus-calendar.launchfy.support/ja/page/faq"
+              href="https://campus-calendar.launchfy.site/ja/faq"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 underline-offset-2 hover:underline"
@@ -470,7 +470,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
           </li>
           <li>
             <a
-              href="https://campus-calendar.launchfy.support/ja/page/supportform"
+              href="https://campus-calendar.launchfy.site/ja/form"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 underline-offset-2 hover:underline"
@@ -480,7 +480,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
           </li>
           <li>
             <a
-              href="https://campus-calendar.launchfy.support/ja/page/eula"
+              href="https://campus-calendar.launchfy.site/ja/terms-of-use"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 underline-offset-2 hover:underline"
@@ -490,7 +490,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
           </li>
           <li>
             <a
-              href="https://campus-calendar.launchfy.support/ja/page/privacypolicy"
+              href="https://campus-calendar.launchfy.site/ja/privacy-policy"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 underline-offset-2 hover:underline"
