@@ -25,6 +25,7 @@ import {
 import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
 import { useGoogleCalendarEventsForDay } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
+import CreateClassScheduleDialog from './CreateClassScheduleDialog';
 
 
 const ACCENT_COLOR_CLASS: Record<string, string> = {
@@ -166,6 +167,8 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedActivity, setSelectedActivity] = useState<ClassActivityOverlaySession | null>(null);
   const { openDialog: openScheduleDialog } = useScheduleAdjustmentDialog();
+  const [fabMenuOpen, setFabMenuOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const googleCalendarCreateUrl = useMemo(
     () => buildGoogleCalendarCreateUrl(normalizedDateId),
     [normalizedDateId],
@@ -322,6 +325,15 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
     setSelectedActivity(null);
   }, []);
 
+  const handleOpenCreateDialog = useCallback(() => {
+    setCreateDialogOpen(true);
+    setFabMenuOpen(false);
+  }, []);
+
+  const handleCloseCreateDialog = useCallback(() => {
+    setCreateDialogOpen(false);
+  }, []);
+
   return (
     <>
       <div className="flex min-h-full flex-col">
@@ -421,22 +433,57 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
           ) : null}
         </div>
       </div>
-      <div className="pointer-events-none fixed bottom-24 right-6 z-20 flex w-full justify-end pr-1">
-        <a
-          href={googleCalendarCreateUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+      {fabMenuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-10 h-full w-full cursor-default bg-transparent"
+          aria-label="操作メニューを閉じる"
+          onClick={() => setFabMenuOpen(false)}
+        />
+      ) : null}
+      <div className="pointer-events-none fixed bottom-24 right-6 z-20 flex flex-col items-end gap-3 pr-1">
+        {fabMenuOpen ? (
+          <div className="pointer-events-auto flex flex-col items-end gap-3">
+            <a
+              href={googleCalendarCreateUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setFabMenuOpen(false)}
+              className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
+            >
+              Googleカレンダーで予定作成
+            </a>
+            <button
+              type="button"
+              onClick={handleOpenCreateDialog}
+              className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
+            >
+              授業日程を作成
+            </button>
+          </div>
+        ) : null}
+        <button
+          type="button"
           className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-          aria-label="Googleカレンダーで予定を作成"
+          aria-label="操作メニューを開く"
+          onClick={() => setFabMenuOpen((prev) => !prev)}
         >
-          <FontAwesomeIcon icon={faPlus} fontSize={20} />
-        </a>
+          <FontAwesomeIcon icon={fabMenuOpen ? faXmark : faPlus} fontSize={20} />
+        </button>
       </div>
       <ClassActivityOverlay
         open={Boolean(selectedActivity)}
         session={selectedActivity}
         fiscalYear={settings.calendar.fiscalYear ?? null}
         onClose={handleCloseClassActivity}
+      />
+      <CreateClassScheduleDialog
+        open={createDialogOpen}
+        userId={profile?.uid ?? null}
+        fiscalYear={settings.calendar.fiscalYear ?? null}
+        defaultDateId={normalizedDateId}
+        lessonsPerDayEntries={settings.calendar.entries}
+        onClose={handleCloseCreateDialog}
       />
     </>
   );
