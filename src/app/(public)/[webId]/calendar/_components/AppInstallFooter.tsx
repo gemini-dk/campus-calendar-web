@@ -91,7 +91,7 @@ export default function AppInstallFooter({
             スマホアプリ表示
           </button>
           <a
-            href="https://campus-calendar.launchfy.support/ja/page/faq"
+            href="https://campus-calendar.launchfy.site/ja/faq"
             target="_blank"
             rel="noopener noreferrer"
             className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-200 hover:bg-neutral-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 flex-shrink-0"

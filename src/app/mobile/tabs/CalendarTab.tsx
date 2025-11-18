@@ -146,7 +146,7 @@ function resolveTodayHighlight(accent: string | null | undefined): TodayHighligh
     return { backgroundClass: "bg-blue-600", textClass: "text-white" };
   }
 
-  return { backgroundClass: "bg-neutral-900", textClass: "text-white" };
+  return { backgroundClass: "bg-neutral-500", textClass: "text-white" };
 }
 
 export default function CalendarTab({ onDateSelect }: CalendarTabProps) {

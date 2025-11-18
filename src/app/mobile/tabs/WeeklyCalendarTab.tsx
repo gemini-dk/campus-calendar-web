@@ -155,7 +155,7 @@ function resolveTodayHighlight(accent: string | null | undefined): TodayHighligh
     return { backgroundClass: "bg-blue-600", textClass: "text-white" };
   }
 
-  return { backgroundClass: "bg-neutral-900", textClass: "text-white" };
+  return { backgroundClass: "bg-neutral-500", textClass: "text-white" };
 }
 
 const BORDER_COLOR = 'var(--color-calendar-border, rgb(229 231 235))';
@@ -863,14 +863,14 @@ function WeekSlide({
           const todayHighlight = resolveTodayHighlight(general?.dateTextColor);
           const cellBackground = resolveBackgroundColor(academic?.backgroundColor);
 
-          const dateNumberClassName = `text-lg font-semibold ${
+          const dateNumberClassName = `text-xl font-semibold italic ${
             isToday ? todayHighlight.textClass : accentClass
           }`;
           const weekdayClassName = `text-xs font-semibold ${
             isToday ? todayHighlight.textClass : accentClass
           }`;
-          const dateHeaderPaddingClassName = "px-2 pb-1 pt-1";
-          const todayHeaderHighlightClassName = `pointer-events-none absolute inset-0 rounded-none rounded-br-md ${todayHighlight.backgroundClass}`;
+          const dateHeaderPaddingClassName = "px-2 pb-1 pt-1 pr-3";
+          const todayHeaderHighlightClassName = `pointer-events-none absolute inset-0 rounded-none rounded-br-2xl ${todayHighlight.backgroundClass}`;
 
           const showRightBorder = (index + 1) % WEEK_COLUMN_COUNT !== 0;
           const showBottomBorder = index < totalCells - WEEK_COLUMN_COUNT;
@@ -903,7 +903,7 @@ function WeekSlide({
               <div className="relative flex h-[35px] items-start justify-between gap-2 overflow-hidden bg-transparent">
                 <div className="relative inline-flex items-center self-start">
                   {isToday ? <div className={todayHeaderHighlightClassName} /> : null}
-                  <div className={`relative z-[1] flex items-center gap-1 ${dateHeaderPaddingClassName} leading-none`}>
+                  <div className={`relative z-[1] flex items-baseline gap-1 ${dateHeaderPaddingClassName} leading-none`}>
                     <span className={dateNumberClassName}>{dateNumber}</span>
                     <span className={weekdayClassName}>{weekdayLabel}</span>
                   </div>
@@ -925,7 +925,7 @@ function WeekSlide({
                         key={assignment.id}
                         className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-red-600"
                       >
-                        <span className="flex w-[40px] flex-shrink-0 font-bold text-red-400">
+                        <span className="flex w-[40px] flex-shrink-0 font-bold text-red-400 text-[12px]">
                           課題
                         </span>
                         <FontAwesomeIcon icon={faCircleCheck} className="text-red-500" fontSize={12} />
@@ -945,10 +945,10 @@ function WeekSlide({
                       key={entry.id}
                       className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-neutral-900"
                     >
-                      <span className="w-[40px] flex-shrink-0 font-bold text-neutral-500">
+                      <span className="w-[40px] flex-shrink-0 font-bold text-neutral-500 text-[12px]">
                         {primaryPeriodLabel || ''}
                       </span>
-                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={12} />
+                      <FontAwesomeIcon icon={icon} className={`${iconClass} flex-shrink-0`} fontSize={13} />
                       <span className="pl-[2px] flex-1 truncate">{entry.className}</span>
                     </div>
                   );
@@ -965,7 +965,7 @@ function WeekSlide({
                           key={event.eventUid}
                           className="flex h-[17px] items-center gap-[2px] text-[14px] leading-tight text-blue-900"
                         >
-                          <span className="w-[40px] flex-shrink-0 font-semibold text-neutral-500">
+                          <span className="w-[40px] flex-shrink-0 font-semibold text-neutral-500 text-[12px]">
                             {startTimeLabel || ''}
                           </span>
                           <span className="flex-1 truncate">{event.summary || '予定'}</span>

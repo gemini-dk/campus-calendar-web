@@ -21,7 +21,7 @@ export default function GlobalFooter() {
               </li>
               <li>
                 <Link
-                  href="https://campus-calendar.launchfy.support/ja/page/faq"
+                  href="https://campus-calendar.launchfy.site/ja/faq"
                   className="text-slate-300 hover:text-white transition-colors duration-200"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -47,7 +47,7 @@ export default function GlobalFooter() {
             <ul className="space-y-3">
               <li>
                 <Link
-                  href="https://campus-calendar.launchfy.support/ja/page/supportform"
+                  href="https://campus-calendar.launchfy.site/ja/form"
                   className="text-slate-300 hover:text-white transition-colors duration-200"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -57,7 +57,7 @@ export default function GlobalFooter() {
               </li>
               <li>
                 <Link
-                  href="https://campus-calendar.launchfy.support/ja/page/eula"
+                  href="https://campus-calendar.launchfy.site/ja/terms-of-use"
                   className="text-slate-300 hover:text-white transition-colors duration-200"
                   target="_blank"
                   rel="noopener noreferrer"
@@ -67,7 +67,7 @@ export default function GlobalFooter() {
               </li>
               <li>
                 <Link
-                  href="https://campus-calendar.launchfy.support/ja/page/privacypolicy"
+                  href="https://campus-calendar.launchfy.site/ja/page/privacy-policy"
                   className="text-slate-300 hover:text-white transition-colors duration-200"
                   target="_blank"
                   rel="noopener noreferrer"

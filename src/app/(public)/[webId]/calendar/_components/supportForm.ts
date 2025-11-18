@@ -1,6 +1,6 @@
 "use client";
 
-const SUPPORT_FORM_URL = "https://campus-calendar.launchfy.support/ja/page/supportform";
+const SUPPORT_FORM_URL = "https://campus-calendar.launchfy.site/ja/form";
 
 export function openSupportForm(params: Record<string, string>) {
   const url = new URL(SUPPORT_FORM_URL);
