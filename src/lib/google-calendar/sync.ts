@@ -12,6 +12,7 @@ import {
   toTimestamp,
 } from './utils';
 import type { GoogleCalendarSyncStore } from './syncStore';
+import { getGoogleCalendarClientSecret, getServerGoogleCalendarClientId } from './serverConfig';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const CALENDAR_LIST_ENDPOINT = 'https://www.googleapis.com/calendar/v3/users/me/calendarList';
@@ -178,7 +179,8 @@ async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> 
   const params = new URLSearchParams({
     refresh_token: refreshToken,
     grant_type: 'refresh_token',
-    client_id: process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_CLIENT_ID ?? '',
+    client_id: getServerGoogleCalendarClientId(),
+    client_secret: getGoogleCalendarClientSecret(),
   });
 
   const response = await fetch(TOKEN_ENDPOINT, {
