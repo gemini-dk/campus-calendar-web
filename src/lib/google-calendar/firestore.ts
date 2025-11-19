@@ -126,3 +126,16 @@ export async function listEventsByDay(
   const eventsQuery = query(eventsRef, where('dayKeys', 'array-contains', dateId), orderBy('startTimestamp'));
   return getDocs(eventsQuery);
 }
+
+export async function listGoogleCalendarEventUidsByCalendar(
+  db: Firestore,
+  userId: string,
+  calendarId: string,
+): Promise<string[]> {
+  const eventsRef = getEventsCollectionRef(db, userId);
+  const snapshot = await getDocs(query(eventsRef, where('calendarId', '==', calendarId)));
+  if (snapshot.empty) {
+    return [];
+  }
+  return snapshot.docs.map((docSnapshot) => docSnapshot.id);
+}

@@ -26,8 +26,12 @@ import {
   type ClassEntriesByDateMap,
 } from './calendarShared';
 import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
+import { useGoogleCalendarAutoSync } from '@/lib/google-calendar/hooks/useGoogleCalendarAutoSync';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
+
+const IS_PRODUCTION =
+  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 const WEEKDAY_ACCENT_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -201,6 +205,7 @@ type AssignmentsByDateMap = Record<string, Activity[]>;
 
 export default function WeeklyCalendarTab({ onDateSelect }: WeeklyCalendarTabProps) {
   const { settings, initialized } = useUserSettings();
+  useGoogleCalendarAutoSync({ enabled: !IS_PRODUCTION });
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
   const { assignments } = useActivityDialog();

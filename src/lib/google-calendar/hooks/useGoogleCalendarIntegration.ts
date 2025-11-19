@@ -11,9 +11,11 @@ import { GOOGLE_CALENDAR_SCOPES } from '../constants';
 import { getIntegrationDocRef, removeAllGoogleCalendarEvents } from '../firestore';
 import { saveOAuthSession } from '../oauthStorage';
 import { generateCodeVerifier, deriveCodeChallenge } from '../pkce';
-import { ensureIntegrationDocument, loadIntegrationDocument, syncGoogleCalendar } from '../sync';
+import { ensureIntegrationDocument } from '../sync';
 import type { GoogleCalendarIntegrationDoc, GoogleCalendarSyncState } from '../types';
 import { getGoogleCalendarClientId, getGoogleCalendarRedirectUri } from '../config';
+import { createClientSyncStore, DEFAULT_GOOGLE_CALENDAR_INTEGRATION_DOC } from '../stores/clientStore';
+import { GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS } from '../syncPolicies';
 
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 export type GoogleCalendarIntegrationState = {
@@ -26,19 +28,9 @@ export type GoogleCalendarIntegrationState = {
   syncNow: () => Promise<void>;
 };
 
-const DEFAULT_INTEGRATION_STATE: GoogleCalendarIntegrationDoc = {
-  accessToken: null,
-  refreshToken: null,
-  tokenType: null,
-  scope: null,
-  expiresAt: null,
-  syncTokens: null,
-  lastSyncedAt: null,
-  calendarList: null,
-  lastSyncStatus: 'idle',
-  lastSyncError: null,
-  updatedAt: 0,
-};
+const DEFAULT_INTEGRATION_STATE: GoogleCalendarIntegrationDoc = DEFAULT_GOOGLE_CALENDAR_INTEGRATION_DOC;
+
+const clientSyncStore = createClientSyncStore(db);
 
 type UseGoogleCalendarIntegrationOptions = {
   enabled?: boolean;
@@ -80,7 +72,7 @@ export function useGoogleCalendarIntegration(
     setLoading(true);
     setError(null);
 
-    ensureIntegrationDocument(userId)
+    ensureIntegrationDocument(clientSyncStore, userId)
       .then(() => {
         if (cancelled) {
           return;
@@ -143,7 +135,7 @@ export function useGoogleCalendarIntegration(
       return;
     }
     try {
-      await ensureIntegrationDocument(userId);
+      await ensureIntegrationDocument(clientSyncStore, userId);
       const stateToken = generateStateToken();
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = await deriveCodeChallenge(codeVerifier);
@@ -212,52 +204,56 @@ export function useGoogleCalendarIntegration(
     if (!isEnabled || !userId || !integration) {
       return;
     }
+    if (!integration.refreshToken) {
+      setSyncState((previous) => ({
+        inProgress: false,
+        lastSyncedAt: previous.lastSyncedAt ?? integration.lastSyncedAt ?? null,
+        error: 'Googleカレンダーの再認証が必要です。',
+      }));
+      return;
+    }
+    if (syncState.inProgress || integration.lastSyncStatus === 'syncing') {
+      return;
+    }
+    const now = Date.now();
+    const lastSyncedAt = syncState.lastSyncedAt ?? integration.lastSyncedAt ?? null;
+    if (lastSyncedAt && now - lastSyncedAt < GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS) {
+      setSyncState((previous) => ({
+        ...previous,
+        error: '前回の同期から5分経過していません。',
+      }));
+      return;
+    }
+    setSyncState({ inProgress: true, lastSyncedAt: integration.lastSyncedAt ?? null, error: null });
     try {
-      setSyncState({ inProgress: true, lastSyncedAt: integration.lastSyncedAt ?? null, error: null });
-      const ref = getIntegrationDocRef(db, userId);
-      await setDoc(
-        ref,
-        {
-          lastSyncStatus: 'syncing',
-          lastSyncError: null,
-          updatedAt: Date.now(),
-        },
-        { merge: true },
-      );
-
-      const latest = await loadIntegrationDocument(userId);
-      if (!latest) {
-        throw new Error('Googleカレンダー連携設定が見つかりません。');
+      const response = await fetch('/api/google-calendar/sync', {
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      const text = await response.text();
+      let payload: { error?: string; error_description?: string } = {};
+      try {
+        payload = text ? (JSON.parse(text) as typeof payload) : {};
+      } catch (parseError) {
+        console.error('Google カレンダー同期APIレスポンスの解析に失敗しました。', parseError);
       }
-      await syncGoogleCalendar(userId, latest);
-      await setDoc(
-        ref,
-        {
-          lastSyncStatus: 'idle',
-          lastSyncError: null,
-          updatedAt: Date.now(),
-        },
-        { merge: true },
-      );
+      if (!response.ok) {
+        const message =
+          typeof payload.error_description === 'string'
+            ? payload.error_description
+            : typeof payload.error === 'string'
+              ? payload.error
+              : 'Googleカレンダーの同期に失敗しました。';
+        setSyncState({ inProgress: false, lastSyncedAt: integration.lastSyncedAt ?? null, error: message });
+        return;
+      }
       setSyncState({ inProgress: false, lastSyncedAt: Date.now(), error: null });
     } catch (syncError) {
-      console.error('Google カレンダー同期に失敗しました。', syncError);
+      console.error('Google カレンダー同期APIの呼び出しに失敗しました。', syncError);
       const message = syncError instanceof Error ? syncError.message : 'Googleカレンダーの同期に失敗しました。';
       setSyncState({ inProgress: false, lastSyncedAt: integration.lastSyncedAt ?? null, error: message });
-      if (userId) {
-        const ref = getIntegrationDocRef(db, userId);
-        await setDoc(
-          ref,
-          {
-            lastSyncStatus: 'error',
-            lastSyncError: message,
-            updatedAt: Date.now(),
-          },
-          { merge: true },
-        );
-      }
     }
-  }, [integration, isEnabled, userId]);
+  }, [integration, isEnabled, syncState.inProgress, syncState.lastSyncedAt, userId]);
 
   useEffect(() => {
     if (!integration) {

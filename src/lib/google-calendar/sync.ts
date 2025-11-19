@@ -1,7 +1,3 @@
-import { getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
-
-import { db } from '@/lib/firebase/client';
-
 import type {
   GoogleCalendarEventRecord,
   GoogleCalendarIntegrationDoc,
@@ -15,12 +11,8 @@ import {
   toDateKey,
   toTimestamp,
 } from './utils';
-import {
-  getEventsCollectionRef,
-  getIntegrationDocRef,
-  removeGoogleCalendarEvents,
-  upsertGoogleCalendarEvents,
-} from './firestore';
+import type { GoogleCalendarSyncStore } from './syncStore';
+import { getGoogleCalendarClientSecret, getServerGoogleCalendarClientId } from './serverConfig';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const CALENDAR_LIST_ENDPOINT = 'https://www.googleapis.com/calendar/v3/users/me/calendarList';
@@ -32,42 +24,25 @@ export type SyncOptions = {
   timeMax?: string;
 };
 
-export async function loadIntegrationDocument(userId: string): Promise<GoogleCalendarIntegrationDoc | null> {
-  const ref = getIntegrationDocRef(db, userId);
-  const snapshot = await getDoc(ref);
-  if (!snapshot.exists()) {
-    return null;
-  }
-  return snapshot.data() as GoogleCalendarIntegrationDoc;
+export async function loadIntegrationDocument(
+  store: GoogleCalendarSyncStore,
+  userId: string,
+): Promise<GoogleCalendarIntegrationDoc | null> {
+  return store.loadIntegration(userId);
 }
 
-export async function ensureIntegrationDocument(userId: string): Promise<void> {
-  const ref = getIntegrationDocRef(db, userId);
-  const snapshot = await getDoc(ref);
-  if (snapshot.exists()) {
-    return;
-  }
-  const payload: GoogleCalendarIntegrationDoc = {
-    accessToken: null,
-    refreshToken: null,
-    tokenType: null,
-    scope: null,
-    expiresAt: null,
-    syncTokens: null,
-    lastSyncedAt: null,
-    calendarList: null,
-    lastSyncStatus: 'idle',
-    lastSyncError: null,
-    updatedAt: Date.now(),
-  };
-  await setDoc(ref, payload);
+export async function ensureIntegrationDocument(store: GoogleCalendarSyncStore, userId: string): Promise<void> {
+  await store.ensureIntegration(userId);
 }
 
 export async function syncGoogleCalendar(
+  store: GoogleCalendarSyncStore,
   userId: string,
   integration: GoogleCalendarIntegrationDoc,
   options: SyncOptions = {},
 ): Promise<GoogleCalendarEventSyncResult> {
+  console.log(`[GoogleCalendar Sync Core] 同期開始 - ユーザーID: ${userId}`);
+  
   if (!integration.refreshToken) {
     throw new Error('Google カレンダーの再認証が必要です。');
   }
@@ -77,20 +52,20 @@ export async function syncGoogleCalendar(
   let expiresAt = integration.expiresAt ?? 0;
 
   if (!accessToken || expiresAt - 60_000 <= now) {
-    const refreshed = await refreshAccessToken(integration.refreshToken);
-    accessToken = refreshed.accessToken;
-    expiresAt = refreshed.expiresAt;
-    await setDoc(
-      getIntegrationDocRef(db, userId),
-      {
+    try {
+      const refreshed = await refreshAccessToken(integration.refreshToken);
+      accessToken = refreshed.accessToken;
+      expiresAt = refreshed.expiresAt;
+      await store.updateIntegration(userId, {
         accessToken,
         expiresAt,
         scope: refreshed.scope,
         tokenType: refreshed.tokenType,
         updatedAt: Date.now(),
-      },
-      { merge: true },
-    );
+      });
+    } catch (refreshError) {
+      throw refreshError;
+    }
   }
 
   const { timeMin, timeMax } = resolveTimeRange(options);
@@ -101,7 +76,7 @@ export async function syncGoogleCalendar(
   const syncTokens = integration.syncTokens ?? {};
   const nextSyncTokens: Record<string, string> = { ...syncTokens };
   const upserted: GoogleCalendarEventRecord[] = [];
-  const removed: string[] = [];
+  const removedEventUids = new Set<string>();
   const syncedCalendars: string[] = [];
 
   for (const calendar of selectedCalendars) {
@@ -109,16 +84,18 @@ export async function syncGoogleCalendar(
     const encodedCalendarId = encodeURIComponent(calendar.id);
     const existingToken = options.forceFullSync ? undefined : syncTokens[calendarId];
 
-    const syncResult = await fetchCalendarEvents({
-      accessToken,
-      calendarId: encodedCalendarId,
-      syncToken: existingToken,
-      timeMin,
-      timeMax,
-    });
+    try {
+      const syncResult = await fetchCalendarEvents({
+        accessToken,
+        calendarId: encodedCalendarId,
+        syncToken: existingToken,
+        timeMin,
+        timeMax,
+      });
+      console.log(`[GoogleCalendar Sync Core] カレンダーイベント取得成功: ${calendarId}, イベント数=${syncResult.events.length}, キャンセル数=${syncResult.cancelledIds.length}, リセット必要=${syncResult.resetRequired}`);
 
     if (syncResult.resetRequired) {
-      await removeCalendarEvents(userId, calendarId);
+      console.log(`[GoogleCalendar Sync Core] フルリセット同期が必要: ${calendarId}`);
       nextSyncTokens[calendarId] = '';
       const resetResult = await fetchCalendarEvents({
         accessToken,
@@ -126,13 +103,24 @@ export async function syncGoogleCalendar(
         timeMin,
         timeMax,
       });
-      if (resetResult.events.length > 0) {
-        upserted.push(...resetResult.events.map((event) => mapEventRecord(calendarId, event)));
+      console.log(`[GoogleCalendar Sync Core] フルリセット同期完了: ${calendarId}, イベント数=${resetResult.events.length}`);
+      const mappedEvents = resetResult.events.map((event) => mapEventRecord(calendarId, event));
+      if (mappedEvents.length > 0) {
+        upserted.push(...mappedEvents);
       }
+
+      const nextEventUidSet = new Set(mappedEvents.map((event) => event.eventUid));
+      const existingEventUids = await store.listEventUidsByCalendar(userId, calendarId);
+      existingEventUids.forEach((eventUid) => {
+        if (!nextEventUidSet.has(eventUid)) {
+          removedEventUids.add(eventUid);
+        }
+      });
+
       if (resetResult.cancelledIds.length > 0) {
-        removed.push(
-          ...resetResult.cancelledIds.map((eventId) => buildEventUid(calendarId, eventId)),
-        );
+        resetResult.cancelledIds.forEach((eventId) => {
+          removedEventUids.add(buildEventUid(calendarId, eventId));
+        });
       }
       if (resetResult.nextSyncToken) {
         nextSyncTokens[calendarId] = resetResult.nextSyncToken;
@@ -146,9 +134,9 @@ export async function syncGoogleCalendar(
     }
 
     if (syncResult.cancelledIds.length > 0) {
-      removed.push(
-        ...syncResult.cancelledIds.map((eventId) => buildEventUid(calendarId, eventId)),
-      );
+      syncResult.cancelledIds.forEach((eventId) => {
+        removedEventUids.add(buildEventUid(calendarId, eventId));
+      });
     }
 
     if (syncResult.nextSyncToken) {
@@ -156,31 +144,31 @@ export async function syncGoogleCalendar(
     }
 
     syncedCalendars.push(calendarId);
+    } catch (calendarError) {
+      console.error(`[GoogleCalendar Sync Core] カレンダー同期エラー: ${calendarId}`, calendarError);
+      throw calendarError;
+    }
   }
 
   if (upserted.length > 0) {
-    await upsertGoogleCalendarEvents(db, userId, upserted);
+    await store.upsertEvents(userId, upserted);
   }
 
-  if (removed.length > 0) {
-    await removeGoogleCalendarEvents(db, userId, removed);
+  if (removedEventUids.size > 0) {
+    await store.removeEvents(userId, Array.from(removedEventUids));
   }
 
-  await setDoc(
-    getIntegrationDocRef(db, userId),
-    {
-      calendarList,
-      syncTokens: nextSyncTokens,
-      lastSyncedAt: Date.now(),
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
+  await store.updateIntegration(userId, {
+    calendarList,
+    syncTokens: nextSyncTokens,
+    lastSyncedAt: Date.now(),
+    updatedAt: Date.now(),
+  });
 
   return {
     syncedCalendars,
     nextSyncTokens,
-    removedEventUids: removed,
+    removedEventUids: Array.from(removedEventUids),
     upsertedEvents: upserted,
     refreshedAccessToken: accessToken,
     accessTokenExpiresAt: expiresAt,
@@ -205,7 +193,8 @@ async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> 
   const params = new URLSearchParams({
     refresh_token: refreshToken,
     grant_type: 'refresh_token',
-    client_id: process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_CLIENT_ID ?? '',
+    client_id: getServerGoogleCalendarClientId(),
+    client_secret: getGoogleCalendarClientSecret(),
   });
 
   const response = await fetch(TOKEN_ENDPOINT, {
@@ -348,17 +337,18 @@ function resolveTimeRange(options: SyncOptions): TimeRange {
   };
 }
 
-async function fetchCalendarEvents(options: FetchEventsOptions): Promise<FetchEventsResult> {
+async function fetchCalendarEvents(options: FetchEventsOptions): Promise<FetchEventsResult> { 
   const params = new URLSearchParams({
     singleEvents: 'true',
     showDeleted: 'true',
     maxResults: '2500',
-    orderBy: 'updated',
   });
 
   if (options.syncToken) {
     params.set('syncToken', options.syncToken);
+    // syncToken使用時はorderByパラメータを使用しない（Google Calendar APIの制限）
   } else {
+    params.set('orderBy', 'updated');
     if (options.timeMin) {
       params.set('timeMin', options.timeMin);
     }
@@ -380,12 +370,12 @@ async function fetchCalendarEvents(options: FetchEventsOptions): Promise<FetchEv
       });
       if (nextPageToken) {
         url.searchParams.set('pageToken', nextPageToken);
-      }
+      }      
       const response = await fetch(url.toString(), {
         headers: {
           Authorization: `Bearer ${options.accessToken}`,
         },
-      });
+      });      
       if (!response.ok) {
         if (response.status === 410) {
           return { events: [], cancelledIds: [], nextSyncToken: null, resetRequired: true };
@@ -394,7 +384,7 @@ async function fetchCalendarEvents(options: FetchEventsOptions): Promise<FetchEv
         throw new Error(`Google カレンダー予定の取得に失敗しました: ${errorText}`);
       }
       const payload = (await response.json()) as EventsResponse;
-      const items = payload.items ?? [];
+      const items = payload.items ?? [];      
       items.forEach((item) => {
         const id = typeof item.id === 'string' ? item.id : null;
         if (!id) {
@@ -408,9 +398,17 @@ async function fetchCalendarEvents(options: FetchEventsOptions): Promise<FetchEv
       });
       nextSyncToken = typeof payload.nextSyncToken === 'string' ? payload.nextSyncToken : nextSyncToken;
       nextPageToken = typeof payload.nextPageToken === 'string' ? payload.nextPageToken : undefined;
+      
+      if (nextPageToken) {
+        console.log(`[GoogleCalendar API] 次のページが存在: ${nextPageToken.substring(0, 20)}...`);
+      }
     } while (nextPageToken);
+    
+    console.log(`[GoogleCalendar API] イベント取得完了: 有効=${events.length}件, キャンセル=${cancelledIds.length}件, nextSyncToken=${nextSyncToken ? '存在' : 'なし'}`);
   } catch (error) {
+    console.error(`[GoogleCalendar API] イベント取得中にエラー:`, error);
     if (error instanceof Error && error.message.includes('syncToken')) {
+      console.log(`[GoogleCalendar API] syncTokenエラーによりフルリセット`);
       return { events: [], cancelledIds: [], nextSyncToken: null, resetRequired: true };
     }
     throw error;
@@ -517,17 +515,4 @@ function mapOrganizer(organizer: RawCalendarEvent['organizer'] | undefined): {
     return null;
   }
   return { displayName, email };
-}
-
-async function removeCalendarEvents(userId: string, calendarId: string): Promise<void> {
-  const eventsRef = getEventsCollectionRef(db, userId);
-  const snapshot = await getDocs(query(eventsRef, where('calendarId', '==', calendarId)));
-  if (snapshot.empty) {
-    return;
-  }
-  await removeGoogleCalendarEvents(
-    db,
-    userId,
-    snapshot.docs.map((docSnapshot) => docSnapshot.id),
-  );
 }
