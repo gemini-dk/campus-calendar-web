@@ -1,7 +1,3 @@
-import { getDoc, setDoc } from 'firebase/firestore';
-
-import { db } from '@/lib/firebase/client';
-
 import type {
   GoogleCalendarEventRecord,
   GoogleCalendarIntegrationDoc,
@@ -15,12 +11,7 @@ import {
   toDateKey,
   toTimestamp,
 } from './utils';
-import {
-  getIntegrationDocRef,
-  listGoogleCalendarEventUidsByCalendar,
-  removeGoogleCalendarEvents,
-  upsertGoogleCalendarEvents,
-} from './firestore';
+import type { GoogleCalendarSyncStore } from './syncStore';
 
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const CALENDAR_LIST_ENDPOINT = 'https://www.googleapis.com/calendar/v3/users/me/calendarList';
@@ -32,38 +23,19 @@ export type SyncOptions = {
   timeMax?: string;
 };
 
-export async function loadIntegrationDocument(userId: string): Promise<GoogleCalendarIntegrationDoc | null> {
-  const ref = getIntegrationDocRef(db, userId);
-  const snapshot = await getDoc(ref);
-  if (!snapshot.exists()) {
-    return null;
-  }
-  return snapshot.data() as GoogleCalendarIntegrationDoc;
+export async function loadIntegrationDocument(
+  store: GoogleCalendarSyncStore,
+  userId: string,
+): Promise<GoogleCalendarIntegrationDoc | null> {
+  return store.loadIntegration(userId);
 }
 
-export async function ensureIntegrationDocument(userId: string): Promise<void> {
-  const ref = getIntegrationDocRef(db, userId);
-  const snapshot = await getDoc(ref);
-  if (snapshot.exists()) {
-    return;
-  }
-  const payload: GoogleCalendarIntegrationDoc = {
-    accessToken: null,
-    refreshToken: null,
-    tokenType: null,
-    scope: null,
-    expiresAt: null,
-    syncTokens: null,
-    lastSyncedAt: null,
-    calendarList: null,
-    lastSyncStatus: 'idle',
-    lastSyncError: null,
-    updatedAt: Date.now(),
-  };
-  await setDoc(ref, payload);
+export async function ensureIntegrationDocument(store: GoogleCalendarSyncStore, userId: string): Promise<void> {
+  await store.ensureIntegration(userId);
 }
 
 export async function syncGoogleCalendar(
+  store: GoogleCalendarSyncStore,
   userId: string,
   integration: GoogleCalendarIntegrationDoc,
   options: SyncOptions = {},
@@ -80,17 +52,13 @@ export async function syncGoogleCalendar(
     const refreshed = await refreshAccessToken(integration.refreshToken);
     accessToken = refreshed.accessToken;
     expiresAt = refreshed.expiresAt;
-    await setDoc(
-      getIntegrationDocRef(db, userId),
-      {
-        accessToken,
-        expiresAt,
-        scope: refreshed.scope,
-        tokenType: refreshed.tokenType,
-        updatedAt: Date.now(),
-      },
-      { merge: true },
-    );
+    await store.updateIntegration(userId, {
+      accessToken,
+      expiresAt,
+      scope: refreshed.scope,
+      tokenType: refreshed.tokenType,
+      updatedAt: Date.now(),
+    });
   }
 
   const { timeMin, timeMax } = resolveTimeRange(options);
@@ -131,7 +99,7 @@ export async function syncGoogleCalendar(
       }
 
       const nextEventUidSet = new Set(mappedEvents.map((event) => event.eventUid));
-      const existingEventUids = await listGoogleCalendarEventUidsByCalendar(db, userId, calendarId);
+      const existingEventUids = await store.listEventUidsByCalendar(userId, calendarId);
       existingEventUids.forEach((eventUid) => {
         if (!nextEventUidSet.has(eventUid)) {
           removedEventUids.add(eventUid);
@@ -168,23 +136,19 @@ export async function syncGoogleCalendar(
   }
 
   if (upserted.length > 0) {
-    await upsertGoogleCalendarEvents(db, userId, upserted);
+    await store.upsertEvents(userId, upserted);
   }
 
   if (removedEventUids.size > 0) {
-    await removeGoogleCalendarEvents(db, userId, Array.from(removedEventUids));
+    await store.removeEvents(userId, Array.from(removedEventUids));
   }
 
-  await setDoc(
-    getIntegrationDocRef(db, userId),
-    {
-      calendarList,
-      syncTokens: nextSyncTokens,
-      lastSyncedAt: Date.now(),
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
+  await store.updateIntegration(userId, {
+    calendarList,
+    syncTokens: nextSyncTokens,
+    lastSyncedAt: Date.now(),
+    updatedAt: Date.now(),
+  });
 
   return {
     syncedCalendars,

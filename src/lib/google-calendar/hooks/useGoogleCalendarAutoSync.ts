@@ -3,8 +3,7 @@
 import { useEffect } from 'react';
 
 import { useGoogleCalendarIntegration } from './useGoogleCalendarIntegration';
-
-const DEFAULT_AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+import { GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS } from '../syncPolicies';
 
 type UseGoogleCalendarAutoSyncOptions = {
   enabled?: boolean;
@@ -13,7 +12,7 @@ type UseGoogleCalendarAutoSyncOptions = {
 
 export function useGoogleCalendarAutoSync(options?: UseGoogleCalendarAutoSyncOptions) {
   const autoSyncEnabled = options?.enabled ?? true;
-  const minIntervalMs = options?.minIntervalMs ?? DEFAULT_AUTO_SYNC_INTERVAL_MS;
+  const minIntervalMs = options?.minIntervalMs ?? GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS;
 
   const integrationState = useGoogleCalendarIntegration({ enabled: autoSyncEnabled });
   const { integration, syncState, syncNow } = integrationState;
