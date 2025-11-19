@@ -21,8 +21,12 @@ import {
   type ClassEntriesByDateMap,
 } from './calendarShared';
 import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
+import { useGoogleCalendarAutoSync } from '@/lib/google-calendar/hooks/useGoogleCalendarAutoSync';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
 
+
+const IS_PRODUCTION =
+  (process.env.NEXT_PUBLIC_VERCEL_ENV ?? 'development') === 'production';
 
 const WEEKDAY_HEADERS = [
   { label: 'Sun', shortLabel: '日', color: '#f87171' },
@@ -151,6 +155,7 @@ function resolveTodayHighlight(accent: string | null | undefined): TodayHighligh
 
 export default function CalendarTab({ onDateSelect }: CalendarTabProps) {
   const { settings, initialized } = useUserSettings();
+  useGoogleCalendarAutoSync({ enabled: !IS_PRODUCTION });
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
   const configKey = useMemo(() => `${fiscalYear}::${calendarId}`, [calendarId, fiscalYear]);
