@@ -1,4 +1,4 @@
-import { getDoc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { getDoc, setDoc } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase/client';
 
@@ -16,8 +16,8 @@ import {
   toTimestamp,
 } from './utils';
 import {
-  getEventsCollectionRef,
   getIntegrationDocRef,
+  listGoogleCalendarEventUidsByCalendar,
   removeGoogleCalendarEvents,
   upsertGoogleCalendarEvents,
 } from './firestore';
@@ -101,7 +101,7 @@ export async function syncGoogleCalendar(
   const syncTokens = integration.syncTokens ?? {};
   const nextSyncTokens: Record<string, string> = { ...syncTokens };
   const upserted: GoogleCalendarEventRecord[] = [];
-  const removed: string[] = [];
+  const removedEventUids = new Set<string>();
   const syncedCalendars: string[] = [];
 
   for (const calendar of selectedCalendars) {
@@ -118,7 +118,6 @@ export async function syncGoogleCalendar(
     });
 
     if (syncResult.resetRequired) {
-      await removeCalendarEvents(userId, calendarId);
       nextSyncTokens[calendarId] = '';
       const resetResult = await fetchCalendarEvents({
         accessToken,
@@ -126,13 +125,23 @@ export async function syncGoogleCalendar(
         timeMin,
         timeMax,
       });
-      if (resetResult.events.length > 0) {
-        upserted.push(...resetResult.events.map((event) => mapEventRecord(calendarId, event)));
+      const mappedEvents = resetResult.events.map((event) => mapEventRecord(calendarId, event));
+      if (mappedEvents.length > 0) {
+        upserted.push(...mappedEvents);
       }
+
+      const nextEventUidSet = new Set(mappedEvents.map((event) => event.eventUid));
+      const existingEventUids = await listGoogleCalendarEventUidsByCalendar(db, userId, calendarId);
+      existingEventUids.forEach((eventUid) => {
+        if (!nextEventUidSet.has(eventUid)) {
+          removedEventUids.add(eventUid);
+        }
+      });
+
       if (resetResult.cancelledIds.length > 0) {
-        removed.push(
-          ...resetResult.cancelledIds.map((eventId) => buildEventUid(calendarId, eventId)),
-        );
+        resetResult.cancelledIds.forEach((eventId) => {
+          removedEventUids.add(buildEventUid(calendarId, eventId));
+        });
       }
       if (resetResult.nextSyncToken) {
         nextSyncTokens[calendarId] = resetResult.nextSyncToken;
@@ -146,9 +155,9 @@ export async function syncGoogleCalendar(
     }
 
     if (syncResult.cancelledIds.length > 0) {
-      removed.push(
-        ...syncResult.cancelledIds.map((eventId) => buildEventUid(calendarId, eventId)),
-      );
+      syncResult.cancelledIds.forEach((eventId) => {
+        removedEventUids.add(buildEventUid(calendarId, eventId));
+      });
     }
 
     if (syncResult.nextSyncToken) {
@@ -162,8 +171,8 @@ export async function syncGoogleCalendar(
     await upsertGoogleCalendarEvents(db, userId, upserted);
   }
 
-  if (removed.length > 0) {
-    await removeGoogleCalendarEvents(db, userId, removed);
+  if (removedEventUids.size > 0) {
+    await removeGoogleCalendarEvents(db, userId, Array.from(removedEventUids));
   }
 
   await setDoc(
@@ -180,7 +189,7 @@ export async function syncGoogleCalendar(
   return {
     syncedCalendars,
     nextSyncTokens,
-    removedEventUids: removed,
+    removedEventUids: Array.from(removedEventUids),
     upsertedEvents: upserted,
     refreshedAccessToken: accessToken,
     accessTokenExpiresAt: expiresAt,
@@ -519,15 +528,3 @@ function mapOrganizer(organizer: RawCalendarEvent['organizer'] | undefined): {
   return { displayName, email };
 }
 
-async function removeCalendarEvents(userId: string, calendarId: string): Promise<void> {
-  const eventsRef = getEventsCollectionRef(db, userId);
-  const snapshot = await getDocs(query(eventsRef, where('calendarId', '==', calendarId)));
-  if (snapshot.empty) {
-    return;
-  }
-  await removeGoogleCalendarEvents(
-    db,
-    userId,
-    snapshot.docs.map((docSnapshot) => docSnapshot.id),
-  );
-}
