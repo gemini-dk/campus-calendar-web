@@ -7,16 +7,20 @@ import { GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS } from '@/lib/google-calendar/sync
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
+    console.log('[GoogleCalendar Sync] 同期処理開始');
+    
     const auth = extractAuthContext(request);
     if (!auth) {
+      console.log('[GoogleCalendar Sync] 認証情報なし');
       return NextResponse.json(
         { error: 'unauthorized', error_description: 'Googleカレンダー同期にはログインが必要です。' },
         { status: 401 },
       );
     }
 
-    const store = createServerSyncStore(auth.token);
+    const store = createServerSyncStore();    
     await ensureIntegrationDocument(store, auth.uid);
+    
     const integration = await loadIntegrationDocument(store, auth.uid);
     if (!integration) {
       return NextResponse.json(
@@ -82,11 +86,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         lastSyncError: message,
         updatedAt: Date.now(),
       });
-      console.error('Google カレンダー同期処理に失敗しました。', syncError);
       return NextResponse.json({ error: 'sync_failed', error_description: message }, { status: 500 });
     }
   } catch (error) {
-    console.error('Google カレンダー同期APIの実行に失敗しました。', error);
+    console.error('[GoogleCalendar Sync] API実行エラー:', error);
     return NextResponse.json(
       { error: 'internal_error', error_description: 'Googleカレンダーの同期に失敗しました。' },
       { status: 500 },

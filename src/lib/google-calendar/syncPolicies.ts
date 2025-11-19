@@ -1,4 +1,4 @@
-export const GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS = 15 * 60 * 1000;
+export const GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 export function isSyncIntervalElapsed(lastSyncedAt: number | null | undefined, now = Date.now()): boolean {
   if (!lastSyncedAt) {

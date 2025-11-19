@@ -220,7 +220,7 @@ export function useGoogleCalendarIntegration(
     if (lastSyncedAt && now - lastSyncedAt < GOOGLE_CALENDAR_SYNC_MIN_INTERVAL_MS) {
       setSyncState((previous) => ({
         ...previous,
-        error: '前回の同期から15分経過していません。',
+        error: '前回の同期から5分経過していません。',
       }));
       return;
     }
