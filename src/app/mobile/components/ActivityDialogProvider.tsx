@@ -36,10 +36,7 @@ import {
   createFormStateFromActivity,
 } from '../features/activities/types';
 import { db } from '@/lib/firebase/client';
-import {
-  listTimetableClassesByYear,
-  type TimetableClassSummary,
-} from '@/lib/data/service/class.service';
+import { type TimetableClassSummary } from '@/lib/data/service/class.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { useAuth } from '@/lib/useAuth';
 
@@ -178,34 +175,55 @@ export function ActivityDialogProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!profile?.uid) {
       setClassOptions([]);
-      return;
+      return () => {};
     }
 
     if (!trimmedActiveFiscalYear) {
       setClassOptions([]);
-      return;
+      return () => {};
     }
 
-    let cancelled = false;
+    const classesCollection = collection(
+      db,
+      'users',
+      profile.uid,
+      'academic_years',
+      trimmedActiveFiscalYear,
+      'timetable_classes',
+    );
 
-    listTimetableClassesByYear({
-      userId: profile.uid,
-      fiscalYear: trimmedActiveFiscalYear,
-    })
-      .then((items) => {
-        if (!cancelled) {
-          setClassOptions(items);
-        }
-      })
-      .catch((err) => {
+    const classesQuery = query(classesCollection, orderBy('className', 'asc'));
+
+    const unsubscribe = onSnapshot(
+      classesQuery,
+      (snapshot) => {
+        const items: TimetableClassSummary[] = [];
+        snapshot.forEach((docSnapshot) => {
+          const data = docSnapshot.data();
+          const className =
+            typeof data.className === 'string' ? data.className.trim() : '';
+
+          if (!className) {
+            return;
+          }
+
+          items.push({
+            fiscalYear: trimmedActiveFiscalYear,
+            id: docSnapshot.id,
+            className,
+          });
+        });
+
+        setClassOptions(items);
+      },
+      (err) => {
         console.error('Failed to list timetable classes for activities', err);
-        if (!cancelled) {
-          setClassOptions([]);
-        }
-      });
+        setClassOptions([]);
+      },
+    );
 
     return () => {
-      cancelled = true;
+      unsubscribe();
     };
   }, [profile?.uid, trimmedActiveFiscalYear]);
 
