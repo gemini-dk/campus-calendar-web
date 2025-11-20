@@ -91,7 +91,6 @@ async function executeCompletion({
           schema: options.responseFormat.schema,
           name: options.responseFormat.name,
           description: options.responseFormat.description,
-          strict: true,
         }
       : undefined;
 
