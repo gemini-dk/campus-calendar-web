@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 
 import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -9,6 +9,9 @@ import { faChalkboardTeacher, faCircleQuestion, faPlay, faVideo } from '@fortawe
 import { getCalendarTerms } from '@/lib/data/service/calendar.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
 import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
+import { useAuth } from '@/lib/useAuth';
+import type { WeeklySlotSelection } from '@/lib/data/service/class.service';
+import { CreateClassDialog, type CreateClassPresetFormValues } from '@/app/mobile/tabs/classes/CreateClassDialog';
 
 type WeeklySlot = {
   dayOfWeek: number;
@@ -243,15 +246,23 @@ function buildScheduleMap(classes: ImportedClass[], termId: string): Map<string,
 
 export default function BulkImportPage() {
   const { settings, initialized } = useUserSettings();
+  const { profile, isAuthenticated } = useAuth();
   const [text, setText] = useState('');
   const [result, setResult] = useState<string | null>(null);
   const [classes, setClasses] = useState<ImportedClass[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [termCandidates, setTermCandidates] = useState<TermCandidate[]>([]);
   const [termLoadState, setTermLoadState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [activeTermId, setActiveTermId] = useState<string>('unspecified');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogClassId, setDialogClassId] = useState<string | null>(null);
+  const [savedClassIds, setSavedClassIds] = useState<Set<string>>(new Set());
+
+  const calendarOptions = settings.calendar.entries ?? [];
+  const userId = profile?.uid ?? null;
 
   useEffect(() => {
     if (!initialized) {
@@ -282,8 +293,12 @@ export default function BulkImportPage() {
   const handleImport = async () => {
     setLoading(true);
     setError(null);
+    setActionError(null);
     setResult(null);
     setClasses([]);
+    setSavedClassIds(new Set());
+    setIsDialogOpen(false);
+    setDialogClassId(null);
     try {
       const response = await fetch('/api/class-bulk-import', {
         method: 'POST',
@@ -360,6 +375,39 @@ export default function BulkImportPage() {
     setSelectedClassId(fallback?.id ?? null);
   }, [activeTermId, classes, selectedClassId]);
 
+  const handleSelectClass = useCallback(
+    (classId: string) => {
+      setSelectedClassId(classId);
+      if (!isAuthenticated) {
+        setActionError('授業の保存にはログインが必要です。ユーザタブからサインインしてください。');
+        return;
+      }
+      setActionError(null);
+      setDialogClassId(classId);
+      setIsDialogOpen(true);
+    },
+    [isAuthenticated],
+  );
+
+  const handleCloseDialog = useCallback(() => {
+    setIsDialogOpen(false);
+    setDialogClassId(null);
+  }, []);
+
+  const handleCreated = useCallback(() => {
+    setIsDialogOpen(false);
+    setDialogClassId((prev) => {
+      if (prev) {
+        setSavedClassIds((saved) => {
+          const next = new Set(saved);
+          next.add(prev);
+          return next;
+        });
+      }
+      return null;
+    });
+  }, []);
+
   const periodLabels = useMemo(() => {
     const numbers = new Set<number>();
     let hasOnDemand = false;
@@ -433,6 +481,63 @@ export default function BulkImportPage() {
     () => classes.find((item) => item.id === selectedClassId) ?? null,
     [classes, selectedClassId],
   );
+
+  const dialogTargetClass = useMemo(
+    () => classes.find((item) => item.id === dialogClassId) ?? null,
+    [classes, dialogClassId],
+  );
+
+  const dialogPresetTermIds = useMemo(() => {
+    if (!dialogTargetClass) {
+      return undefined;
+    }
+    if (dialogTargetClass.termIds.length > 0) {
+      return dialogTargetClass.termIds;
+    }
+    if (activeTermId !== 'unspecified') {
+      return [activeTermId];
+    }
+    return undefined;
+  }, [activeTermId, dialogTargetClass]);
+
+  const dialogPresetWeeklySlots = useMemo<WeeklySlotSelection[]>(() => {
+    if (!dialogTargetClass || dialogTargetClass.isFullyOnDemand) {
+      return [];
+    }
+    return dialogTargetClass.weeklySlots
+      .map((slot) => {
+        const periodValue = slot.period === 'OD' ? 0 : Number(slot.period);
+        if (!Number.isFinite(periodValue)) {
+          return null;
+        }
+        return {
+          dayOfWeek: slot.dayOfWeek,
+          period: Number(periodValue),
+        } satisfies WeeklySlotSelection;
+      })
+      .filter((slot): slot is WeeklySlotSelection => slot !== null);
+  }, [dialogTargetClass]);
+
+  const dialogPresetFormValues = useMemo<CreateClassPresetFormValues | undefined>(() => {
+    if (!dialogTargetClass) {
+      return undefined;
+    }
+    const creditsValue = dialogTargetClass.credits;
+    return {
+      className: dialogTargetClass.className,
+      classType: dialogTargetClass.classType,
+      location: dialogTargetClass.classType === 'hybrid' ? '' : dialogTargetClass.location ?? '',
+      locationInPerson:
+        dialogTargetClass.classType === 'hybrid'
+          ? dialogTargetClass.locationInPerson ?? ''
+          : dialogTargetClass.location ?? '',
+      locationOnline: dialogTargetClass.classType === 'hybrid' ? dialogTargetClass.locationOnline ?? '' : '',
+      teacher: dialogTargetClass.teacher ?? '',
+      creditsText: creditsValue !== null && creditsValue !== undefined ? String(creditsValue) : '',
+      isFullyOnDemand: dialogTargetClass.isFullyOnDemand,
+      weeklySlots: dialogTargetClass.isFullyOnDemand ? [] : dialogPresetWeeklySlots,
+    } satisfies CreateClassPresetFormValues;
+  }, [dialogPresetWeeklySlots, dialogTargetClass]);
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-neutral-50">
@@ -555,12 +660,21 @@ export default function BulkImportPage() {
                                   <button
                                     key={entry.classId}
                                     type="button"
-                                    onClick={() => setSelectedClassId(entry.classId)}
-                                    className={`flex min-h-0 flex-col gap-1 rounded-lg border px-1 py-1 text-left transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                                      entry.classId === selectedClassId
-                                        ? 'border-blue-400 bg-blue-50 shadow-sm'
-                                        : 'border-blue-200 bg-blue-50'
-                                    }`}
+                                    onClick={() => handleSelectClass(entry.classId)}
+                                    className={`flex min-h-0 flex-col gap-1 rounded-lg border px-1 py-1 text-left transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${(() => {
+                                      const isSelected = entry.classId === selectedClassId;
+                                      const isSaved = savedClassIds.has(entry.classId);
+                                      if (isSaved && isSelected) {
+                                        return 'border-blue-400 bg-neutral-200 shadow-sm';
+                                      }
+                                      if (isSaved) {
+                                        return 'border-neutral-300 bg-neutral-200';
+                                      }
+                                      if (isSelected) {
+                                        return 'border-blue-400 bg-blue-50 shadow-sm';
+                                      }
+                                      return 'border-blue-200 bg-blue-50';
+                                    })()}`}
                                   >
                                     <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
                                       {entry.className}
@@ -602,12 +716,21 @@ export default function BulkImportPage() {
                               <button
                                 key={entry.classId}
                                 type="button"
-                                onClick={() => setSelectedClassId(entry.classId)}
-                                className={`flex min-h-0 flex-1 flex-col gap-1 rounded-lg border px-1 py-1 text-left transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
-                                  entry.classId === selectedClassId
-                                    ? 'border-blue-400 bg-blue-50 shadow-sm'
-                                    : 'border-blue-200 bg-blue-50'
-                                }`}
+                                onClick={() => handleSelectClass(entry.classId)}
+                                className={`flex min-h-0 flex-1 flex-col gap-1 rounded-lg border px-1 py-1 text-left transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${(() => {
+                                  const isSelected = entry.classId === selectedClassId;
+                                  const isSaved = savedClassIds.has(entry.classId);
+                                  if (isSaved && isSelected) {
+                                    return 'border-blue-400 bg-neutral-200 shadow-sm';
+                                  }
+                                  if (isSaved) {
+                                    return 'border-neutral-300 bg-neutral-200';
+                                  }
+                                  if (isSelected) {
+                                    return 'border-blue-400 bg-blue-50 shadow-sm';
+                                  }
+                                  return 'border-blue-200 bg-blue-50';
+                                })()}`}
                                 style={{ minWidth: '120px' }}
                               >
                                 <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
@@ -631,6 +754,8 @@ export default function BulkImportPage() {
                   ) : null}
                 </div>
               </div>
+
+              {actionError ? <p className="text-sm text-red-600">{actionError}</p> : null}
 
               {selectedClass ? (
                 <section className="flex h-fit w-full flex-col gap-4 rounded-3xl bg-blue-50 px-5 py-4">
@@ -704,6 +829,20 @@ export default function BulkImportPage() {
           ) : null}
         </section>
       </main>
+      {isDialogOpen && dialogTargetClass ? (
+        <CreateClassDialog
+          isOpen={isDialogOpen}
+          onClose={handleCloseDialog}
+          calendarOptions={calendarOptions}
+          defaultFiscalYear={settings.calendar.fiscalYear}
+          defaultCalendarId={settings.calendar.calendarId}
+          userId={userId}
+          onCreated={handleCreated}
+          presetTermIds={dialogPresetTermIds}
+          presetWeeklySlots={dialogPresetWeeklySlots}
+          presetFormValues={dialogPresetFormValues}
+        />
+      ) : null}
     </div>
   );
 }
