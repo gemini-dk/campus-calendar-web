@@ -41,6 +41,7 @@ import {
   useScheduleAdjustmentDialog,
 } from "@/app/mobile/components/ScheduleAdjustmentDialogProvider";
 import type { Activity } from "@/app/mobile/features/activities/types";
+import ClassMemoOverlay from "@/app/mobile/components/ClassMemoOverlay";
 import CreateClassDialog, { type EditClassInitialData } from "@/app/mobile/tabs/classes/CreateClassDialog";
 import type { CalendarOption } from "@/app/mobile/tabs/classes/TermSettingsDialog";
 import type {
@@ -1164,6 +1165,7 @@ export function ClassActivityContent({
   const [updatingAttendanceId, setUpdatingAttendanceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"history" | "upcoming">("history");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isMemoOverlayOpen, setIsMemoOverlayOpen] = useState(false);
 
   const handleScheduleChangeRequest = useCallback(
     (session: UpcomingSession) => {
@@ -1514,20 +1516,30 @@ export function ClassActivityContent({
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (!canEditClass) {
-                  return;
-                }
-                setIsEditDialogOpen(true);
-              }}
-              disabled={!canEditClass}
-              className="flex h-9 min-w-[80px] items-center gap-1.5 self-start rounded-full border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
-            >
-              <FontAwesomeIcon icon={faPen} className="text-xs" aria-hidden="true" />
-              編集
-            </button>
+            <div className="flex min-w-[120px] flex-col items-end gap-2 self-start">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!canEditClass) {
+                    return;
+                  }
+                  setIsEditDialogOpen(true);
+                }}
+                disabled={!canEditClass}
+                className="flex h-9 min-w-[80px] items-center gap-1.5 self-start rounded-full border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+              >
+                <FontAwesomeIcon icon={faPen} className="text-xs" aria-hidden="true" />
+                編集
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsMemoOverlayOpen(true)}
+                className="flex h-9 min-w-[90px] items-center gap-1.5 self-start rounded-full border border-purple-200 bg-white px-3 text-xs font-semibold text-purple-700 transition hover:bg-purple-50"
+              >
+                <FontAwesomeIcon icon={faNoteSticky} className="text-xs" aria-hidden="true" />
+                メモ閲覧
+              </button>
+            </div>
           </div>
         </section>
 
@@ -1648,6 +1660,11 @@ export function ClassActivityContent({
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white px-4 py-6">
         {renderContent()}
       </div>
+      <ClassMemoOverlay
+        open={isMemoOverlayOpen}
+        memo={classDetail?.memo ?? null}
+        onClose={() => setIsMemoOverlayOpen(false)}
+      />
       {isEditDialogOpen && editInitialData && classDetail && classDetail.fiscalYear && classDetail.calendarId ? (
         <CreateClassDialog
           isOpen={isEditDialogOpen}
