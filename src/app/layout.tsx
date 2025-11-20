@@ -82,6 +82,7 @@ export default function RootLayout({
     <html lang="ja" className="h-full w-full">
       <head>
         <meta name="theme-color" content={PWA_THEME_COLOR} />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
