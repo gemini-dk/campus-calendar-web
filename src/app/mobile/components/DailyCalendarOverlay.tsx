@@ -29,7 +29,7 @@ export default function DailyCalendarOverlay({ open, dateId, onClose }: DailyCal
   }
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-40 flex h-[100svh] w-full justify-center bg-neutral-100 pb-[80px]">
+    <div className="pointer-events-none fixed inset-0 z-30 flex h-[100svh] w-full justify-center bg-neutral-100 pb-[80px]">
       <div className="pointer-events-auto flex h-full w-full max-w-[800px] flex-col bg-white shadow-xl">
         <DailyCalendarView dateId={dateId} onClose={onClose} />
       </div>

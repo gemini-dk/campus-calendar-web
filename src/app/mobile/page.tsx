@@ -535,7 +535,7 @@ function MobilePageContent() {
           </div>
         </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-transparent px-5 pb-5">
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-transparent px-5 pb-5">
           <div className="mx-auto flex h-[80px] w-full max-w-[800px] items-center justify-center">
             <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
               {TABS.map((tab) => {

@@ -107,7 +107,7 @@ export default function UserHamburgerMenu({ buttonAriaLabel }: UserHamburgerMenu
         <FontAwesomeIcon icon={faBars} fontSize={20} />
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex h-[100svh] w-full justify-end">
+        <div className="fixed inset-0 z-45 flex h-[100svh] w-full justify-end">
           <button
             type="button"
             aria-label="メニューを閉じる"
