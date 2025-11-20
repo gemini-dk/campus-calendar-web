@@ -24,6 +24,7 @@ type AiClass = {
   teacher: string | null | undefined;
   credits: number | string | null | undefined;
   isFullyOnDemand: boolean;
+  memo: string | null | undefined;
 };
 
 type NormalizedClass = {
@@ -36,6 +37,7 @@ type NormalizedClass = {
   teacher: string | null;
   credits: number | string | null;
   isFullyOnDemand: boolean;
+  memo: string | null;
 };
 
 const DAY_OF_WEEK_MAP: Record<string, number> = {
@@ -57,6 +59,7 @@ const SYSTEM_PROMPT = `あなたは履修登録管理者です。与えられた
   - on_demand: あらかじめ収録された授業。配信曜日が決まっている場合は曜日を指定し、時限は0か'OD'を使う。全て一括配信でいつでも受講できる場合は weeklySlots を空にし、isFullyOnDemand を true にする。
   記載がない場合はin_personを選択してください。
 - location: 授業を行う場所です。対面授業であれば、キャンパス・建物・教室名などが適切です。オンラインであればZoomのURLなどが適切です。
+- memo: 授業に関する補足や注意事項のメモ。なければ null を設定してください。
 - weeklySlots の dayOfWeek は「月」「火」「水」「木」「金」「土」「日」のいずれかを必ず使用する。period は 1..N の数値または 'OD'/0。`;
 
 function buildAiClassSchema(termNameEnum: string[]) {
@@ -78,6 +81,7 @@ function buildAiClassSchema(termNameEnum: string[]) {
       teacher: z.string().nullable().optional(),
       credits: z.union([z.number(), z.string(), z.null()]).optional(),
       isFullyOnDemand: z.boolean().default(false),
+      memo: z.string().nullable().optional(),
     }),
   );
 }
@@ -190,6 +194,7 @@ function normalizeClass(
     teacher: aiClass.teacher?.trim() || null,
     credits: normalizeCredits(aiClass.credits),
     isFullyOnDemand,
+    memo: aiClass.memo?.trim() || null,
   };
 }
 
@@ -252,6 +257,7 @@ function buildSchemaForPrompt(termNameEnum: string[]): string {
         teacher: { type: ['string', 'null'] },
         credits: { type: ['number', 'string', 'null'] },
         isFullyOnDemand: { type: 'boolean' },
+        memo: { type: ['string', 'null'], description: '授業に関するメモ' },
       },
       required: ['className', 'classType', 'termNames', 'weeklySlots', 'isFullyOnDemand'],
     },

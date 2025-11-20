@@ -114,6 +114,7 @@ export type CreateTimetableClassParams = {
   specialOption: SpecialScheduleOption;
   weeklySlots: WeeklySlotSelection[];
   generatedClassDates: GeneratedClassDate[];
+  memo?: string | null;
 };
 
 export type UpdateTimetableClassParams = {
@@ -140,6 +141,7 @@ export type UpdateTimetableClassParams = {
   existingWeeklySlotIds: string[];
   existingClassDateIds: string[];
   shouldUpdateSchedule: boolean;
+  memo?: string | null;
 };
 
 export type TimetableClassDocRefParams = {
@@ -615,6 +617,7 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
     specialOption,
     weeklySlots,
     generatedClassDates,
+    memo,
   } = params;
 
   if (!userId) {
@@ -662,6 +665,7 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
   const normalizedLocationInPerson = locationInPerson.trim();
   const normalizedLocationOnline = locationOnline.trim();
   const normalizedTeacher = teacher.trim();
+  const normalizedMemo = typeof memo === 'string' ? memo.trim() : '';
 
   batch.set(classRef, {
     className: trimmedClassName,
@@ -685,7 +689,7 @@ export async function createTimetableClass(params: CreateTimetableClassParams) {
       classType === 'hybrid' && normalizedLocationOnline.length > 0
         ? normalizedLocationOnline
         : null,
-    memo: null,
+    memo: normalizedMemo.length > 0 ? normalizedMemo : null,
     maxAbsenceDays,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -1007,6 +1011,7 @@ export async function updateTimetableClass({
   existingWeeklySlotIds,
   existingClassDateIds,
   shouldUpdateSchedule,
+  memo,
 }: UpdateTimetableClassParams): Promise<void> {
   const trimmedUserId = userId.trim();
   if (!trimmedUserId) {
@@ -1075,6 +1080,7 @@ export async function updateTimetableClass({
   const normalizedTeacher = teacher.trim();
   const normalizedCredits =
     typeof credits === 'number' && Number.isFinite(credits) ? credits : null;
+  const normalizedMemo = typeof memo === 'string' ? memo.trim() : '';
 
   const classData: Record<string, unknown> = {
     className: trimmedClassName,
@@ -1098,6 +1104,7 @@ export async function updateTimetableClass({
       classType === 'hybrid' && normalizedLocationOnline.length > 0
         ? normalizedLocationOnline
         : null,
+    memo: normalizedMemo.length > 0 ? normalizedMemo : null,
     maxAbsenceDays,
     updatedAt: timestamp,
   };

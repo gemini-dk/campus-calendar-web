@@ -125,6 +125,7 @@ type ClassDetail = {
   creditsStatus: "in_progress" | "completed" | "failed";
   maxAbsenceDays: number | null;
   omitWeeklySlots: boolean;
+  memo: string | null;
 };
 
 type ActivityStatus = "pending" | "done";
@@ -341,6 +342,8 @@ function mapClassDetailData(id: string, data: DocumentData | undefined): ClassDe
     statusValue === "completed" || statusValue === "failed"
       ? statusValue
       : "in_progress";
+  const memo =
+    typeof data.memo === "string" && data.memo.trim().length > 0 ? data.memo.trim() : null;
 
   return {
     id,
@@ -361,6 +364,7 @@ function mapClassDetailData(id: string, data: DocumentData | undefined): ClassDe
     creditsStatus,
     maxAbsenceDays,
     omitWeeklySlots: data.omitWeeklySlots === true,
+    memo,
   } satisfies ClassDetail;
 }
 
@@ -1364,6 +1368,7 @@ export function ClassActivityContent({
       generatedClassDates: generatedDates,
       existingWeeklySlotIds,
       existingClassDateIds,
+      memo: classDetail.memo ?? null,
     } satisfies EditClassInitialData;
   }, [classDates, classDetail, weeklySlots]);
 

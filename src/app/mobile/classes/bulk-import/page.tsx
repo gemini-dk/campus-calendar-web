@@ -26,6 +26,7 @@ type ImportedClass = {
   teacher: string | null;
   credits: number | string | null;
   isFullyOnDemand: boolean;
+  memo: string | null;
 };
 
 type ScheduleEntry = {
@@ -121,6 +122,10 @@ function normalizeImportedClass(raw: unknown, index: number): ImportedClass | nu
   const credits = typeof creditsRaw === 'string' || typeof creditsRaw === 'number' ? creditsRaw : null;
 
   const isFullyOnDemand = Boolean((raw as { isFullyOnDemand?: unknown }).isFullyOnDemand);
+  const memo =
+    typeof (raw as { memo?: unknown }).memo === 'string'
+      ? (raw as { memo: string }).memo.trim() || null
+      : null;
 
   return {
     id: `import-${index}`,
@@ -133,6 +138,7 @@ function normalizeImportedClass(raw: unknown, index: number): ImportedClass | nu
     teacher,
     credits,
     isFullyOnDemand,
+    memo,
   } satisfies ImportedClass;
 }
 
@@ -455,6 +461,7 @@ export default function BulkImportPage() {
       creditsText: creditsValue !== null && creditsValue !== undefined ? String(creditsValue) : '',
       isFullyOnDemand: dialogTargetClass.isFullyOnDemand,
       weeklySlots: dialogTargetClass.isFullyOnDemand ? [] : dialogPresetWeeklySlots,
+      memo: dialogTargetClass.memo ?? '',
     } satisfies CreateClassPresetFormValues;
   }, [dialogPresetWeeklySlots, dialogTargetClass]);
 

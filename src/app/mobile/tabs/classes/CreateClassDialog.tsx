@@ -37,6 +37,7 @@ type FormState = {
   isFullyOnDemand: boolean;
   maxAbsenceDays: number;
   maxAbsenceTouched: boolean;
+  memo: string;
 };
 
 export type CreateClassPresetFormValues = Partial<
@@ -53,6 +54,7 @@ export type CreateClassPresetFormValues = Partial<
     | "isFullyOnDemand"
     | "weeklySlots"
     | "maxAbsenceDays"
+    | "memo"
   >
 >;
 
@@ -71,6 +73,7 @@ const INITIAL_FORM_STATE: FormState = {
   isFullyOnDemand: false,
   maxAbsenceDays: 0,
   maxAbsenceTouched: false,
+  memo: "",
 };
 
 const SPECIAL_SCHEDULE_LABELS: Record<SpecialScheduleOption, string> = {
@@ -103,6 +106,7 @@ export type EditClassInitialData = {
   generatedClassDates: GeneratedClassDate[];
   existingWeeklySlotIds: string[];
   existingClassDateIds: string[];
+  memo: string | null;
 };
 
 const WEEKDAY_LABELS = new Map<number, string>([
@@ -293,6 +297,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           ? 0
           : Math.max(0, Math.trunc(editInitialData.maxAbsenceDays)),
         maxAbsenceTouched: true,
+        memo: editInitialData.memo ?? "",
       });
       const hasGeneratedDates = editInitialData.generatedClassDates.length > 0;
       setGeneratedClassDates(editInitialData.isFullyOnDemand ? [] : editInitialData.generatedClassDates);
@@ -323,11 +328,11 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         ? (props as BaseCreateClassDialogProps & CreateModeProps).presetFormValues ?? null
         : null;
 
-    const mergedFormState: FormState = {
-      ...INITIAL_FORM_STATE,
-      selectedTermIds: normalizedPresetTerms,
-      weeklySlots: normalizedPresetSlots,
-    };
+  const mergedFormState: FormState = {
+    ...INITIAL_FORM_STATE,
+    selectedTermIds: normalizedPresetTerms,
+    weeklySlots: normalizedPresetSlots,
+  };
 
     if (createPresetValues) {
       mergedFormState.className = createPresetValues.className ?? mergedFormState.className;
@@ -359,6 +364,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
       ) {
         mergedFormState.maxAbsenceDays = Math.max(0, Math.trunc(createPresetValues.maxAbsenceDays));
       }
+      mergedFormState.memo = createPresetValues.memo ?? mergedFormState.memo;
     }
 
     setFormState(mergedFormState);
@@ -743,6 +749,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           existingClassDateIds: editInitialData.existingClassDateIds,
           existingWeeklySlotIds: editInitialData.existingWeeklySlotIds,
           shouldUpdateSchedule,
+          memo: formState.memo,
         });
 
         setSaveState("idle");
@@ -772,6 +779,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         specialOption: formState.specialOption,
         weeklySlots: weeklySlotsForSave,
         generatedClassDates: generatedDatesForSave,
+        memo: formState.memo,
       });
 
       setSaveState("idle");
@@ -945,6 +953,20 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                     }
                     className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     placeholder="例: 山田 太郎"
+                  />
+                </label>
+                <label className="flex w-full flex-col gap-2">
+                  <span className="text-sm font-medium text-neutral-700">メモ（任意）</span>
+                  <textarea
+                    value={formState.memo}
+                    onChange={(event) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        memo: event.target.value,
+                      }))
+                    }
+                    className="min-h-[72px] w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    placeholder="例: オンラインのみ・課題多め など"
                   />
                 </label>
               </div>
