@@ -89,7 +89,7 @@ type DayScheduleEvent = {
   periodKeys: string[];
 };
 
-const WEEKDAY_HEADERS = [
+export const WEEKDAY_HEADERS = [
   { key: 1, label: "月" },
   { key: 2, label: "火" },
   { key: 3, label: "水" },
@@ -98,7 +98,7 @@ const WEEKDAY_HEADERS = [
   { key: 6, label: "土" },
 ];
 
-const PERIOD_COLUMN_WIDTH = "2ch";
+export const PERIOD_COLUMN_WIDTH = "2ch";
 
 const DRAG_DETECTION_THRESHOLD = 6;
 const SWIPE_TRIGGER_RATIO = 0.25;
