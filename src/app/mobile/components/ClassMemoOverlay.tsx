@@ -21,6 +21,22 @@ type BlockNode =
   | { type: "orderedList"; items: InlineNode[][] }
   | { type: "code"; value: string };
 
+const ALLOWED_PROTOCOLS = ["http:", "https:", "mailto:", "tel:"];
+
+function sanitizeHref(href: string): string | null {
+  const trimmedHref = href.trim();
+  const protocolMatch = trimmedHref.match(/^([a-zA-Z][a-zA-Z0-9+.-]*:)/);
+
+  if (protocolMatch) {
+    const protocol = protocolMatch[1].toLowerCase();
+    if (!ALLOWED_PROTOCOLS.includes(protocol)) {
+      return null;
+    }
+  }
+
+  return trimmedHref;
+}
+
 function parseInline(text: string): InlineNode[] {
   const nodes: InlineNode[] = [];
   INLINE_PATTERN.lastIndex = 0;
@@ -179,10 +195,20 @@ function renderInline(nodes: InlineNode[]): (JSX.Element | null)[] {
           </code>
         );
       case "link":
+        const safeHref = sanitizeHref(node.href);
+
+        if (!safeHref) {
+          return (
+            <span key={`link-${index}`} className="text-sm font-semibold text-neutral-900">
+              {renderInline(node.children)}
+            </span>
+          );
+        }
+
         return (
           <a
             key={`link-${index}`}
-            href={node.href}
+            href={safeHref}
             target="_blank"
             rel="noreferrer"
             className="text-sm font-semibold text-blue-700 underline underline-offset-4"
