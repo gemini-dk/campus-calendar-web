@@ -1,14 +1,51 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import Link from 'next/link';
 
+import { getCalendarTerms } from '@/lib/data/service/calendar.service';
+import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
+
+type TermCandidate = {
+  id: string;
+  name: string;
+};
+
 export default function BulkImportPage() {
+  const { settings, initialized } = useUserSettings();
   const [text, setText] = useState('');
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [termCandidates, setTermCandidates] = useState<TermCandidate[]>([]);
+  const [termLoadState, setTermLoadState] = useState<'idle' | 'loading' | 'error'>('idle');
+
+  useEffect(() => {
+    if (!initialized) {
+      return;
+    }
+
+    const fiscalYear = settings.calendar.fiscalYear;
+    const calendarId = settings.calendar.calendarId;
+    if (!fiscalYear || !calendarId) {
+      setTermCandidates([]);
+      return;
+    }
+
+    setTermLoadState('loading');
+    getCalendarTerms(fiscalYear, calendarId)
+      .then((terms) => {
+        const options = terms.map((term) => ({ id: term.id, name: term.name }));
+        setTermCandidates(options);
+        setTermLoadState('idle');
+      })
+      .catch((loadError) => {
+        console.error('学期データの取得に失敗しました', loadError);
+        setTermCandidates([]);
+        setTermLoadState('error');
+      });
+  }, [initialized, settings.calendar.calendarId, settings.calendar.fiscalYear]);
 
   const handleImport = async () => {
     setLoading(true);
@@ -20,7 +57,7 @@ export default function BulkImportPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, termCandidates }),
       });
 
       const data = (await response.json()) as { data?: unknown; error?: string };
@@ -56,6 +93,13 @@ export default function BulkImportPage() {
       <main className="flex-1 overflow-y-auto px-4 pb-8">
         <section className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-6">
           <p className="text-sm text-neutral-700">受講している授業を一覧形式で入力してください。</p>
+          <p className="text-xs text-neutral-500">
+            {termLoadState === 'loading'
+              ? '学期情報を読み込み中です...'
+              : termCandidates.length > 0
+                ? `学期候補: ${termCandidates.map((term) => term.name).join(' / ')}`
+                : '学期候補が見つかりません。時間割設定を確認してください。'}
+          </p>
           <textarea
             value={text}
             onChange={(event) => setText(event.target.value)}
