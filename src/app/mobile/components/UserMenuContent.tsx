@@ -55,6 +55,12 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     connect: connectGoogleCalendar,
     disconnect: disconnectGoogleCalendar,
     syncNow: syncGoogleCalendarNow,
+    refreshCalendarList: refreshGoogleCalendarList,
+    updateCalendarSelection: updateGoogleCalendarSelection,
+    calendarListLoading: googleCalendarListLoading,
+    calendarSelectionSaving: googleCalendarSelectionSaving,
+    calendarListError: googleCalendarListError,
+    hasSelectedCalendars: hasSelectedGoogleCalendars,
   } = useGoogleCalendarIntegration({ enabled: !IS_PRODUCTION });
 
   const [entries, setEntries] = useState<EditableCalendarEntry[]>([]);
@@ -64,6 +70,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const [activePanel, setActivePanel] = useState<MenuPanel | null>(null);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -73,6 +80,30 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   useEffect(() => {
     setCalendarError(null);
   }, [entries]);
+
+  useEffect(() => {
+    const list = googleCalendarIntegration?.calendarList ?? [];
+    setSelectedCalendarIds(list.filter((entry) => entry.selected).map((entry) => entry.id));
+  }, [googleCalendarIntegration?.calendarList]);
+
+  useEffect(() => {
+    if (!googleCalendarIntegration?.refreshToken) {
+      return;
+    }
+    if (googleCalendarLoading || googleCalendarListLoading) {
+      return;
+    }
+    if (googleCalendarIntegration.calendarList && googleCalendarIntegration.calendarList.length > 0) {
+      return;
+    }
+    void refreshGoogleCalendarList();
+  }, [
+    googleCalendarIntegration?.calendarList,
+    googleCalendarIntegration?.refreshToken,
+    googleCalendarListLoading,
+    googleCalendarLoading,
+    refreshGoogleCalendarList,
+  ]);
 
   const activeEntry = useMemo(() => {
     return entries.find((entry) => entry.defaultFlag) ?? entries[0] ?? null;
@@ -98,6 +129,29 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const handleClosePanel = useCallback(() => {
     setActivePanel(null);
   }, []);
+
+  const handleToggleCalendarSelection = useCallback((calendarId: string, checked: boolean) => {
+    setSelectedCalendarIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(calendarId);
+      } else {
+        next.delete(calendarId);
+      }
+      return Array.from(next);
+    });
+  }, []);
+
+  const handleSaveCalendarSelection = useCallback(async () => {
+    const success = await updateGoogleCalendarSelection(selectedCalendarIds);
+    if (success) {
+      showToast({ message: '同期するカレンダーを更新しました。', tone: 'success' });
+    }
+  }, [selectedCalendarIds, showToast, updateGoogleCalendarSelection]);
+
+  const handleRefreshCalendarList = useCallback(async () => {
+    await refreshGoogleCalendarList();
+  }, [refreshGoogleCalendarList]);
 
   const isEntryUpdating = useCallback(
     (fiscalYear: string) => pendingState[fiscalYear] === true,
@@ -381,6 +435,85 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         ) : null}
       </div>
 
+      {googleCalendarIntegration?.refreshToken ? (
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold text-neutral-900">同期するカレンダー</p>
+              <p className="text-xs text-neutral-600">
+                Googleカレンダーから同期対象を選びます。チェックを外すと、そのカレンダーの予定は削除されます。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRefreshCalendarList}
+              disabled={googleCalendarListLoading || googleCalendarSelectionSaving}
+              className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100"
+            >
+              {googleCalendarListLoading ? '更新中...' : '一覧を更新'}
+            </button>
+          </div>
+
+          {googleCalendarListLoading ? (
+            <p className="text-sm text-neutral-700">カレンダー一覧を取得しています...</p>
+          ) : googleCalendarIntegration.calendarList && googleCalendarIntegration.calendarList.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {googleCalendarIntegration.calendarList.map((calendar) => {
+                const isSelected = selectedCalendarIds.includes(calendar.id);
+                return (
+                  <label
+                    key={calendar.id}
+                    className="flex items-center justify-between gap-3 rounded border border-neutral-200 bg-white px-3 py-2"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span
+                        className="h-4 w-4 rounded"
+                        style={{
+                          backgroundColor: calendar.backgroundColor ?? '#e5e7eb',
+                          border: '1px solid #d4d4d8',
+                        }}
+                        aria-hidden
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-neutral-800">{calendar.summary}</span>
+                        <span className="text-[11px] text-neutral-500">{calendar.id}</span>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(event) => handleToggleCalendarSelection(calendar.id, event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-700">カレンダー一覧を取得してから同期するカレンダーを選択してください。</p>
+          )}
+
+          {googleCalendarIntegration.calendarList && googleCalendarIntegration.calendarList.length > 0 ? (
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleSaveCalendarSelection}
+                disabled={googleCalendarSelectionSaving}
+                className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+              >
+                {googleCalendarSelectionSaving ? '保存中...' : '選択を保存'}
+              </button>
+              {!hasSelectedGoogleCalendars ? (
+                <p className="text-xs text-amber-600">同期するカレンダーを1つ以上選択してください。</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {googleCalendarListError ? (
+            <p className="text-xs text-red-600">{googleCalendarListError}</p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 
