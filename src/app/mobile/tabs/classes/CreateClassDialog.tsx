@@ -39,6 +39,23 @@ type FormState = {
   maxAbsenceTouched: boolean;
 };
 
+export type CreateClassPresetFormValues = Partial<
+  Pick<
+    FormState,
+    | "className"
+    | "classType"
+    | "location"
+    | "locationInPerson"
+    | "locationOnline"
+    | "teacher"
+    | "creditsText"
+    | "creditsStatus"
+    | "isFullyOnDemand"
+    | "weeklySlots"
+    | "maxAbsenceDays"
+  >
+>;
+
 const INITIAL_FORM_STATE: FormState = {
   className: "",
   classType: "in_person",
@@ -111,6 +128,7 @@ type BaseCreateClassDialogProps = {
 type CreateModeProps = {
   mode?: Extract<ClassFormMode, "create">;
   onCreated?: () => void;
+  presetFormValues?: CreateClassPresetFormValues;
 };
 
 type EditModeProps = {
@@ -300,11 +318,50 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           .map((slot) => ({ ...slot }))
       : [];
 
-    setFormState({
+    const createPresetValues =
+      !isEditMode && "presetFormValues" in props
+        ? (props as BaseCreateClassDialogProps & CreateModeProps).presetFormValues ?? null
+        : null;
+
+    const mergedFormState: FormState = {
       ...INITIAL_FORM_STATE,
       selectedTermIds: normalizedPresetTerms,
       weeklySlots: normalizedPresetSlots,
-    });
+    };
+
+    if (createPresetValues) {
+      mergedFormState.className = createPresetValues.className ?? mergedFormState.className;
+      mergedFormState.classType = createPresetValues.classType ?? mergedFormState.classType;
+      mergedFormState.location = createPresetValues.location ?? mergedFormState.location;
+      mergedFormState.locationInPerson =
+        createPresetValues.locationInPerson ?? mergedFormState.locationInPerson;
+      mergedFormState.locationOnline = createPresetValues.locationOnline ?? mergedFormState.locationOnline;
+      mergedFormState.teacher = createPresetValues.teacher ?? mergedFormState.teacher;
+      mergedFormState.creditsText = createPresetValues.creditsText ?? mergedFormState.creditsText;
+      mergedFormState.creditsStatus =
+        createPresetValues.creditsStatus ?? mergedFormState.creditsStatus;
+      mergedFormState.isFullyOnDemand =
+        createPresetValues.isFullyOnDemand ?? mergedFormState.isFullyOnDemand;
+      mergedFormState.weeklySlots = Array.isArray(createPresetValues.weeklySlots)
+        ? createPresetValues.weeklySlots
+            .filter(
+              (slot): slot is WeeklySlotSelection =>
+                typeof slot === "object" &&
+                slot !== null &&
+                typeof slot.dayOfWeek === "number" &&
+                typeof slot.period === "number",
+            )
+            .map((slot) => ({ ...slot }))
+        : mergedFormState.weeklySlots;
+      if (
+        typeof createPresetValues.maxAbsenceDays === "number" &&
+        Number.isFinite(createPresetValues.maxAbsenceDays)
+      ) {
+        mergedFormState.maxAbsenceDays = Math.max(0, Math.trunc(createPresetValues.maxAbsenceDays));
+      }
+    }
+
+    setFormState(mergedFormState);
     setScheduleLoadState("idle");
     setGeneratedClassDates([]);
 
@@ -321,6 +378,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
     calendarOptions,
     defaultCalendarId,
     defaultFiscalYear,
+    props,
     editInitialData,
     isEditMode,
     isOpen,
