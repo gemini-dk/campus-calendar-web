@@ -1,25 +1,257 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 import Link from 'next/link';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChalkboardTeacher, faCircleQuestion, faPlay, faVideo } from '@fortawesome/free-solid-svg-icons';
 
 import { getCalendarTerms } from '@/lib/data/service/calendar.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
+import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
+
+type WeeklySlot = {
+  dayOfWeek: number;
+  period: number | 'OD';
+};
+
+type ImportedClass = {
+  id: string;
+  className: string;
+  classType: 'in_person' | 'online' | 'hybrid' | 'on_demand';
+  termIds: string[];
+  termNames: string[];
+  weeklySlots: WeeklySlot[];
+  location: string | null;
+  locationInPerson: string | null;
+  locationOnline: string | null;
+  teacher: string | null;
+  credits: number | string | null;
+  isFullyOnDemand: boolean;
+};
+
+type ScheduleEntry = {
+  classId: string;
+  className: string;
+  location: string | null;
+};
 
 type TermCandidate = {
   id: string;
   name: string;
 };
 
+const WEEKDAY_HEADERS = [
+  { key: 1, label: '月' },
+  { key: 2, label: '火' },
+  { key: 3, label: '水' },
+  { key: 4, label: '木' },
+  { key: 5, label: '金' },
+  { key: 6, label: '土' },
+];
+
+const CLASS_TYPE_LABELS = {
+  in_person: '対面',
+  online: 'オンライン',
+  hybrid: 'ハイブリッド',
+  on_demand: 'オンデマンド',
+} as const;
+
+const CLASS_TYPE_ICONS = {
+  in_person: faChalkboardTeacher,
+  online: faVideo,
+  hybrid: faCircleQuestion,
+  on_demand: faPlay,
+} as const;
+
+const CLASS_TYPE_ICON_CLASS = {
+  in_person: 'text-blue-600',
+  online: 'text-purple-600',
+  hybrid: 'text-sky-600',
+  on_demand: 'text-amber-500',
+} as const;
+
+function normalizePeriod(value: unknown): number | 'OD' | null {
+  if (value === 'OD') {
+    return 'OD';
+  }
+  const parsed = Number.parseInt(String(value), 10);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  if (parsed <= 0) {
+    return 'OD';
+  }
+  return parsed;
+}
+
+function normalizeImportedClass(raw: unknown, index: number): ImportedClass | null {
+  if (typeof raw !== 'object' || raw === null) {
+    return null;
+  }
+
+  const className = typeof (raw as { className?: unknown }).className === 'string'
+    ? (raw as { className: string }).className.trim()
+    : '';
+
+  if (!className) {
+    return null;
+  }
+
+  const typeValue = (raw as { classType?: unknown }).classType;
+  const classType: ImportedClass['classType'] =
+    typeValue === 'online' || typeValue === 'hybrid' || typeValue === 'on_demand'
+      ? typeValue
+      : 'in_person';
+
+  const termIds = Array.isArray((raw as { termIds?: unknown }).termIds)
+    ? ((raw as { termIds: unknown[] }).termIds
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item) => item.length > 0))
+    : [];
+
+  const termNames = Array.isArray((raw as { termNames?: unknown }).termNames)
+    ? ((raw as { termNames: unknown[] }).termNames
+        .map((item) => (typeof item === 'string' ? item.trim() : ''))
+        .filter((item) => item.length > 0))
+    : [];
+
+  const weeklySlots = Array.isArray((raw as { weeklySlots?: unknown }).weeklySlots)
+    ? ((raw as { weeklySlots: unknown[] }).weeklySlots
+        .map((slot) => {
+          if (typeof slot !== 'object' || slot === null) {
+            return null;
+          }
+          const dayOfWeek = Number.parseInt(String((slot as { dayOfWeek?: unknown }).dayOfWeek), 10);
+          const periodValue = normalizePeriod((slot as { period?: unknown }).period);
+          if (!Number.isFinite(dayOfWeek) || dayOfWeek < 1 || dayOfWeek > 7 || periodValue === null) {
+            return null;
+          }
+          return { dayOfWeek, period: periodValue } satisfies WeeklySlot;
+        })
+        .filter((slot): slot is WeeklySlot => slot !== null))
+    : [];
+
+  const location = typeof (raw as { location?: unknown }).location === 'string'
+    ? (raw as { location: string }).location.trim() || null
+    : null;
+  const locationInPerson = typeof (raw as { locationInPerson?: unknown }).locationInPerson === 'string'
+    ? (raw as { locationInPerson: string }).locationInPerson.trim() || null
+    : null;
+  const locationOnline = typeof (raw as { locationOnline?: unknown }).locationOnline === 'string'
+    ? (raw as { locationOnline: string }).locationOnline.trim() || null
+    : null;
+  const teacher = typeof (raw as { teacher?: unknown }).teacher === 'string'
+    ? (raw as { teacher: string }).teacher.trim() || null
+    : null;
+
+  const creditsRaw = (raw as { credits?: unknown }).credits;
+  const credits = typeof creditsRaw === 'string' || typeof creditsRaw === 'number' ? creditsRaw : null;
+
+  const isFullyOnDemand = Boolean((raw as { isFullyOnDemand?: unknown }).isFullyOnDemand);
+
+  return {
+    id: `import-${index}`,
+    className,
+    classType,
+    termIds,
+    termNames,
+    weeklySlots,
+    location,
+    locationInPerson,
+    locationOnline,
+    teacher,
+    credits,
+    isFullyOnDemand,
+  } satisfies ImportedClass;
+}
+
+function buildTermLabel(item: ImportedClass | null): string {
+  if (!item) {
+    return '未設定';
+  }
+  if (item.termNames.length > 0) {
+    return item.termNames.join('、');
+  }
+  return '未設定';
+}
+
+function buildLocationLabel(item: ImportedClass | null): string {
+  if (!item) {
+    return '場所未設定';
+  }
+  if (item.classType === 'hybrid') {
+    const inPerson = item.locationInPerson?.trim() ?? '';
+    const online = item.locationOnline?.trim() ?? '';
+    if (inPerson && online) {
+      return `対面: ${inPerson} / オンライン: ${online}`;
+    }
+    if (inPerson) {
+      return `対面: ${inPerson}`;
+    }
+    if (online) {
+      return `オンライン: ${online}`;
+    }
+    return '場所未設定';
+  }
+  return item.location ?? '場所未設定';
+}
+
+function formatWeeklyLabel(slots: WeeklySlot[]): string {
+  if (slots.length === 0) {
+    return '未設定';
+  }
+  const labelMap = new Map<number, Array<number | 'OD'>>();
+  for (const slot of slots) {
+    const list = labelMap.get(slot.dayOfWeek) ?? [];
+    list.push(slot.period);
+    labelMap.set(slot.dayOfWeek, list);
+  }
+
+  const weight = (period: number | 'OD') => (period === 'OD' ? 100 : period);
+
+  const parts: string[] = [];
+  for (const [day, periods] of labelMap) {
+    const weekday = WEEKDAY_HEADERS.find((item) => item.key === day)?.label ?? `${day}`;
+    const sorted = periods.slice().sort((a, b) => weight(a) - weight(b));
+    const labels = sorted.map((period) => (period === 'OD' ? 'オンデマンド' : `${period}限`));
+    parts.push(`${weekday}曜${labels.join('・')}`);
+  }
+  return parts.join('、');
+}
+
+function buildScheduleMap(classes: ImportedClass[], termId: string): Map<string, ScheduleEntry[]> {
+  const map = new Map<string, ScheduleEntry[]>();
+  for (const classItem of classes) {
+    const belongsToTerm = classItem.termIds.length === 0 || classItem.termIds.includes(termId);
+    if (!belongsToTerm || classItem.isFullyOnDemand) {
+      continue;
+    }
+    for (const slot of classItem.weeklySlots) {
+      const key = `${slot.dayOfWeek}-${slot.period}`;
+      const current = map.get(key) ?? [];
+      current.push({
+        classId: classItem.id,
+        className: classItem.className,
+        location: buildLocationLabel(classItem),
+      });
+      map.set(key, current);
+    }
+  }
+  return map;
+}
+
 export default function BulkImportPage() {
   const { settings, initialized } = useUserSettings();
   const [text, setText] = useState('');
   const [result, setResult] = useState<string | null>(null);
+  const [classes, setClasses] = useState<ImportedClass[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [termCandidates, setTermCandidates] = useState<TermCandidate[]>([]);
   const [termLoadState, setTermLoadState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [activeTermId, setActiveTermId] = useState<string>('unspecified');
 
   useEffect(() => {
     if (!initialized) {
@@ -51,6 +283,7 @@ export default function BulkImportPage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setClasses([]);
     try {
       const response = await fetch('/api/class-bulk-import', {
         method: 'POST',
@@ -67,7 +300,15 @@ export default function BulkImportPage() {
         return;
       }
 
+      const parsed = Array.isArray(data.data)
+        ? data.data
+            .map((item, index) => normalizeImportedClass(item, index))
+            .filter((item): item is ImportedClass => item !== null)
+        : [];
+
       setResult(JSON.stringify(data.data, null, 2));
+      setClasses(parsed);
+      setSelectedClassId(parsed[0]?.id ?? null);
     } catch (importError) {
       console.error('授業一括取り込みの実行に失敗しました', importError);
       setError('変換に失敗しました。時間をおいて再度お試しください。');
@@ -75,6 +316,123 @@ export default function BulkImportPage() {
       setLoading(false);
     }
   };
+
+  const termTabs = useMemo(() => {
+    const tabs = new Map<string, string>();
+    for (const classItem of classes) {
+      if (classItem.termIds.length === 0) {
+        tabs.set('unspecified', '学期未設定');
+      }
+      classItem.termIds.forEach((termId, index) => {
+        const label = classItem.termNames[index] ?? classItem.termNames[0] ?? '学期';
+        tabs.set(termId, label);
+      });
+    }
+    if (tabs.size === 0) {
+      tabs.set('unspecified', '学期未設定');
+    }
+    return Array.from(tabs.entries()).map(([id, name]) => ({ id, name }));
+  }, [classes]);
+
+  useEffect(() => {
+    if (termTabs.length === 0) {
+      setActiveTermId('unspecified');
+      return;
+    }
+    const firstTab = termTabs[0]?.id ?? 'unspecified';
+    setActiveTermId((prev) => (termTabs.some((tab) => tab.id === prev) ? prev : firstTab));
+  }, [termTabs]);
+
+  useEffect(() => {
+    if (classes.length === 0) {
+      setSelectedClassId(null);
+      return;
+    }
+    const belongs = classes.find(
+      (item) =>
+        item.id === selectedClassId && (item.termIds.length === 0 || item.termIds.includes(activeTermId)),
+    );
+    if (belongs) {
+      return;
+    }
+    const fallback =
+      classes.find((item) => item.termIds.length === 0 || item.termIds.includes(activeTermId)) ?? classes[0] ?? null;
+    setSelectedClassId(fallback?.id ?? null);
+  }, [activeTermId, classes, selectedClassId]);
+
+  const periodLabels = useMemo(() => {
+    const numbers = new Set<number>();
+    let hasOnDemand = false;
+    let hasFullOnDemand = false;
+
+    for (const classItem of classes) {
+      const belongsToTerm = classItem.termIds.length === 0 || classItem.termIds.includes(activeTermId);
+      if (!belongsToTerm) {
+        continue;
+      }
+      if (classItem.isFullyOnDemand) {
+        hasFullOnDemand = true;
+      }
+      for (const slot of classItem.weeklySlots) {
+        if (slot.period === 'OD') {
+          hasOnDemand = true;
+          continue;
+        }
+        numbers.add(slot.period);
+      }
+    }
+
+    const sorted = Array.from(numbers).sort((a, b) => a - b).map((item) => String(item));
+    if (hasOnDemand) {
+      sorted.push('OD');
+    }
+    if (hasFullOnDemand) {
+      sorted.push('FOD');
+    }
+
+    if (sorted.length === 0) {
+      return ['1', '2', '3', '4', '5', '6'];
+    }
+
+    return sorted;
+  }, [activeTermId, classes]);
+
+  const regularPeriodLabels = useMemo(() => periodLabels.filter((label) => label !== 'FOD'), [periodLabels]);
+  const hasFullOnDemandRow = periodLabels.includes('FOD');
+
+  const columnTemplate = useMemo(
+    () => `${'2.5rem'} repeat(${WEEKDAY_HEADERS.length}, minmax(0, 1fr))`,
+    [],
+  );
+
+  const gridRowTemplate = useMemo(() => {
+    const rows: string[] = ['auto'];
+    if (regularPeriodLabels.length > 0) {
+      rows.push(`repeat(${regularPeriodLabels.length}, minmax(0, 1fr))`);
+    }
+    if (hasFullOnDemandRow) {
+      rows.push('auto');
+    }
+    return rows.join(' ');
+  }, [hasFullOnDemandRow, regularPeriodLabels.length]);
+
+  const scheduleMap = useMemo(() => buildScheduleMap(classes, activeTermId), [activeTermId, classes]);
+
+  const fullOnDemandEntries = useMemo(
+    () =>
+      classes
+        .filter(
+          (item) =>
+            item.isFullyOnDemand && (item.termIds.length === 0 || item.termIds.includes(activeTermId)),
+        )
+        .map((item) => ({ classId: item.id, className: item.className, location: buildLocationLabel(item) })),
+    [activeTermId, classes],
+  );
+
+  const selectedClass = useMemo(
+    () => classes.find((item) => item.id === selectedClassId) ?? null,
+    [classes, selectedClassId],
+  );
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-neutral-50">
@@ -91,34 +449,257 @@ export default function BulkImportPage() {
         </div>
       </header>
       <main className="flex-1 overflow-y-auto px-4 pb-8">
-        <section className="mx-auto flex w-full max-w-2xl flex-col gap-4 py-6">
-          <p className="text-sm text-neutral-700">受講している授業を一覧形式で入力してください。</p>
-          <p className="text-xs text-neutral-500">
-            {termLoadState === 'loading'
-              ? '学期情報を読み込み中です...'
-              : termCandidates.length > 0
-                ? `学期候補: ${termCandidates.map((term) => term.name).join(' / ')}`
-                : '学期候補が見つかりません。時間割設定を確認してください。'}
-          </p>
-          <textarea
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            className="h-56 w-full rounded border border-neutral-300 bg-white p-3 text-sm text-neutral-800 shadow-sm focus:border-blue-400 focus:outline-none"
-            placeholder="例: 月曜1限 経済学入門 教室A 2単位..."
-          />
-          <button
-            type="button"
-            onClick={handleImport}
-            disabled={loading}
-            className="flex h-11 w-full items-center justify-center rounded bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
-          >
-            {loading ? '変換中...' : '取り込み'}
-          </button>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          {result ? (
-            <div className="flex w-full flex-col gap-2 rounded border border-neutral-200 bg-white p-3 shadow-sm">
-              <p className="text-sm font-semibold text-neutral-900">変換結果</p>
-              <pre className="w-full whitespace-pre-wrap text-xs text-neutral-800">{result}</pre>
+        <section className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-6">
+          <div className="flex w-full flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <p className="text-sm text-neutral-700">受講している授業を一覧形式で入力してください。</p>
+            <p className="text-xs text-neutral-500">
+              {termLoadState === 'loading'
+                ? '学期情報を読み込み中です...'
+                : termCandidates.length > 0
+                  ? `学期候補: ${termCandidates.map((term) => term.name).join(' / ')}`
+                  : '学期候補が見つかりません。時間割設定を確認してください。'}
+            </p>
+            <textarea
+              value={text}
+              onChange={(event) => setText(event.target.value)}
+              className="h-56 w-full rounded border border-neutral-300 bg-white p-3 text-sm text-neutral-800 shadow-sm focus:border-blue-400 focus:outline-none"
+              placeholder="例: 月曜1限 経済学入門 教室A 2単位..."
+            />
+            <button
+              type="button"
+              onClick={handleImport}
+              disabled={loading}
+              className="flex h-11 w-full items-center justify-center rounded bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+            >
+              {loading ? '変換中...' : '取り込み'}
+            </button>
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {result ? (
+              <div className="flex w-full flex-col gap-2 rounded border border-neutral-200 bg-neutral-50 p-3">
+                <p className="text-sm font-semibold text-neutral-900">変換結果（JSON）</p>
+                <pre className="w-full whitespace-pre-wrap text-xs text-neutral-800">{result}</pre>
+              </div>
+            ) : null}
+          </div>
+
+          {classes.length > 0 ? (
+            <div className="flex w-full flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <h2 className="text-base font-semibold text-neutral-900">取り込み内容の確認</h2>
+                  <p className="text-xs text-neutral-500">時間割タブと同じ形式で授業を確認できます。</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {termTabs.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTermId(tab.id)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                        tab.id === activeTermId
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                      }`}
+                    >
+                      {tab.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100">
+                <div
+                  className="grid h-full w-full"
+                  style={{
+                    gridTemplateColumns: columnTemplate,
+                    gridTemplateRows: gridRowTemplate,
+                  }}
+                >
+                  <div
+                    className="flex h-10 w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-100 text-xs font-semibold uppercase tracking-wide text-neutral-600"
+                    style={{ gridColumnStart: 1, gridRowStart: 1 }}
+                  />
+                  {WEEKDAY_HEADERS.map((weekday, weekdayIndex) => (
+                    <div
+                      key={`header-${weekday.key}`}
+                      className="flex h-10 items-center justify-center border-b border-r border-neutral-200 bg-neutral-100 text-base font-semibold text-neutral-800"
+                      style={{ gridColumnStart: weekdayIndex + 2, gridRowStart: 1 }}
+                    >
+                      {weekday.label}
+                    </div>
+                  ))}
+
+                  {regularPeriodLabels.map((label, rowIndex) => (
+                    <Fragment key={`row-${label}`}>
+                      <div
+                        className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600"
+                        style={{ gridColumnStart: 1, gridRowStart: rowIndex + 2 }}
+                      >
+                        <span className="block w-full truncate">{label}</span>
+                      </div>
+                      {WEEKDAY_HEADERS.map((weekday, weekdayIndex) => {
+                        const cellKey = `${weekday.key}-${label}`;
+                        const entries = scheduleMap.get(cellKey) ?? [];
+                        return (
+                          <div
+                            key={`cell-${label}-${weekday.key}`}
+                            className="border-b border-r border-neutral-200 bg-white"
+                            style={{
+                              gridColumnStart: weekdayIndex + 2,
+                              gridRowStart: rowIndex + 2,
+                            }}
+                          >
+                            {entries.length > 0 ? (
+                              <div className="flex h-full min-h-0 w-full flex-col gap-1 p-1">
+                                {entries.map((entry) => (
+                                  <button
+                                    key={entry.classId}
+                                    type="button"
+                                    onClick={() => setSelectedClassId(entry.classId)}
+                                    className={`flex min-h-0 flex-col gap-1 rounded-lg border px-1 py-1 text-left transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                                      entry.classId === selectedClassId
+                                        ? 'border-blue-400 bg-blue-50 shadow-sm'
+                                        : 'border-blue-200 bg-blue-50'
+                                    }`}
+                                  >
+                                    <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
+                                      {entry.className}
+                                    </p>
+                                    {entry.location ? (
+                                      <p className="flex h-4 w-full items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
+                                        <span className="block w-full truncate whitespace-nowrap">{entry.location}</span>
+                                      </p>
+                                    ) : null}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+
+                  {hasFullOnDemandRow ? (
+                    <>
+                      <div
+                        className="flex h-full w-full items-center justify-center border-b border-r border-neutral-200 bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-600"
+                        style={{ gridColumnStart: 1, gridRowStart: regularPeriodLabels.length + 2 }}
+                      >
+                        <span className="block w-full truncate">FOD</span>
+                      </div>
+                      <div
+                        className="flex min-h-0 w-full flex-col border-b border-r border-neutral-200 bg-white"
+                        style={{
+                          gridColumnStart: 2,
+                          gridColumnEnd: WEEKDAY_HEADERS.length + 2,
+                          gridRowStart: regularPeriodLabels.length + 2,
+                        }}
+                      >
+                        {fullOnDemandEntries.length > 0 ? (
+                          <div className="flex h-full min-h-0 w-full flex-wrap items-stretch gap-1 p-1">
+                            {fullOnDemandEntries.map((entry) => (
+                              <button
+                                key={entry.classId}
+                                type="button"
+                                onClick={() => setSelectedClassId(entry.classId)}
+                                className={`flex min-h-0 flex-1 flex-col gap-1 rounded-lg border px-1 py-1 text-left transition focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                                  entry.classId === selectedClassId
+                                    ? 'border-blue-400 bg-blue-50 shadow-sm'
+                                    : 'border-blue-200 bg-blue-50'
+                                }`}
+                                style={{ minWidth: '120px' }}
+                              >
+                                <p className="w-full whitespace-pre-wrap break-words text-center text-xs font-semibold leading-tight text-neutral-800">
+                                  {entry.className}
+                                </p>
+                                {entry.location ? (
+                                  <p className="flex h-4 w-full items-center justify-center overflow-hidden rounded-full bg-neutral-900/10 px-1 text-center text-[10px] font-medium text-neutral-700">
+                                    <span className="block w-full truncate whitespace-nowrap">{entry.location}</span>
+                                  </p>
+                                ) : null}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center p-3 text-xs text-neutral-500">
+                            完全オンデマンドの授業はありません。
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+
+              {selectedClass ? (
+                <section className="flex h-fit w-full flex-col gap-4 rounded-3xl bg-blue-50 px-5 py-4">
+                  <div className="flex w-full flex-wrap items-start justify-between gap-4">
+                    <div className="flex min-w-0 flex-1 flex-col gap-3">
+                      <h3 className="truncate text-xl font-semibold text-neutral-900">{selectedClass.className}</h3>
+                      <div className="grid w-full gap-3 sm:grid-cols-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-neutral-500">開講時期</span>
+                          <span className="text-sm font-normal text-neutral-900">
+                            {buildTermLabel(selectedClass)}
+                            <span className="px-1 text-neutral-300">/</span>
+                            {formatWeeklyLabel(selectedClass.weeklySlots)}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-neutral-500">授業形式・場所</span>
+                          <span className="flex items-center gap-2 text-sm font-normal text-neutral-900">
+                            <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-white ${CLASS_TYPE_ICON_CLASS[selectedClass.classType]}`}>
+                              <FontAwesomeIcon icon={CLASS_TYPE_ICONS[selectedClass.classType]} className="text-sm" aria-hidden="true" />
+                            </span>
+                            <span className="flex items-center gap-2">
+                              <span>{CLASS_TYPE_LABELS[selectedClass.classType]}</span>
+                              <span className="text-neutral-300">/</span>
+                              <span>{buildLocationLabel(selectedClass)}</span>
+                            </span>
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-semibold text-neutral-500">担当教員</span>
+                          <span className="text-sm font-normal text-neutral-900">{selectedClass.teacher ?? '未設定'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">
+                      読み込み結果
+                    </div>
+                  </div>
+                  <div className="grid w-full gap-3 sm:grid-cols-3">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-neutral-500">単位</span>
+                      <span className="text-sm font-normal text-neutral-900">{selectedClass.credits ?? '未設定'}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-neutral-500">オンデマンド</span>
+                      <span className="text-sm font-normal text-neutral-900">
+                        {selectedClass.isFullyOnDemand
+                          ? '完全オンデマンド（週次枠なし）'
+                          : selectedClass.weeklySlots.some((slot) => slot.period === 'OD')
+                            ? 'オンデマンド枠あり'
+                            : 'なし'}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-semibold text-neutral-500">週次枠</span>
+                      <span className="text-sm font-normal text-neutral-900">
+                        {selectedClass.weeklySlots.length > 0
+                          ? formatPeriodLabel(
+                              selectedClass.weeklySlots
+                                .filter((slot) => slot.period !== 'OD')
+                                .map((slot) => slot.period)
+                                .map((period) => (typeof period === 'number' ? period : 'OD')),
+                            )
+                          : '未設定'}
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
             </div>
           ) : null}
         </section>
