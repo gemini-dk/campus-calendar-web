@@ -69,7 +69,6 @@ body {
 }
 .bottom-safe {
   bottom: constant(safe-area-inset-bottom);
-  bottom: env(safe-area-inset-bottom);
   background-color: green;
 }
 
