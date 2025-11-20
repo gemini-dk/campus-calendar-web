@@ -61,7 +61,7 @@ const SYSTEM_PROMPT = `あなたは履修登録管理者です。与えられた
 - location: 授業を行う場所です。対面授業であれば、キャンパス・建物・教室名などが適切です。オンラインであればZoomのURLなどが適切です。
 - weeklySlots の dayOfWeek は「月」「火」「水」「木」「金」「土」「日」のいずれかを必ず使用する。period は 1..N の数値または 'OD'/0。`;
 
-const SYLABAS_PROMPT = `- memo: ユーザから送信されたデータに記載されている内容は全て記載します。このフィールドにマークダウン形式で記入してください。授業概要、授業計画、教科書情報、成績評価方法などが予測されます。できる限り全ての情報をそのまま記述してください。
+const SYLABUS_PROMPT = `- memo: ユーザから送信されたデータに記載されている内容は全て記載します。このフィールドにマークダウン形式で記入してください。授業概要、授業計画、教科書情報、成績評価方法などが予測されます。できる限り全ての情報をそのまま記述してください。
 ex.
 # 授業概要
 この授業では，AIにコントロールされ，スマホ脳・ゲーム脳になってゾンビ化した私たちの身体を解放しようとするフィクションを扱おうと考えています。
@@ -284,9 +284,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     const body = (await request.json()) as {
       text?: string;
       termCandidates?: Array<z.infer<typeof candidateTermSchema>>;
+      importType?: 'multiple' | 'syllabus';
     };
     const text = body.text ?? '';
     const termCandidates = body.termCandidates ?? [];
+    const importType = body.importType === 'syllabus' ? 'syllabus' : 'multiple';
 
     if (!text.trim()) {
       return NextResponse.json({ error: '入力が空です。授業一覧を入力してください。' }, { status: 400 });
@@ -314,14 +316,17 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const schemaForPrompt = buildSchemaForPrompt(termNameEnum);
 
-    const prompt = `${SYSTEM_PROMPT}
-${termContext}
-
-返却形式はJSONのみ。下記JSON Schemaに厳密に従い、余計な文章を加えずに出力してください。
+    const promptSegments = [
+      SYSTEM_PROMPT,
+      importType === 'syllabus' ? SYLABUS_PROMPT : '',
+      termContext,
+      `返却形式はJSONのみ。下記JSON Schemaに厳密に従い、余計な文章を加えずに出力してください。
 ${schemaForPrompt}
 
 下記データから授業を抽出してください。
-${text}`;
+${text}`,
+    ].filter((segment): segment is string => Boolean(segment));
+    const prompt = promptSegments.join('\n\n');
 
 console.log('prompt');
 console.log(prompt);
@@ -332,11 +337,20 @@ console.log(prompt);
       maxOutputTokens:8192
     });
 
+    const usage = result.usage;
+    const input_cost = 0.07 / 1000000 * Number(usage?.inputTokens);
+    const output_cost = 0.3 / 1000000 * Number(usage?.outputTokens);
+    console.log('usage', {
+      prompt_tokens: `${usage?.inputTokens},$${input_cost}`,
+      completion_tokens: `${usage?.outputTokens},$${output_cost}`,
+      total_tokens: `${usage?.totalTokens},${input_cost + output_cost}`,
+    });
+
     const normalized = result.object.map((item) => normalizeClass(item, termNameToId));
 console.log(JSON.stringify(normalized));
     return NextResponse.json({ data: normalized });
   } catch (error) {
-    console.error('授業一括取り込みの変換に失敗しました', error);
+    console.error('授業データ取り込みの変換に失敗しました', error);
     return NextResponse.json({ error: '変換に失敗しました。時間をおいて再度お試しください。' }, { status: 500 });
   }
 }
