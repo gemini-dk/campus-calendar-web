@@ -83,14 +83,17 @@ async function executeCompletion({
   options: Parameters<LanguageModelV2['doGenerate']>[0];
 }) {
   const messages = mapPrompt(options.prompt);
-
   const responseFormat =
     options.responseFormat?.type === 'json'
       ? {
-          type: 'json_object',
-          schema: options.responseFormat.schema,
-          name: options.responseFormat.name,
-          description: options.responseFormat.description,
+          type: 'json_schema',
+          json_schema: {
+            name: options.responseFormat.name ?? 'schema',
+            schema: options.responseFormat.schema,
+            ...(options.responseFormat.description
+              ? { description: options.responseFormat.description }
+              : {}),
+          },
         }
       : undefined;
 

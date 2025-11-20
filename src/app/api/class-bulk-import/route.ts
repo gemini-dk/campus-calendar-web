@@ -56,6 +56,7 @@ const SYSTEM_PROMPT = `あなたは履修登録管理者です。与えられた
   - hybrid: 対面とオンラインを組み合わせた授業。曜日と時限は必須。
   - on_demand: あらかじめ収録された授業。配信曜日が決まっている場合は曜日を指定し、時限は0か'OD'を使う。全て一括配信でいつでも受講できる場合は weeklySlots を空にし、isFullyOnDemand を true にする。
   記載がない場合はin_personを選択してください。
+- location: 授業を行う場所です。対面授業であれば、キャンパス・建物・教室名などが適切です。オンラインであればZoomのURLなどが適切です。
 - weeklySlots の dayOfWeek は「月」「火」「水」「木」「金」「土」「日」のいずれかを必ず使用する。period は 1..N の数値または 'OD'/0。`;
 
 function buildAiClassSchema(termNameEnum: string[]) {
@@ -291,11 +292,6 @@ export async function POST(request: Request): Promise<NextResponse> {
             .map((name) => `- ${name}`)
             .join('\n')}`
         : '利用可能な学期候補はありません。学期が特定できない場合は termNames を空配列にしてください。';
-
-//    const classNameContext =
-//      classNameEnum.length > 0
-//        ? `授業名は下記の候補から必ず選択してください:\n${classNameEnum.map((name) => `- ${name}`).join('\n')}`
-//        : '授業名の候補リストはありません。入力テキストから授業名を確定してください。';
 
     const schemaForPrompt = buildSchemaForPrompt(termNameEnum);
 
