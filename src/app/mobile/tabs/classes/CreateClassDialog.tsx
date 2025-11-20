@@ -824,7 +824,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         </header>
         <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50 px-5 py-6">
           <div className="flex flex-col gap-6">
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <h3 className="text-base font-semibold text-neutral-900">基本情報</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="flex w-full flex-col gap-2">
@@ -838,7 +838,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         className: event.target.value,
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                     placeholder="例: プログラミング演習"
                   />
                 </label>
@@ -884,7 +884,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         };
                       })
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                   >
                     <option value="in_person">対面</option>
                     <option value="online">オンライン</option>
@@ -905,7 +905,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                             locationInPerson: event.target.value,
                           }))
                         }
-                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                         placeholder="例: 3号館201教室"
                       />
                     </label>
@@ -920,7 +920,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                             locationOnline: event.target.value,
                           }))
                         }
-                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                         placeholder="例: Zoom ミーティング URL"
                       />
                     </label>
@@ -937,7 +937,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                           location: event.target.value,
                         }))
                       }
-                      className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                       placeholder="例: 3号館201教室"
                     />
                   </label>
@@ -953,7 +953,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         teacher: event.target.value,
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                     placeholder="例: 山田 太郎"
                   />
                 </label>
@@ -979,17 +979,17 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         memo: event.target.value,
                       }))
                     }
-                    className="min-h-[72px] w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="min-h-[72px] w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                     placeholder="例: オンラインのみ・課題多め など"
                   />
                 </div>
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <h3 className="text-base font-semibold text-neutral-900">日程設定</h3>
               <div className="mt-4 flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 bg-white">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-neutral-700">年度・学期・特殊日程</p>
                     <p className="mt-1 text-xs text-neutral-500">{termSummaryText}</p>
@@ -1012,7 +1012,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 bg-white">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-neutral-700">曜日・時限</p>
                     <p className="mt-1 text-xs text-neutral-500">{slotSummaryText}</p>
@@ -1053,7 +1053,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <h3 className="text-base font-semibold text-neutral-900">単位・出欠</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="flex w-full flex-col gap-2">
@@ -1072,7 +1072,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                     className={`w-full rounded border px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 ${
                       formState.isFullyOnDemand
                         ? "border-neutral-200 bg-neutral-100 text-neutral-500"
-                        : "border-neutral-300"
+                        : "border-neutral-300 bg-white"
                     }`}
                   />
                   <span className="text-xs text-neutral-500">推奨値: {recommendedAbsence} 回</span>
@@ -1088,7 +1088,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         creditsText: event.target.value,
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                     placeholder="例: 2"
                   />
                 </label>
@@ -1102,7 +1102,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         creditsStatus: event.target.value as FormState["creditsStatus"],
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                   >
                     <option value="in_progress">履修中</option>
                     <option value="completed">修得済み</option>
@@ -1112,7 +1112,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-neutral-900">日程プレビュー</h3>
                 <span className="text-xs text-neutral-500">
@@ -1134,7 +1134,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                   {previewDates.map((item) => (
                     <li
                       key={item.date}
-                      className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 bg-white"
                     >
                       <span>{item.date}</span>
                       <span className="text-xs text-neutral-500">
