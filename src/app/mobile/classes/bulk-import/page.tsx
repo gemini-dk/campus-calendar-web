@@ -3,12 +3,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 
 import Link from 'next/link';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChalkboardTeacher, faCircleQuestion, faPlay, faVideo } from '@fortawesome/free-solid-svg-icons';
 
 import { getCalendarTerms } from '@/lib/data/service/calendar.service';
 import { useUserSettings } from '@/lib/settings/UserSettingsProvider';
-import { formatPeriodLabel } from '@/app/mobile/utils/classSchedule';
 import { useAuth } from '@/lib/useAuth';
 import type { WeeklySlotSelection } from '@/lib/data/service/class.service';
 import { CreateClassDialog, type CreateClassPresetFormValues } from '@/app/mobile/tabs/classes/CreateClassDialog';
@@ -26,8 +23,6 @@ type ImportedClass = {
   termNames: string[];
   weeklySlots: WeeklySlot[];
   location: string | null;
-  locationInPerson: string | null;
-  locationOnline: string | null;
   teacher: string | null;
   credits: number | string | null;
   isFullyOnDemand: boolean;
@@ -42,6 +37,7 @@ type ScheduleEntry = {
 type TermCandidate = {
   id: string;
   name: string;
+  isHoliday?: boolean;
 };
 
 const WEEKDAY_HEADERS = [
@@ -52,27 +48,6 @@ const WEEKDAY_HEADERS = [
   { key: 5, label: '金' },
   { key: 6, label: '土' },
 ];
-
-const CLASS_TYPE_LABELS = {
-  in_person: '対面',
-  online: 'オンライン',
-  hybrid: 'ハイブリッド',
-  on_demand: 'オンデマンド',
-} as const;
-
-const CLASS_TYPE_ICONS = {
-  in_person: faChalkboardTeacher,
-  online: faVideo,
-  hybrid: faCircleQuestion,
-  on_demand: faPlay,
-} as const;
-
-const CLASS_TYPE_ICON_CLASS = {
-  in_person: 'text-blue-600',
-  online: 'text-purple-600',
-  hybrid: 'text-sky-600',
-  on_demand: 'text-amber-500',
-} as const;
 
 function normalizePeriod(value: unknown): number | 'OD' | null {
   if (value === 'OD') {
@@ -138,12 +113,6 @@ function normalizeImportedClass(raw: unknown, index: number): ImportedClass | nu
   const location = typeof (raw as { location?: unknown }).location === 'string'
     ? (raw as { location: string }).location.trim() || null
     : null;
-  const locationInPerson = typeof (raw as { locationInPerson?: unknown }).locationInPerson === 'string'
-    ? (raw as { locationInPerson: string }).locationInPerson.trim() || null
-    : null;
-  const locationOnline = typeof (raw as { locationOnline?: unknown }).locationOnline === 'string'
-    ? (raw as { locationOnline: string }).locationOnline.trim() || null
-    : null;
   const teacher = typeof (raw as { teacher?: unknown }).teacher === 'string'
     ? (raw as { teacher: string }).teacher.trim() || null
     : null;
@@ -161,8 +130,6 @@ function normalizeImportedClass(raw: unknown, index: number): ImportedClass | nu
     termNames,
     weeklySlots,
     location,
-    locationInPerson,
-    locationOnline,
     teacher,
     credits,
     isFullyOnDemand,
@@ -183,44 +150,7 @@ function buildLocationLabel(item: ImportedClass | null): string {
   if (!item) {
     return '場所未設定';
   }
-  if (item.classType === 'hybrid') {
-    const inPerson = item.locationInPerson?.trim() ?? '';
-    const online = item.locationOnline?.trim() ?? '';
-    if (inPerson && online) {
-      return `対面: ${inPerson} / オンライン: ${online}`;
-    }
-    if (inPerson) {
-      return `対面: ${inPerson}`;
-    }
-    if (online) {
-      return `オンライン: ${online}`;
-    }
-    return '場所未設定';
-  }
   return item.location ?? '場所未設定';
-}
-
-function formatWeeklyLabel(slots: WeeklySlot[]): string {
-  if (slots.length === 0) {
-    return '未設定';
-  }
-  const labelMap = new Map<number, Array<number | 'OD'>>();
-  for (const slot of slots) {
-    const list = labelMap.get(slot.dayOfWeek) ?? [];
-    list.push(slot.period);
-    labelMap.set(slot.dayOfWeek, list);
-  }
-
-  const weight = (period: number | 'OD') => (period === 'OD' ? 100 : period);
-
-  const parts: string[] = [];
-  for (const [day, periods] of labelMap) {
-    const weekday = WEEKDAY_HEADERS.find((item) => item.key === day)?.label ?? `${day}`;
-    const sorted = periods.slice().sort((a, b) => weight(a) - weight(b));
-    const labels = sorted.map((period) => (period === 'OD' ? 'オンデマンド' : `${period}限`));
-    parts.push(`${weekday}曜${labels.join('・')}`);
-  }
-  return parts.join('、');
 }
 
 function buildScheduleMap(classes: ImportedClass[], termId: string): Map<string, ScheduleEntry[]> {
@@ -248,7 +178,6 @@ export default function BulkImportPage() {
   const { settings, initialized } = useUserSettings();
   const { profile, isAuthenticated } = useAuth();
   const [text, setText] = useState('');
-  const [result, setResult] = useState<string | null>(null);
   const [classes, setClasses] = useState<ImportedClass[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -279,7 +208,9 @@ export default function BulkImportPage() {
     setTermLoadState('loading');
     getCalendarTerms(fiscalYear, calendarId)
       .then((terms) => {
-        const options = terms.map((term) => ({ id: term.id, name: term.name }));
+        const options = terms
+          .filter((term) => term.holidayFlag == 2)
+          .map((term) => ({ id: term.id, name: term.name }));
         setTermCandidates(options);
         setTermLoadState('idle');
       })
@@ -294,7 +225,6 @@ export default function BulkImportPage() {
     setLoading(true);
     setError(null);
     setActionError(null);
-    setResult(null);
     setClasses([]);
     setSavedClassIds(new Set());
     setIsDialogOpen(false);
@@ -321,7 +251,6 @@ export default function BulkImportPage() {
             .filter((item): item is ImportedClass => item !== null)
         : [];
 
-      setResult(JSON.stringify(data.data, null, 2));
       setClasses(parsed);
       setSelectedClassId(parsed[0]?.id ?? null);
     } catch (importError) {
@@ -477,11 +406,6 @@ export default function BulkImportPage() {
     [activeTermId, classes],
   );
 
-  const selectedClass = useMemo(
-    () => classes.find((item) => item.id === selectedClassId) ?? null,
-    [classes, selectedClassId],
-  );
-
   const dialogTargetClass = useMemo(
     () => classes.find((item) => item.id === dialogClassId) ?? null,
     [classes, dialogClassId],
@@ -527,11 +451,6 @@ export default function BulkImportPage() {
       className: dialogTargetClass.className,
       classType: dialogTargetClass.classType,
       location: dialogTargetClass.classType === 'hybrid' ? '' : dialogTargetClass.location ?? '',
-      locationInPerson:
-        dialogTargetClass.classType === 'hybrid'
-          ? dialogTargetClass.locationInPerson ?? ''
-          : dialogTargetClass.location ?? '',
-      locationOnline: dialogTargetClass.classType === 'hybrid' ? dialogTargetClass.locationOnline ?? '' : '',
       teacher: dialogTargetClass.teacher ?? '',
       creditsText: creditsValue !== null && creditsValue !== undefined ? String(creditsValue) : '',
       isFullyOnDemand: dialogTargetClass.isFullyOnDemand,
@@ -579,12 +498,6 @@ export default function BulkImportPage() {
               {loading ? '変換中...' : '取り込み'}
             </button>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
-            {result ? (
-              <div className="flex w-full flex-col gap-2 rounded border border-neutral-200 bg-neutral-50 p-3">
-                <p className="text-sm font-semibold text-neutral-900">変換結果（JSON）</p>
-                <pre className="w-full whitespace-pre-wrap text-xs text-neutral-800">{result}</pre>
-              </div>
-            ) : null}
           </div>
 
           {classes.length > 0 ? (
@@ -592,7 +505,6 @@ export default function BulkImportPage() {
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-1">
                   <h2 className="text-base font-semibold text-neutral-900">取り込み内容の確認</h2>
-                  <p className="text-xs text-neutral-500">時間割タブと同じ形式で授業を確認できます。</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {termTabs.map((tab) => (
@@ -611,6 +523,7 @@ export default function BulkImportPage() {
                   ))}
                 </div>
               </div>
+              <div className="text-sm">授業を選択し、保存ボタンを押してください。<br/><b>この機能は有料です。</b>アドオンを購入されていない方は購入をお願いします。</div>
 
               <div className="overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100">
                 <div
@@ -756,75 +669,6 @@ export default function BulkImportPage() {
               </div>
 
               {actionError ? <p className="text-sm text-red-600">{actionError}</p> : null}
-
-              {selectedClass ? (
-                <section className="flex h-fit w-full flex-col gap-4 rounded-3xl bg-blue-50 px-5 py-4">
-                  <div className="flex w-full flex-wrap items-start justify-between gap-4">
-                    <div className="flex min-w-0 flex-1 flex-col gap-3">
-                      <h3 className="truncate text-xl font-semibold text-neutral-900">{selectedClass.className}</h3>
-                      <div className="grid w-full gap-3 sm:grid-cols-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-neutral-500">開講時期</span>
-                          <span className="text-sm font-normal text-neutral-900">
-                            {buildTermLabel(selectedClass)}
-                            <span className="px-1 text-neutral-300">/</span>
-                            {formatWeeklyLabel(selectedClass.weeklySlots)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-neutral-500">授業形式・場所</span>
-                          <span className="flex items-center gap-2 text-sm font-normal text-neutral-900">
-                            <span className={`flex h-7 w-7 items-center justify-center rounded-full bg-white ${CLASS_TYPE_ICON_CLASS[selectedClass.classType]}`}>
-                              <FontAwesomeIcon icon={CLASS_TYPE_ICONS[selectedClass.classType]} className="text-sm" aria-hidden="true" />
-                            </span>
-                            <span className="flex items-center gap-2">
-                              <span>{CLASS_TYPE_LABELS[selectedClass.classType]}</span>
-                              <span className="text-neutral-300">/</span>
-                              <span>{buildLocationLabel(selectedClass)}</span>
-                            </span>
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs font-semibold text-neutral-500">担当教員</span>
-                          <span className="text-sm font-normal text-neutral-900">{selectedClass.teacher ?? '未設定'}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700">
-                      読み込み結果
-                    </div>
-                  </div>
-                  <div className="grid w-full gap-3 sm:grid-cols-3">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-neutral-500">単位</span>
-                      <span className="text-sm font-normal text-neutral-900">{selectedClass.credits ?? '未設定'}</span>
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-neutral-500">オンデマンド</span>
-                      <span className="text-sm font-normal text-neutral-900">
-                        {selectedClass.isFullyOnDemand
-                          ? '完全オンデマンド（週次枠なし）'
-                          : selectedClass.weeklySlots.some((slot) => slot.period === 'OD')
-                            ? 'オンデマンド枠あり'
-                            : 'なし'}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold text-neutral-500">週次枠</span>
-                      <span className="text-sm font-normal text-neutral-900">
-                        {selectedClass.weeklySlots.length > 0
-                          ? formatPeriodLabel(
-                              selectedClass.weeklySlots
-                                .filter((slot) => slot.period !== 'OD')
-                                .map((slot) => slot.period)
-                                .map((period) => (typeof period === 'number' ? period : 'OD')),
-                            )
-                          : '未設定'}
-                      </span>
-                    </div>
-                  </div>
-                </section>
-              ) : null}
             </div>
           ) : null}
         </section>
