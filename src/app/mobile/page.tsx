@@ -542,9 +542,10 @@ function MobilePageContent() {
 
         <nav
           className="fixed left-0 right-0 z-40 bg-transparent px-5"
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 0px)" }}
+          style={{ bottom: "calc(env(safe-area-inset-bottom,0px) + 0px)" }}
         >
           <div className="mx-auto flex h-[80px] w-full max-w-[800px] items-center justify-center">
+            <div className='mainTabbar'>aaa</div>
             <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
               {TABS.map((tab) => {
                 const isActive = tab.id === activeTab;

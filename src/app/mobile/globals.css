@@ -14,13 +14,17 @@
 html,
 body {
   height: 100%;
-  padding-bottom: env(safe-area-inset-bottom);
 }
 
 body {
   margin: 0;
 }
-
+.mainTabbar {
+  position:absolute;
+  bottom: env(safe-area-inset-bottom,0px);
+  width:100%;
+  background-color: aquamarine;
+}
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
