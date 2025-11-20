@@ -803,7 +803,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/40 px-3 py-6">
+    <div className="fixed inset-0 z-[70] flex h-full w-full items-center justify-center bg-black/40 px-3 py-6">
       <div className="flex h-full max-h-[680px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <header className="flex h-16 w-full items-center justify-between border-b border-neutral-200 px-5">
           <div>
