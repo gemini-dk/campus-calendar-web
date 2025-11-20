@@ -441,7 +441,7 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
           onClick={() => setFabMenuOpen(false)}
         />
       ) : null}
-      <div className="pointer-events-none fixed bottom-24 right-6 z-20 flex flex-col items-end gap-3 pr-1">
+      <div className="pointer-events-none fixed bottom-[10px] pb-safe right-6 z-20 flex flex-col items-end gap-3 pr-1">
         {fabMenuOpen ? (
           <div className="pointer-events-auto flex flex-col items-end gap-3">
             <a
