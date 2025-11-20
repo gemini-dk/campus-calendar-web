@@ -351,8 +351,8 @@ export default function ClassMemoOverlay({ open, memo, onClose }: ClassMemoOverl
         </div>
       </header>
       <div className="flex min-h-0 flex-1 overflow-y-auto bg-neutral-100">
-        <div className="mx-auto flex h-full w-full max-w-[800px] flex-col px-5 py-6">
-          <div className="flex h-full w-full flex-col gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm">
+        <div className="mx-auto flex min-h-full w-full max-w-[800px] flex-col px-5 py-6">
+          <div className="flex min-h-full w-full flex-col gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm">
             {hasMemo ? (
               <MarkdownRenderer content={memoContent} />
             ) : (
