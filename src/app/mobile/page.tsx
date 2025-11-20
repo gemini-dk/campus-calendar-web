@@ -517,9 +517,9 @@ function MobilePageContent() {
         </div>
       ) : null}
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
-        <main className="flex flex-1 flex-col overflow-hidden pb-4">
+        <main className="flex flex-1 flex-col overflow-hidden pb-safe mb-[105px]">
           <div
-            className="flex-1 min-h-0 overflow-y-auto bg-neutral-50 mainContainer"
+            className="pb-safe flex-1 min-h-0 overflow-y-auto bg-neutral-50"
           >
             {currentTab.id === "calendar" ? (
               <CalendarTab
@@ -538,7 +538,7 @@ function MobilePageContent() {
         </main>
 
         <nav
-          className="fixed left-0 right-0 z-40 bg-transparent px-5 mainTabbar"
+          className="fixed left-0 right-0 z-40 bg-transparent px-5 mb-5 bottom-safe"
         >
           <div className="mx-auto flex h-[80px] w-full max-w-[800px] items-center justify-center">
             <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
