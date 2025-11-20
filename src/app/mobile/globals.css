@@ -21,7 +21,7 @@ body {
 }
 .mainTabbar {
   position:absolute;
-  bottom: env(safe-area-inset-bottom,0px);
+  bottom: constant(safe-area-inset-bottom);
   width:100%;
   background-color: aquamarine;
 }
