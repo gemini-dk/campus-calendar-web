@@ -4,6 +4,8 @@ import {
   PWA_APP_NAME,
   PWA_ICON_SMALL_PATH,
   PWA_ICON_PATH,
+  PWA_ICON_ROUNDED_PATH,
+  PWA_ICON_ROUNDED_SMALL_PATH,
   PWA_MANIFEST_DESCRIPTION,
   PWA_THEME_COLOR,
 } from "@/lib/pwa";
@@ -21,19 +23,19 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/mobile",
     icons: [
       {
-        src: PWA_ICON_SMALL_PATH,
+        src: PWA_ICON_ROUNDED_SMALL_PATH,
         sizes: "192x192",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: PWA_ICON_PATH,
+        src: PWA_ICON_ROUNDED_PATH,
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: PWA_ICON_PATH,
+        src: PWA_ICON_ROUNDED_PATH,
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

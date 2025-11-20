@@ -8,6 +8,8 @@ import {
   PWA_FAVICON_PATH,
   PWA_ICON_SMALL_PATH,
   PWA_ICON_PATH,
+  PWA_ICON_ROUNDED_PATH,
+  PWA_ICON_ROUNDED_SMALL_PATH,
   PWA_THEME_COLOR,
 } from "@/lib/pwa";
 
@@ -32,12 +34,12 @@ export const metadata: Metadata = {
         type: "image/x-icon",
       },
       {
-        url: PWA_ICON_SMALL_PATH,
+        url: PWA_ICON_ROUNDED_SMALL_PATH,
         type: "image/png",
         sizes: "192x192",
       },
       {
-        url: PWA_ICON_PATH,
+        url: PWA_ICON_ROUNDED_PATH,
         type: "image/png",
         sizes: "512x512",
       },
@@ -48,7 +50,7 @@ export const metadata: Metadata = {
         type: "image/x-icon",
       },
       {
-        url: PWA_ICON_SMALL_PATH,
+        url: PWA_ICON_ROUNDED_SMALL_PATH,
         type: "image/png",
         sizes: "192x192",
       },
