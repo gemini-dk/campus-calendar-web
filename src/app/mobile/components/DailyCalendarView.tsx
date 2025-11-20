@@ -441,35 +441,39 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
           onClick={() => setFabMenuOpen(false)}
         />
       ) : null}
-      <div className="pointer-events-none fixed bottom-[10px] pb-safe right-6 z-20 flex flex-col items-end gap-3 pr-1">
-        {fabMenuOpen ? (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[5px] pb-safe z-20 flex justify-center px-4">
+        <div className="pointer-events-none flex w-full max-w-[800px] justify-end pr-1">
           <div className="pointer-events-auto flex flex-col items-end gap-3">
-            <a
-              href={googleCalendarCreateUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setFabMenuOpen(false)}
-              className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
-            >
-              Googleカレンダーで予定作成
-            </a>
+            {fabMenuOpen ? (
+              <div className="flex flex-col items-end gap-3">
+                <a
+                  href={googleCalendarCreateUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setFabMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
+                >
+                  Googleカレンダーで予定作成
+                </a>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateDialog}
+                  className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
+                >
+                  授業日程を作成
+                </button>
+              </div>
+            ) : null}
             <button
               type="button"
-              onClick={handleOpenCreateDialog}
-              className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-md transition hover:bg-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+              aria-label="操作メニューを開く"
+              onClick={() => setFabMenuOpen((prev) => !prev)}
             >
-              授業日程を作成
+              <FontAwesomeIcon icon={fabMenuOpen ? faXmark : faPlus} fontSize={20} />
             </button>
           </div>
-        ) : null}
-        <button
-          type="button"
-          className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-          aria-label="操作メニューを開く"
-          onClick={() => setFabMenuOpen((prev) => !prev)}
-        >
-          <FontAwesomeIcon icon={fabMenuOpen ? faXmark : faPlus} fontSize={20} />
-        </button>
+        </div>
       </div>
       <ClassActivityOverlay
         open={Boolean(selectedActivity)}
