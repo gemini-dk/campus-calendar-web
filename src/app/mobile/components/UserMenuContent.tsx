@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FirebaseError } from 'firebase/app';
+import Link from 'next/link';
 
 import { useToast } from '@/components/ui/ToastProvider';
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
@@ -55,7 +56,13 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     connect: connectGoogleCalendar,
     disconnect: disconnectGoogleCalendar,
     syncNow: syncGoogleCalendarNow,
-  } = useGoogleCalendarIntegration({ enabled: !IS_PRODUCTION });
+    refreshCalendarList: refreshGoogleCalendarList,
+    updateCalendarSelection: updateGoogleCalendarSelection,
+    calendarListLoading: googleCalendarListLoading,
+    calendarSelectionSaving: googleCalendarSelectionSaving,
+    calendarListError: googleCalendarListError,
+    hasSelectedCalendars: hasSelectedGoogleCalendars,
+  } = useGoogleCalendarIntegration({ enabled: true });
 
   const [entries, setEntries] = useState<EditableCalendarEntry[]>([]);
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
@@ -64,6 +71,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const [activePanel, setActivePanel] = useState<MenuPanel | null>(null);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+  const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -73,6 +81,30 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   useEffect(() => {
     setCalendarError(null);
   }, [entries]);
+
+  useEffect(() => {
+    const list = googleCalendarIntegration?.calendarList ?? [];
+    setSelectedCalendarIds(list.filter((entry) => entry.selected).map((entry) => entry.id));
+  }, [googleCalendarIntegration?.calendarList]);
+
+  useEffect(() => {
+    if (!googleCalendarIntegration?.refreshToken) {
+      return;
+    }
+    if (googleCalendarLoading || googleCalendarListLoading) {
+      return;
+    }
+    if (googleCalendarIntegration.calendarList && googleCalendarIntegration.calendarList.length > 0) {
+      return;
+    }
+    void refreshGoogleCalendarList();
+  }, [
+    googleCalendarIntegration?.calendarList,
+    googleCalendarIntegration?.refreshToken,
+    googleCalendarListLoading,
+    googleCalendarLoading,
+    refreshGoogleCalendarList,
+  ]);
 
   const activeEntry = useMemo(() => {
     return entries.find((entry) => entry.defaultFlag) ?? entries[0] ?? null;
@@ -98,6 +130,29 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   const handleClosePanel = useCallback(() => {
     setActivePanel(null);
   }, []);
+
+  const handleToggleCalendarSelection = useCallback((calendarId: string, checked: boolean) => {
+    setSelectedCalendarIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(calendarId);
+      } else {
+        next.delete(calendarId);
+      }
+      return Array.from(next);
+    });
+  }, []);
+
+  const handleSaveCalendarSelection = useCallback(async () => {
+    const success = await updateGoogleCalendarSelection(selectedCalendarIds);
+    if (success) {
+      showToast({ message: '同期するカレンダーを更新しました。', tone: 'success' });
+    }
+  }, [selectedCalendarIds, showToast, updateGoogleCalendarSelection]);
+
+  const handleRefreshCalendarList = useCallback(async () => {
+    await refreshGoogleCalendarList();
+  }, [refreshGoogleCalendarList]);
 
   const isEntryUpdating = useCallback(
     (fiscalYear: string) => pendingState[fiscalYear] === true,
@@ -381,11 +436,88 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         ) : null}
       </div>
 
+      {googleCalendarIntegration?.refreshToken ? (
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold text-neutral-900">同期するカレンダー</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRefreshCalendarList}
+              disabled={googleCalendarListLoading || googleCalendarSelectionSaving}
+              className="w-30 rounded border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100"
+            >
+              {googleCalendarListLoading ? '更新中...' : '更新'}
+            </button>
+          </div>
+
+          {googleCalendarListLoading ? (
+            <p className="text-sm text-neutral-700">カレンダー一覧を取得しています...</p>
+          ) : googleCalendarIntegration.calendarList && googleCalendarIntegration.calendarList.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {googleCalendarIntegration.calendarList.map((calendar) => {
+                const isSelected = selectedCalendarIds.includes(calendar.id);
+                return (
+                  <label
+                    key={calendar.id}
+                    className="flex w-full items-center justify-between gap-3 rounded border border-neutral-200 bg-white px-3 py-2"
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <span
+                        className="h-4 w-4 rounded"
+                        style={{
+                          backgroundColor: calendar.backgroundColor ?? '#e5e7eb',
+                          border: '1px solid #d4d4d8',
+                        }}
+                        aria-hidden
+                      />
+                      <div className="flex min-w-0 flex-col">
+                        <span className="text-sm font-medium text-neutral-800 break-words">
+                          {calendar.summary}
+                        </span>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={(event) => handleToggleCalendarSelection(calendar.id, event.target.checked)}
+                      className="h-4 w-4"
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-700">カレンダー一覧を取得してから同期するカレンダーを選択してください。</p>
+          )}
+
+          {googleCalendarIntegration.calendarList && googleCalendarIntegration.calendarList.length > 0 ? (
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleSaveCalendarSelection}
+                disabled={googleCalendarSelectionSaving}
+                className="w-full rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+              >
+                {googleCalendarSelectionSaving ? '保存中...' : '選択を保存'}
+              </button>
+              {!hasSelectedGoogleCalendars ? (
+                <p className="text-xs text-amber-600">同期するカレンダーを1つ以上選択してください。</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {googleCalendarListError ? (
+            <p className="text-xs text-red-600">{googleCalendarListError}</p>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 
   const menuButtons = (
-    <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+    <section >
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold text-neutral-900">機能メニュー</h2>
         <p className="text-sm text-neutral-600">各ボタンを押すと全画面で詳細設定を開きます。</p>
@@ -394,23 +526,21 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         <button
           type="button"
           onClick={() => handleOpenPanel('academicCalendarSettings')}
-          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50"
+          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
         >
           学事カレンダー設定を開く
         </button>
-        {!IS_PRODUCTION ? (
-          <button
-            type="button"
-            onClick={() => handleOpenPanel('googleCalendarSettings')}
-            className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50"
-          >
-            Googleカレンダー設定を開く
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => handleOpenPanel('googleCalendarSettings')}
+          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
+        >
+          Googleカレンダー設定を開く
+        </button>
         <button
           type="button"
           onClick={() => handleOpenPanel('accountManagement')}
-          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50"
+          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
         >
           アカウント管理を開く
         </button>
@@ -574,7 +704,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
 
         {menuButtons}
 
-        <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        <section>
           <div className="flex flex-col gap-1">
             <h2 className="text-lg font-semibold text-neutral-900">サポート</h2>
             <p className="text-sm text-neutral-600">
@@ -582,7 +712,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
             </p>
           </div>
           <ul className="mt-4 flex flex-col gap-2 text-sm">
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/faq"
                 target="_blank"
@@ -592,7 +722,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 FAQ
               </a>
             </li>
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/form"
                 target="_blank"
@@ -602,7 +732,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 お問い合わせ
               </a>
             </li>
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/terms-of-use"
                 target="_blank"
@@ -612,7 +742,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 利用規約
               </a>
             </li>
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/privacy-policy"
                 target="_blank"
@@ -624,6 +754,20 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
             </li>
           </ul>
         </section>
+        {!IS_PRODUCTION ? (
+          <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-semibold text-neutral-900">開発者向け</h2>
+              <p className="text-sm text-neutral-600">授業一覧をAIでJSONに変換します。</p>
+            </div>
+            <Link
+              href="/mobile/classes/bulk-import"
+              className="mt-4 flex h-11 w-full items-center justify-center rounded bg-neutral-900 px-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
+            >
+              一括取り込み
+            </Link>
+          </section>
+        ) : null}
         <div className='min-h-[300px]'></div>
       </div>
 
@@ -633,7 +777,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         </FullScreenPanel>
       ) : null}
 
-      {activePanel === 'googleCalendarSettings' && !IS_PRODUCTION ? (
+      {activePanel === 'googleCalendarSettings' ? (
         <FullScreenPanel title="Googleカレンダー設定" onClose={handleClosePanel}>
           <div className="flex-1 overflow-y-auto bg-neutral-50 p-4">{renderGoogleCalendarSettingsSection()}</div>
         </FullScreenPanel>

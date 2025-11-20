@@ -182,7 +182,7 @@ export default function ClassesTab() {
         )}
       </div>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-[100px] z-20 flex justify-center px-4">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[5px] pb-safe z-20 flex justify-center px-4">
         <div className="pointer-events-none flex w-full max-w-[800px] items-center justify-end gap-3">
           <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-neutral-200 bg-white/95 px-2.5 py-2 backdrop-blur">
             <ViewToggleButton

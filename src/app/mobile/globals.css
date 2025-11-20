@@ -19,7 +19,6 @@ body {
 body {
   margin: 0;
 }
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -62,4 +61,17 @@ body {
 
 .line-clamp-3 {
   -webkit-line-clamp: 3;
+}
+
+.is-iphone .pb-safe {
+  padding-bottom: 110px;
+}
+.pb-safe {
+  padding-bottom: 80px;
+}
+.is-iphone .bottom-safe {
+  bottom: 34px;
+}
+.bottom-safe {
+  bottom: 4px;
 }

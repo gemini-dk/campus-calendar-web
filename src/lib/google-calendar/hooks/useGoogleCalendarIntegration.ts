@@ -26,6 +26,12 @@ export type GoogleCalendarIntegrationState = {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   syncNow: () => Promise<void>;
+  refreshCalendarList: () => Promise<boolean>;
+  updateCalendarSelection: (selectedCalendarIds: string[]) => Promise<boolean>;
+  calendarListLoading: boolean;
+  calendarSelectionSaving: boolean;
+  calendarListError: string | null;
+  hasSelectedCalendars: boolean;
 };
 
 const DEFAULT_INTEGRATION_STATE: GoogleCalendarIntegrationDoc = DEFAULT_GOOGLE_CALENDAR_INTEGRATION_DOC;
@@ -50,12 +56,22 @@ export function useGoogleCalendarIntegration(
     lastSyncedAt: null,
     error: null,
   });
+  const [calendarListLoading, setCalendarListLoading] = useState<boolean>(false);
+  const [calendarSelectionSaving, setCalendarSelectionSaving] = useState<boolean>(false);
+  const [calendarListError, setCalendarListError] = useState<string | null>(null);
+  const hasSelectedCalendars = useMemo(
+    () => integration?.calendarList?.some((entry) => entry.selected) ?? false,
+    [integration?.calendarList],
+  );
   useEffect(() => {
     if (!isEnabled) {
       setIntegration(null);
       setLoading(false);
       setError(null);
       setSyncState({ inProgress: false, lastSyncedAt: null, error: null });
+      setCalendarListLoading(false);
+      setCalendarListError(null);
+      setCalendarSelectionSaving(false);
       return;
     }
 
@@ -63,6 +79,8 @@ export function useGoogleCalendarIntegration(
       setIntegration(null);
       setLoading(false);
       setSyncState({ inProgress: false, lastSyncedAt: null, error: null });
+      setCalendarListError(null);
+      setCalendarSelectionSaving(false);
       return;
     }
 
@@ -212,6 +230,14 @@ export function useGoogleCalendarIntegration(
       }));
       return;
     }
+    if (!hasSelectedCalendars) {
+      setSyncState((previous) => ({
+        inProgress: false,
+        lastSyncedAt: previous.lastSyncedAt ?? integration.lastSyncedAt ?? null,
+        error: '同期するカレンダーを1つ以上選択してください。設定画面から選択を保存してください。',
+      }));
+      return;
+    }
     if (syncState.inProgress || integration.lastSyncStatus === 'syncing') {
       return;
     }
@@ -253,7 +279,91 @@ export function useGoogleCalendarIntegration(
       const message = syncError instanceof Error ? syncError.message : 'Googleカレンダーの同期に失敗しました。';
       setSyncState({ inProgress: false, lastSyncedAt: integration.lastSyncedAt ?? null, error: message });
     }
-  }, [integration, isEnabled, syncState.inProgress, syncState.lastSyncedAt, userId]);
+  }, [hasSelectedCalendars, integration, isEnabled, syncState.inProgress, syncState.lastSyncedAt, userId]);
+
+  const refreshCalendarList = useCallback(async () => {
+    if (!isEnabled || !userId) {
+      return false;
+    }
+    setCalendarListLoading(true);
+    setCalendarListError(null);
+    try {
+      const response = await fetch('/api/google-calendar/calendars', {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      const text = await response.text();
+      let payload: { error?: string; error_description?: string } = {};
+      try {
+        payload = text ? (JSON.parse(text) as typeof payload) : {};
+      } catch (parseError) {
+        console.error('Google カレンダー一覧APIレスポンスの解析に失敗しました。', parseError);
+      }
+      if (!response.ok) {
+        const message =
+          typeof payload.error_description === 'string'
+            ? payload.error_description
+            : typeof payload.error === 'string'
+              ? payload.error
+              : 'Googleカレンダー一覧の取得に失敗しました。';
+        setCalendarListError(message);
+        return false;
+      }
+      return true;
+    } catch (listError) {
+      console.error('Google カレンダー一覧APIの呼び出しに失敗しました。', listError);
+      const message = listError instanceof Error ? listError.message : 'Googleカレンダー一覧の取得に失敗しました。';
+      setCalendarListError(message);
+      return false;
+    } finally {
+      setCalendarListLoading(false);
+    }
+  }, [isEnabled, userId]);
+
+  const updateCalendarSelection = useCallback(
+    async (selectedCalendarIds: string[]) => {
+      if (!isEnabled || !userId) {
+        return false;
+      }
+      setCalendarSelectionSaving(true);
+      setCalendarListError(null);
+      try {
+        const response = await fetch('/api/google-calendar/calendars', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ selectedCalendarIds }),
+        });
+        const text = await response.text();
+        let payload: { error?: string; error_description?: string } = {};
+        try {
+          payload = text ? (JSON.parse(text) as typeof payload) : {};
+        } catch (parseError) {
+          console.error('Google カレンダー選択APIレスポンスの解析に失敗しました。', parseError);
+        }
+        if (!response.ok) {
+          const message =
+            typeof payload.error_description === 'string'
+              ? payload.error_description
+              : typeof payload.error === 'string'
+                ? payload.error
+                : '同期対象のカレンダー更新に失敗しました。';
+          setCalendarListError(message);
+          return false;
+        }
+        return true;
+      } catch (updateError) {
+        console.error('Google カレンダー選択APIの呼び出しに失敗しました。', updateError);
+        const message =
+          updateError instanceof Error ? updateError.message : '同期対象のカレンダー更新に失敗しました。';
+        setCalendarListError(message);
+        return false;
+      } finally {
+        setCalendarSelectionSaving(false);
+      }
+    },
+    [isEnabled, userId],
+  );
 
   useEffect(() => {
     if (!integration) {
@@ -280,8 +390,28 @@ export function useGoogleCalendarIntegration(
       connect,
       disconnect,
       syncNow,
+      refreshCalendarList,
+      updateCalendarSelection,
+      calendarListLoading,
+      calendarSelectionSaving,
+      calendarListError,
+      hasSelectedCalendars,
     }),
-    [integration, loading, error, syncState, connect, disconnect, syncNow],
+    [
+      integration,
+      loading,
+      error,
+      syncState,
+      connect,
+      disconnect,
+      syncNow,
+      refreshCalendarList,
+      updateCalendarSelection,
+      calendarListLoading,
+      calendarSelectionSaving,
+      calendarListError,
+      hasSelectedCalendars,
+    ],
   );
 }
 

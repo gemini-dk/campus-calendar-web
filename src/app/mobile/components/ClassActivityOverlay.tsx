@@ -51,7 +51,7 @@ export default function ClassActivityOverlay({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex h-[100svh] w-full flex-1 min-h-0 flex-col bg-white">
+    <div className="fixed inset-0 z-35 flex h-[100svh] w-full flex-1 min-h-0 flex-col bg-white">
       <header className="flex h-14 w-full flex-shrink-0 justify-center border-b border-neutral-200 bg-white">
         <div className="flex h-full w-full max-w-[800px] items-center justify-between px-5">
           <h1 className="text-lg font-semibold text-neutral-900">授業活動記録</h1>

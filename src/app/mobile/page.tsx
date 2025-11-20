@@ -81,6 +81,23 @@ function MobilePageContent() {
     useUserSettings();
   const { isAuthenticated, initializing } = useAuth();
 
+  // ユーティリティ関数
+  function isSafari() {
+    const userAgent = navigator.userAgent;
+    const isIphone = navigator.userAgent.match(/iPhone/i) ? true : false;
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+    return isIphone && isSafari;
+  }
+
+  // 動的にクラスを追加
+  useEffect(() => {
+    if (isSafari()) {
+      console.log('safari&iPhoneでした');
+      document.body.classList.add('is-iphone');
+    }
+  }, []);
+
+
   useEffect(() => {
     if (!settingsInitialized) {
       return;
@@ -517,8 +534,10 @@ function MobilePageContent() {
         </div>
       ) : null}
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
-        <main className="flex flex-1 flex-col overflow-hidden pb-4">
-          <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50 pb-[120px]">
+        <main className="flex flex-1 flex-col overflow-hidden pb-safe">
+          <div
+            className="flex-1 min-h-0 overflow-y-auto bg-neutral-50"
+          >
             {currentTab.id === "calendar" ? (
               <CalendarTab
                 key={calendarResetKey}
@@ -535,7 +554,9 @@ function MobilePageContent() {
           </div>
         </main>
 
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-transparent px-5 pb-5">
+        <nav
+          className="fixed left-0 right-0 z-40 bg-transparent px-5 bottom-safe"
+        >
           <div className="mx-auto flex h-[80px] w-full max-w-[800px] items-center justify-center">
             <div className="flex h-[64px] w-full max-w-[420px] items-center gap-3 rounded-full bg-white px-5 py-2 shadow-lg ring-1 ring-neutral-200">
               {TABS.map((tab) => {
