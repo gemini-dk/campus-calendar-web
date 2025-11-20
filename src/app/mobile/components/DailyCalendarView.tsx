@@ -398,7 +398,7 @@ function DailyCalendarViewContent({ dateId, onClose }: DailyCalendarViewProps) {
 
           {(googleEventsLoading || googleEvents.length > 0) ? (
             <div className="mt-6 flex w-full flex-col gap-3">
-              <h2 className="text-base font-semibold text-neutral-900">Googleカレンダー</h2>
+              <h2 className="text-base font-semibold text-neutral-900">その他の予定</h2>
               {googleEventsLoading ? (
                 <p className="text-sm text-neutral-600">予定を読み込み中です...</p>
               ) : (

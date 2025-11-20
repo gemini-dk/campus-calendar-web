@@ -520,7 +520,6 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     <section >
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold text-neutral-900">機能メニュー</h2>
-        <p className="text-sm text-neutral-600">各ボタンを押すと全画面で詳細設定を開きます。</p>
       </div>
       <div className="mt-4 flex flex-col gap-3">
         <button
@@ -707,9 +706,6 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         <section>
           <div className="flex flex-col gap-1">
             <h2 className="text-lg font-semibold text-neutral-900">サポート</h2>
-            <p className="text-sm text-neutral-600">
-              操作に関する質問やお問い合わせは、以下のサポートページをご確認ください。
-            </p>
           </div>
           <ul className="mt-4 flex flex-col gap-2 text-sm">
             <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">

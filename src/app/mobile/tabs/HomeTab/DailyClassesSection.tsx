@@ -913,7 +913,7 @@ function DailyClassCard({
       </div>
 
       <div className="flex flex-col">
-        <h3 className="mb-2 text-[1.125rem] text-neutral-900 text-center">{session.className}</h3>
+        <h3 className="mb-2 text-[1.5rem] font-semibold text-neutral-800 text-center">{session.className}</h3>
       </div>
 
       <AttendanceSummary

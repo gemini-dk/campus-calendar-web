@@ -901,7 +901,7 @@ function WeekSlide({
                 cursor: onDateSelect ? 'pointer' : undefined,
               }}
             >
-              <div className="relative flex h-[35px] items-start justify-between gap-2 overflow-hidden bg-transparent">
+              <div className="relative flex h-[38px] items-start justify-between gap-2 overflow-hidden bg-transparent">
                 <div className="relative inline-flex items-center self-start">
                   {isToday ? <div className={todayHeaderHighlightClassName} /> : null}
                   <div className={`relative z-[1] flex items-baseline gap-1 ${dateHeaderPaddingClassName} leading-none`}>
