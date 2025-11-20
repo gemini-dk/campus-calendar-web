@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FirebaseError } from 'firebase/app';
+import Link from 'next/link';
 
 import { useToast } from '@/components/ui/ToastProvider';
 import { CalendarEntry, useUserSettings } from '@/lib/settings/UserSettingsProvider';
@@ -755,6 +756,20 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
             </li>
           </ul>
         </section>
+        {!IS_PRODUCTION ? (
+          <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-semibold text-neutral-900">開発者向け</h2>
+              <p className="text-sm text-neutral-600">授業一覧をAIでJSONに変換します。</p>
+            </div>
+            <Link
+              href="/mobile/classes/bulk-import"
+              className="mt-4 flex h-11 w-full items-center justify-center rounded bg-neutral-900 px-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
+            >
+              一括取り込み
+            </Link>
+          </section>
+        ) : null}
         <div className='min-h-[300px]'></div>
       </div>
 
