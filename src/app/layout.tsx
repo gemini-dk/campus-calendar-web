@@ -79,14 +79,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full w-full">
+    <html lang="ja" className="h-full w-full">
       <head>
         <meta name="theme-color" content={PWA_THEME_COLOR} />
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
-/>
-
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
