@@ -62,7 +62,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
     calendarSelectionSaving: googleCalendarSelectionSaving,
     calendarListError: googleCalendarListError,
     hasSelectedCalendars: hasSelectedGoogleCalendars,
-  } = useGoogleCalendarIntegration({ enabled: !IS_PRODUCTION });
+  } = useGoogleCalendarIntegration({ enabled: true });
 
   const [entries, setEntries] = useState<EditableCalendarEntry[]>([]);
   const [pendingState, setPendingState] = useState<Record<string, boolean>>({});
@@ -530,15 +530,13 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         >
           学事カレンダー設定を開く
         </button>
-        {!IS_PRODUCTION ? (
-          <button
-            type="button"
-            onClick={() => handleOpenPanel('googleCalendarSettings')}
-            className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
-          >
-            Googleカレンダー設定を開く
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={() => handleOpenPanel('googleCalendarSettings')}
+          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
+        >
+          Googleカレンダー設定を開く
+        </button>
         <button
           type="button"
           onClick={() => handleOpenPanel('accountManagement')}
@@ -779,7 +777,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         </FullScreenPanel>
       ) : null}
 
-      {activePanel === 'googleCalendarSettings' && !IS_PRODUCTION ? (
+      {activePanel === 'googleCalendarSettings' ? (
         <FullScreenPanel title="Googleカレンダー設定" onClose={handleClosePanel}>
           <div className="flex-1 overflow-y-auto bg-neutral-50 p-4">{renderGoogleCalendarSettingsSection()}</div>
         </FullScreenPanel>
