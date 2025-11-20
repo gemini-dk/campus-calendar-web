@@ -66,8 +66,9 @@ ex.
 # 授業概要
 この授業では，AIにコントロールされ，スマホ脳・ゲーム脳になってゾンビ化した私たちの身体を解放しようとするフィクションを扱おうと考えています。
 # 授業計画
-1. 第１回::<対面型>イントロダクション ファンタジー世界に同居する親しさと不気味さについて
-2. 第２回::<対面型> ファンタジー世界の異質さ・多様さの表現について
+1. 第１回:<対面型>イントロダクション ファンタジー世界に同居する親しさと不気味さについて
+1. 第２回:<対面型> ファンタジー世界の異質さ・多様さの表現について
+1. 第３回:...
 :
 # 教科書
 - 宮澤賢治『銀河鉄道の夜』(青空文庫)
@@ -328,8 +329,7 @@ ${text}`,
     ].filter((segment): segment is string => Boolean(segment));
     const prompt = promptSegments.join('\n\n');
 
-console.log('prompt');
-console.log(prompt);
+//console.log(prompt);
     const result = await generateObject({
       model,
       schema: aiClassSchema,
@@ -347,7 +347,7 @@ console.log(prompt);
     });
 
     const normalized = result.object.map((item) => normalizeClass(item, termNameToId));
-console.log(JSON.stringify(normalized));
+//console.log(JSON.stringify(normalized));
     return NextResponse.json({ data: normalized });
   } catch (error) {
     console.error('授業データ取り込みの変換に失敗しました', error);

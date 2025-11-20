@@ -169,19 +169,19 @@ function renderInline(nodes: InlineNode[]): (JSX.Element | null)[] {
     switch (node.type) {
       case "text":
         return (
-          <span key={`text-${index}`} className="whitespace-pre-wrap text-sm leading-7 text-neutral-900">
+          <span key={`text-${index}`} className="whitespace-pre-wrap text-sm leading-6 text-neutral-900">
             {node.value}
           </span>
         );
       case "strong":
         return (
-          <strong key={`strong-${index}`} className="text-sm font-semibold leading-7 text-neutral-900">
+          <strong key={`strong-${index}`} className="text-sm font-semibold leading-6 text-neutral-900">
             {renderInline(node.children)}
           </strong>
         );
       case "em":
         return (
-          <em key={`em-${index}`} className="text-sm leading-7 text-neutral-900">
+          <em key={`em-${index}`} className="text-sm leading-6 text-neutral-900">
             {renderInline(node.children)}
           </em>
         );
@@ -255,7 +255,7 @@ function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
         if (block.type === "paragraph") {
           return (
-            <p key={`paragraph-${index}`} className="text-sm leading-7 text-neutral-900">
+            <p key={`paragraph-${index}`} className="text-sm leading-6 text-neutral-900">
               {renderInline(block.children)}
             </p>
           );
@@ -263,7 +263,7 @@ function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
         if (block.type === "unorderedList") {
           return (
-            <ul key={`ul-${index}`} className="ml-5 list-disc space-y-2 text-sm leading-7 text-neutral-900">
+            <ul key={`ul-${index}`} className="ml-5 list-disc space-y-2 text-sm leading-6 text-neutral-900">
               {block.items.map((item, itemIndex) => (
                 <li key={`ul-item-${itemIndex}`}>{renderInline(item)}</li>
               ))}
@@ -273,7 +273,7 @@ function MarkdownRenderer({ content }: MarkdownRendererProps) {
 
         if (block.type === "orderedList") {
           return (
-            <ol key={`ol-${index}`} className="ml-5 list-decimal space-y-2 text-sm leading-7 text-neutral-900">
+            <ol key={`ol-${index}`} className="ml-5 list-decimal space-y-2 text-sm leading-6 text-neutral-900">
               {block.items.map((item, itemIndex) => (
                 <li key={`ol-item-${itemIndex}`}>{renderInline(item)}</li>
               ))}
@@ -285,7 +285,7 @@ function MarkdownRenderer({ content }: MarkdownRendererProps) {
           return (
             <pre
               key={`code-${index}`}
-              className="w-full overflow-x-auto rounded-2xl bg-neutral-900 px-4 py-3 text-sm leading-7 text-white"
+              className="w-full overflow-x-auto rounded-2xl bg-neutral-900 px-4 py-3 text-sm leading-6 text-white"
             >
               <code className="whitespace-pre-wrap">{block.value}</code>
             </pre>
@@ -351,16 +351,17 @@ export default function ClassMemoOverlay({ open, memo, onClose }: ClassMemoOverl
         </div>
       </header>
       <div className="flex min-h-0 flex-1 overflow-y-auto bg-neutral-100">
-        <div className="mx-auto flex min-h-full w-full max-w-[800px] flex-col px-5 py-6">
-          <div className="flex min-h-full w-full flex-col gap-4 rounded-2xl bg-white px-5 py-4 shadow-sm">
+        <div>
+          <div className="flex w-full gap-4 px-5">
             {hasMemo ? (
               <MarkdownRenderer content={memoContent} />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-sm text-neutral-600">
                 メモが登録されていません。
               </div>
-            )}
+            )}            
           </div>
+          <div className="h-[100px]"></div>
         </div>
       </div>
     </div>

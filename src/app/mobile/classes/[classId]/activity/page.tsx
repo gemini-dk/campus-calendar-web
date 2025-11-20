@@ -1526,19 +1526,21 @@ export function ClassActivityContent({
                   setIsEditDialogOpen(true);
                 }}
                 disabled={!canEditClass}
-                className="flex h-9 min-w-[80px] items-center gap-1.5 self-start rounded-full border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
+                className="flex h-9 w-[90px] items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-neutral-200 disabled:text-neutral-400 disabled:hover:bg-white"
               >
                 <FontAwesomeIcon icon={faPen} className="text-xs" aria-hidden="true" />
                 編集
               </button>
-              <button
-                type="button"
-                onClick={() => setIsMemoOverlayOpen(true)}
-                className="flex h-9 min-w-[90px] items-center gap-1.5 self-start rounded-full border border-purple-200 bg-white px-3 text-xs font-semibold text-purple-700 transition hover:bg-purple-50"
-              >
-                <FontAwesomeIcon icon={faNoteSticky} className="text-xs" aria-hidden="true" />
-                メモ閲覧
-              </button>
+              {classDetail?.memo && classDetail.memo.trim().length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setIsMemoOverlayOpen(true)}
+                  className="flex h-9 w-[90px] items-center justify-center gap-1.5 rounded-full border border-purple-200 bg-white px-3 text-xs font-semibold text-purple-700 transition hover:bg-purple-50"
+                >
+                  <FontAwesomeIcon icon={faNoteSticky} className="text-xs" aria-hidden="true" />
+                  詳細
+                </button>
+              ) : null}
             </div>
           </div>
         </section>

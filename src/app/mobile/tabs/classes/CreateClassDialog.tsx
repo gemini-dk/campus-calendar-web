@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTimes } from "@fortawesome/free-solid-svg-icons";
+import { faTimes, faEye } from "@fortawesome/free-solid-svg-icons";
 
 import type { CalendarTerm } from "@/lib/data/schema/calendar";
 import {
@@ -19,6 +19,7 @@ import { getCalendarTerms } from "@/lib/data/service/calendar.service";
 
 import { TermSettingsDialog, type CalendarOption } from "./TermSettingsDialog";
 import { WeeklySlotsDialog } from "./WeeklySlotsDialog";
+import ClassMemoOverlay from "@/app/mobile/components/ClassMemoOverlay";
 
 type LoadState = "idle" | "loading" | "success" | "error";
 
@@ -229,6 +230,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
 
   const [isTermDialogOpen, setIsTermDialogOpen] = useState(false);
   const [isWeeklyDialogOpen, setIsWeeklyDialogOpen] = useState(false);
+  const [isMemoPreviewOpen, setIsMemoPreviewOpen] = useState(false);
 
   const termCacheRef = useRef<Map<string, CalendarTerm[]>>(new Map());
 
@@ -955,8 +957,20 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                     placeholder="例: 山田 太郎"
                   />
                 </label>
-                <label className="flex w-full flex-col gap-2">
-                  <span className="text-sm font-medium text-neutral-700">メモ（任意）</span>
+                <div className="flex w-full flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-neutral-700">メモ（任意）</span>
+                    {formState.memo.trim().length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsMemoPreviewOpen(true)}
+                        className="flex items-center gap-1 rounded border border-neutral-300 px-2 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100"
+                      >
+                        <FontAwesomeIcon icon={faEye} className="text-xs" />
+                        プレビュー
+                      </button>
+                    ) : null}
+                  </div>
                   <textarea
                     value={formState.memo}
                     onChange={(event) =>
@@ -968,7 +982,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                     className="min-h-[72px] w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     placeholder="例: オンラインのみ・課題多め など"
                   />
-                </label>
+                </div>
               </div>
             </section>
 
@@ -1230,6 +1244,12 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           }}
         />
       ) : null}
+
+      <ClassMemoOverlay
+        open={isMemoPreviewOpen}
+        memo={formState.memo}
+        onClose={() => setIsMemoPreviewOpen(false)}
+      />
     </div>
   );
 }
