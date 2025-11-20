@@ -24,6 +24,24 @@ export type SyncOptions = {
   timeMax?: string;
 };
 
+export function mergeCalendarSelections(
+  previousList: GoogleCalendarIntegrationDoc['calendarList'],
+  latestList: GoogleCalendarListEntry[],
+): GoogleCalendarListEntry[] {
+  const previousSelectedMap = new Map<string, boolean>();
+  (previousList ?? []).forEach((entry) => {
+    previousSelectedMap.set(entry.id, entry.selected !== false);
+  });
+
+  return latestList.map((entry) => {
+    const previousSelected = previousSelectedMap.get(entry.id);
+    return {
+      ...entry,
+      selected: typeof previousSelected === 'boolean' ? previousSelected : entry.selected !== false,
+    } satisfies GoogleCalendarListEntry;
+  });
+}
+
 export async function loadIntegrationDocument(
   store: GoogleCalendarSyncStore,
   userId: string,
@@ -70,10 +88,26 @@ export async function syncGoogleCalendar(
 
   const { timeMin, timeMax } = resolveTimeRange(options);
 
-  const calendarList = await fetchCalendarList(accessToken);
+  const latestCalendarList = await fetchCalendarList(accessToken);
+  const calendarList = mergeCalendarSelections(integration.calendarList, latestCalendarList);
   const selectedCalendars = calendarList.filter((entry) => entry.selected !== false);
 
-  const syncTokens = integration.syncTokens ?? {};
+  if (selectedCalendars.length === 0) {
+    await store.updateIntegration(userId, {
+      calendarList,
+      syncTokens: {},
+      updatedAt: Date.now(),
+    });
+    throw new Error('同期対象のカレンダーが選択されていません。設定画面からカレンダーを選択してください。');
+  }
+
+  const selectedCalendarIds = new Set(selectedCalendars.map((entry) => entry.id));
+  const syncTokens = integration.syncTokens
+    ? Object.fromEntries(
+        Object.entries(integration.syncTokens).filter(([calendarId]) => selectedCalendarIds.has(calendarId)),
+      )
+    : {};
+
   const nextSyncTokens: Record<string, string> = { ...syncTokens };
   const upserted: GoogleCalendarEventRecord[] = [];
   const removedEventUids = new Set<string>();
@@ -189,7 +223,7 @@ type RefreshResult = {
   tokenType: string | null;
 };
 
-async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
+export async function refreshAccessToken(refreshToken: string): Promise<RefreshResult> {
   const params = new URLSearchParams({
     refresh_token: refreshToken,
     grant_type: 'refresh_token',
@@ -224,7 +258,7 @@ type CalendarListResponse = {
   items: Array<{ [key: string]: unknown }>;
 };
 
-async function fetchCalendarList(accessToken: string): Promise<GoogleCalendarListEntry[]> {
+export async function fetchCalendarList(accessToken: string): Promise<GoogleCalendarListEntry[]> {
   const response = await fetch(`${CALENDAR_LIST_ENDPOINT}?minAccessRole=reader`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
