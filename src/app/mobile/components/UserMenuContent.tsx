@@ -463,9 +463,9 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 return (
                   <label
                     key={calendar.id}
-                    className="flex items-center justify-between gap-3 rounded border border-neutral-200 bg-white px-3 py-2"
+                    className="flex w-full items-center justify-between gap-3 rounded border border-neutral-200 bg-white px-3 py-2"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <span
                         className="h-4 w-4 rounded"
                         style={{
@@ -474,9 +474,10 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                         }}
                         aria-hidden
                       />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-neutral-800">{calendar.summary}</span>
-                        <span className="text-[11px] text-neutral-500">{calendar.id}</span>
+                      <div className="flex min-w-0 flex-col">
+                        <span className="text-sm font-medium text-neutral-800 break-words">
+                          {calendar.summary}
+                        </span>
                       </div>
                     </div>
                     <input
