@@ -440,17 +440,14 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold text-neutral-900">同期するカレンダー</p>
-              <p className="text-xs text-neutral-600">
-                Googleカレンダーから同期対象を選びます。チェックを外すと、そのカレンダーの予定は削除されます。
-              </p>
             </div>
             <button
               type="button"
               onClick={handleRefreshCalendarList}
               disabled={googleCalendarListLoading || googleCalendarSelectionSaving}
-              className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100"
+              className="w-30 rounded border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:bg-neutral-100"
             >
-              {googleCalendarListLoading ? '更新中...' : '一覧を更新'}
+              {googleCalendarListLoading ? '更新中...' : '更新'}
             </button>
           </div>
 
@@ -519,7 +516,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
   );
 
   const menuButtons = (
-    <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+    <section >
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-semibold text-neutral-900">機能メニュー</h2>
         <p className="text-sm text-neutral-600">各ボタンを押すと全画面で詳細設定を開きます。</p>
@@ -528,7 +525,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         <button
           type="button"
           onClick={() => handleOpenPanel('academicCalendarSettings')}
-          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50"
+          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
         >
           学事カレンダー設定を開く
         </button>
@@ -536,7 +533,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
           <button
             type="button"
             onClick={() => handleOpenPanel('googleCalendarSettings')}
-            className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50"
+            className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
           >
             Googleカレンダー設定を開く
           </button>
@@ -544,7 +541,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
         <button
           type="button"
           onClick={() => handleOpenPanel('accountManagement')}
-          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50"
+          className="w-full rounded border border-neutral-300 px-4 py-3 text-left text-sm font-semibold text-neutral-800 transition hover:border-blue-400 hover:bg-blue-50 bg-white"
         >
           アカウント管理を開く
         </button>
@@ -708,7 +705,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
 
         {menuButtons}
 
-        <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+        <section>
           <div className="flex flex-col gap-1">
             <h2 className="text-lg font-semibold text-neutral-900">サポート</h2>
             <p className="text-sm text-neutral-600">
@@ -716,7 +713,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
             </p>
           </div>
           <ul className="mt-4 flex flex-col gap-2 text-sm">
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/faq"
                 target="_blank"
@@ -726,7 +723,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 FAQ
               </a>
             </li>
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/form"
                 target="_blank"
@@ -736,7 +733,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 お問い合わせ
               </a>
             </li>
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/terms-of-use"
                 target="_blank"
@@ -746,7 +743,7 @@ export default function UserMenuContent({ className, showInstallPromotion = fals
                 利用規約
               </a>
             </li>
-            <li>
+            <li className="rounded-md border border-neutral-200 bg-white p-2 shadow-sm">
               <a
                 href="https://campus-calendar.launchfy.site/ja/privacy-policy"
                 target="_blank"
