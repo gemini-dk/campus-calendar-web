@@ -56,6 +56,22 @@ function toPlainText(content: LanguageModelV2Prompt[number]['content']): string 
     .join('\n');
 }
 
+function stripJsonCodeFence(text: string): string {
+  /*
+    Fireworksがコードフェンス付きで返すケースに対応する。
+    先頭の```(json)?〜```で囲まれた部分だけを取り出し、それ以外はそのまま返す。
+  */
+  const trimmed = text.trim();
+  console.log(trimmed);
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*\n([\s\S]*?)```/i);
+  if (fencedMatch?.[1]) {
+    return fencedMatch[1].trim();
+  }
+
+  return text;
+}
+
 function mapPrompt(prompt: LanguageModelV2Prompt) {
   return prompt.map((message) => {
     if (message.role === 'system') {
@@ -136,7 +152,7 @@ async function executeCompletion({
     };
   };
 
-  const contentText = data.choices[0]?.message?.content ?? '';
+  const contentText = stripJsonCodeFence(data.choices[0]?.message?.content ?? '');
 
   return {
     content: contentText,

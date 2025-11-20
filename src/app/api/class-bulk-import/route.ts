@@ -59,8 +59,21 @@ const SYSTEM_PROMPT = `あなたは履修登録管理者です。与えられた
   - on_demand: あらかじめ収録された授業。配信曜日が決まっている場合は曜日を指定し、時限は0か'OD'を使う。全て一括配信でいつでも受講できる場合は weeklySlots を空にし、isFullyOnDemand を true にする。
   記載がない場合はin_personを選択してください。
 - location: 授業を行う場所です。対面授業であれば、キャンパス・建物・教室名などが適切です。オンラインであればZoomのURLなどが適切です。
-- memo: 授業に関する補足や注意事項のメモ。なければ null を設定してください。
 - weeklySlots の dayOfWeek は「月」「火」「水」「木」「金」「土」「日」のいずれかを必ず使用する。period は 1..N の数値または 'OD'/0。`;
+
+const SYLABAS_PROMPT = `- memo: ユーザから送信されたデータに記載されている内容は全て記載します。このフィールドにマークダウン形式で記入してください。授業概要、授業計画、教科書情報、成績評価方法などが予測されます。できる限り全ての情報をそのまま記述してください。
+ex.
+# 授業概要
+この授業では，AIにコントロールされ，スマホ脳・ゲーム脳になってゾンビ化した私たちの身体を解放しようとするフィクションを扱おうと考えています。
+# 授業計画
+1. 第１回::<対面型>イントロダクション ファンタジー世界に同居する親しさと不気味さについて
+2. 第２回::<対面型> ファンタジー世界の異質さ・多様さの表現について
+:
+# 教科書
+- 宮澤賢治『銀河鉄道の夜』(青空文庫)
+- 宮澤賢治『注目の多い料理店』(青空文庫)
+
+`;
 
 function buildAiClassSchema(termNameEnum: string[]) {
   const termNameSchema =
@@ -316,6 +329,7 @@ console.log(prompt);
       model,
       schema: aiClassSchema,
       prompt,
+      maxOutputTokens:8192
     });
 
     const normalized = result.object.map((item) => normalizeClass(item, termNameToId));
