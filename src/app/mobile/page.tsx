@@ -81,6 +81,23 @@ function MobilePageContent() {
     useUserSettings();
   const { isAuthenticated, initializing } = useAuth();
 
+  // ユーティリティ関数
+  function isSafari() {
+    const userAgent = navigator.userAgent;
+    const isIphone = navigator.userAgent.match(/iPhone/i) ? true : false;
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+    return isIphone && isSafari;
+  }
+
+  // 動的にクラスを追加
+  useEffect(() => {
+    if (isSafari()) {
+      console.log('safari&iPhoneでした');
+      document.body.classList.add('is-iphone');
+    }
+  }, []);
+
+
   useEffect(() => {
     if (!settingsInitialized) {
       return;
@@ -517,9 +534,9 @@ function MobilePageContent() {
         </div>
       ) : null}
       <div className="mx-auto flex h-full min-h-[100svh] w-full max-w-[800px] flex-col bg-white">
-        <main className="flex flex-1 flex-col overflow-hidden pb-safe mb-[105px]">
+        <main className="flex flex-1 flex-col overflow-hidden pb-safe">
           <div
-            className="pb-safe flex-1 min-h-0 overflow-y-auto bg-neutral-50"
+            className="flex-1 min-h-0 overflow-y-auto bg-neutral-50"
           >
             {currentTab.id === "calendar" ? (
               <CalendarTab
