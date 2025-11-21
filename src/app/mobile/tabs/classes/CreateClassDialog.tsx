@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -214,6 +215,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
   const onCreated = !isEditMode ? (props as BaseCreateClassDialogProps & CreateModeProps).onCreated : undefined;
   const onUpdated = editProps?.onUpdated;
   const scheduleLocked = editProps?.disableScheduleChanges ?? false;
+  const [isMounted, setIsMounted] = useState(false);
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM_STATE);
   const [selectedCalendar, setSelectedCalendar] = useState<CalendarOption | null>(null);
   const [calendarTerms, setCalendarTerms] = useState<CalendarTerm[]>([]);
@@ -240,6 +242,10 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
       setIsWeeklyDialogOpen(false);
     }
   }, [scheduleLocked]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const loadTerms = useCallback(async (option: CalendarOption) => {
     const key = buildCalendarKey(option);
@@ -802,7 +808,11 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
     }
   };
 
-  return (
+  if (!isOpen || !isMounted) {
+    return null;
+  }
+
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex h-full w-full items-center justify-center bg-black/40 px-3 py-6">
       <div className="flex h-full max-h-[680px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <header className="flex h-16 w-full items-center justify-between border-b border-neutral-200 px-5">
@@ -1250,7 +1260,8 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         memo={formState.memo}
         onClose={() => setIsMemoPreviewOpen(false)}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
 
