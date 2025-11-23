@@ -483,7 +483,9 @@ function formatDueDateLabel(value: string | null, type: ActivityType): string {
 }
 
 function getTodayId(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 function createRecordId(kind: string, id: string): string {

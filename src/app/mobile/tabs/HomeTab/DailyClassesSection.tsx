@@ -128,7 +128,9 @@ const CLASS_TYPE_ICON_CLASS: Record<ClassType, string> = {
 };
 
 function getTodayId(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 function calculateDaysFromToday(targetId: string, todayId: string): number {
