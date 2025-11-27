@@ -88,12 +88,19 @@ function resolveBackgroundColor(color: string | null | undefined): string {
   return BACKGROUND_COLOR_MAP[color] ?? BACKGROUND_COLOR_MAP.none;
 }
 
+function formatDateId(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function normalizeDateId(value: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value;
   }
   const today = new Date();
-  return today.toISOString().slice(0, 10);
+  return formatDateId(today);
 }
 
 function extractDayNumber(label: string): string {
