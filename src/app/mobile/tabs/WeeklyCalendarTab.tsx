@@ -8,8 +8,7 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faVideo } from '@fortawesome/free-solid-svg-icons';
-import { faCircleCheck } from '@fortawesome/free-solid-svg-icons';
+import { faCircleCheck, faPlus, faVideo, faXmark } from '@fortawesome/free-solid-svg-icons';
 
 import {
   getCalendarDisplayInfo,
@@ -28,6 +27,8 @@ import {
 import { useGoogleCalendarEventsForMonth } from '@/lib/google-calendar/hooks/useGoogleCalendarEvents';
 import { useGoogleCalendarAutoSync } from '@/lib/google-calendar/hooks/useGoogleCalendarAutoSync';
 import type { GoogleCalendarEventRecord } from '@/lib/google-calendar/types';
+import { useAuth } from '@/lib/useAuth';
+import CreateClassScheduleDialog from '../components/CreateClassScheduleDialog';
 
 const WEEKDAY_ACCENT_CLASS: Record<string, string> = {
   default: 'text-neutral-900',
@@ -47,6 +48,7 @@ const WEEKDAY_LABEL_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
 const DRAG_DETECTION_THRESHOLD = 6;
 const WEEK_COLUMN_COUNT = 2;
+const GOOGLE_CALENDAR_CREATE_URL = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
 
 function formatPrimaryPeriodLabel(periods: (number | 'OD')[] | undefined): string | null {
   if (!periods || periods.length === 0) {
@@ -201,6 +203,7 @@ type AssignmentsByDateMap = Record<string, Activity[]>;
 
 export default function WeeklyCalendarTab({ onDateSelect }: WeeklyCalendarTabProps) {
   const { settings, initialized } = useUserSettings();
+  const { profile } = useAuth();
   useGoogleCalendarAutoSync({ enabled: true });
   const fiscalYear = settings.calendar.fiscalYear.trim();
   const calendarId = settings.calendar.calendarId.trim();
@@ -251,6 +254,8 @@ export default function WeeklyCalendarTab({ onDateSelect }: WeeklyCalendarTabPro
   const [isAnimating, setIsAnimating] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [pendingDirection, setPendingDirection] = useState<'prev' | 'next' | null>(null);
+  const [fabMenuOpen, setFabMenuOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const pointerIdRef = useRef<number | null>(null);
@@ -681,61 +686,123 @@ export default function WeeklyCalendarTab({ onDateSelect }: WeeklyCalendarTabPro
       }));
   }, [classSummaries]);
 
+  const handleOpenCreateDialog = useCallback(() => {
+    setCreateDialogOpen(true);
+    setFabMenuOpen(false);
+  }, []);
+
+  const handleCloseCreateDialog = useCallback(() => {
+    setCreateDialogOpen(false);
+  }, []);
+
   return (
-    <div className="flex h-full w-full flex-col bg-neutral-50">
-      <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-[var(--color-my-secondary-container)] px-4">
-        <div className="flex w-full items-center justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-lg font-semibold text-neutral-900">{weekRangeLabel}</div>
+    <>
+      <div className="flex h-full w-full flex-col bg-neutral-50">
+        <header className="flex h-[60px] w-full items-center border-b border-neutral-200 bg-[var(--color-my-secondary-container)] px-4">
+          <div className="flex w-full items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-lg font-semibold text-neutral-900">{weekRangeLabel}</div>
+            </div>
+            <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
           </div>
-          <UserHamburgerMenu buttonAriaLabel="ユーザメニューを開く" />
-        </div>
-      </header>
+        </header>
 
-      <div className="flex-1 overflow-hidden">
-        {calendarAvailable ? (
-          <div className="flex h-full w-full flex-col">
-            <div
-              ref={viewportRef}
-              className="flex w-full flex-1 select-none overflow-hidden touch-pan-y"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerEnd}
-              onPointerCancel={handlePointerCancel}
-            >
-              <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
-                {weeks.map((weekStartDate) => {
-                  const weekKey = getWeekKey(weekStartDate);
-                  const state = weekStates[weekKey];
-                  const style = containerWidth ? { width: containerWidth } : { width: '100%' };
+        <div className="flex-1 overflow-hidden">
+          {calendarAvailable ? (
+            <div className="flex h-full w-full flex-col">
+              <div
+                ref={viewportRef}
+                className="flex w-full flex-1 select-none overflow-hidden touch-pan-y"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerEnd}
+                onPointerCancel={handlePointerCancel}
+              >
+                <div className="flex h-full" style={trackStyle} onTransitionEnd={handleTransitionEnd}>
+                  {weeks.map((weekStartDate) => {
+                    const weekKey = getWeekKey(weekStartDate);
+                    const state = weekStates[weekKey];
+                    const style = containerWidth ? { width: containerWidth } : { width: '100%' };
 
-                  return (
-                    <div key={weekKey} className="flex h-full w-full flex-shrink-0" style={style}>
-                      <WeekSlide
-                        weekStart={weekStartDate}
-                        weekState={state}
-                        infoMap={infoMap}
-                        classEntriesByDate={classEntriesByDate}
-                        fullOnDemandClasses={fullOnDemandClasses}
-                        todayId={todayId}
-                        assignmentsByDate={assignmentsByDate}
-                        onDateSelect={onDateSelect}
-                      />
-                    </div>
-                  );
-                })}
+                    return (
+                      <div key={weekKey} className="flex h-full w-full flex-shrink-0" style={style}>
+                        <WeekSlide
+                          weekStart={weekStartDate}
+                          weekState={state}
+                          infoMap={infoMap}
+                          classEntriesByDate={classEntriesByDate}
+                          fullOnDemandClasses={fullOnDemandClasses}
+                          todayId={todayId}
+                          assignmentsByDate={assignmentsByDate}
+                          onDateSelect={onDateSelect}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center bg-neutral-50 px-6 text-center text-sm text-neutral-600">
-            {!initialized
-              ? '学事カレンダー設定を読み込み中です...'
-              : CALENDAR_SETTINGS_ERROR_MESSAGE}
-          </div>
-        )}
+          ) : (
+            <div className="flex h-full items-center justify-center bg-neutral-50 px-6 text-center text-sm text-neutral-600">
+              {!initialized
+                ? '学事カレンダー設定を読み込み中です...'
+                : CALENDAR_SETTINGS_ERROR_MESSAGE}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {fabMenuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-10 h-full w-full cursor-default bg-transparent"
+          aria-label="操作メニューを閉じる"
+          onClick={() => setFabMenuOpen(false)}
+        />
+      ) : null}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[5px] pb-safe z-20 flex justify-center px-4">
+        <div className="pointer-events-none flex w-full max-w-[800px] justify-end pr-1">
+          <div className="pointer-events-auto flex flex-col items-end gap-3">
+            {fabMenuOpen ? (
+              <div className="flex flex-col items-end gap-3">
+                <a
+                  href={GOOGLE_CALENDAR_CREATE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setFabMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
+                >
+                  Googleカレンダーで予定作成
+                </a>
+                <button
+                  type="button"
+                  onClick={handleOpenCreateDialog}
+                  className="flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-blue-700 shadow-lg ring-1 ring-blue-100 transition hover:bg-blue-50"
+                >
+                  授業日程を作成
+                </button>
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500 text-white shadow-md transition hover:bg-blue-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400"
+              aria-label="操作メニューを開く"
+              onClick={() => setFabMenuOpen((prev) => !prev)}
+            >
+              <FontAwesomeIcon icon={fabMenuOpen ? faXmark : faPlus} fontSize={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+      <CreateClassScheduleDialog
+        open={createDialogOpen}
+        userId={profile?.uid ?? null}
+        fiscalYear={settings.calendar.fiscalYear ?? null}
+        defaultDateId=""
+        lessonsPerDayEntries={settings.calendar.entries}
+        onClose={handleCloseCreateDialog}
+      />
+    </>
   );
 }
 
@@ -901,7 +968,7 @@ function WeekSlide({
                 cursor: onDateSelect ? 'pointer' : undefined,
               }}
             >
-              <div className="relative flex h-[35px] items-start justify-between gap-2 overflow-hidden bg-transparent">
+              <div className="relative flex h-[38px] items-start justify-between gap-2 overflow-hidden bg-transparent">
                 <div className="relative inline-flex items-center self-start">
                   {isToday ? <div className={todayHeaderHighlightClassName} /> : null}
                   <div className={`relative z-[1] flex items-baseline gap-1 ${dateHeaderPaddingClassName} leading-none`}>

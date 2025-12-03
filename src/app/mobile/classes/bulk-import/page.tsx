@@ -26,6 +26,7 @@ type ImportedClass = {
   teacher: string | null;
   credits: number | string | null;
   isFullyOnDemand: boolean;
+  memo: string | null;
 };
 
 type ScheduleEntry = {
@@ -121,6 +122,10 @@ function normalizeImportedClass(raw: unknown, index: number): ImportedClass | nu
   const credits = typeof creditsRaw === 'string' || typeof creditsRaw === 'number' ? creditsRaw : null;
 
   const isFullyOnDemand = Boolean((raw as { isFullyOnDemand?: unknown }).isFullyOnDemand);
+  const memo =
+    typeof (raw as { memo?: unknown }).memo === 'string'
+      ? (raw as { memo: string }).memo.trim() || null
+      : null;
 
   return {
     id: `import-${index}`,
@@ -133,6 +138,7 @@ function normalizeImportedClass(raw: unknown, index: number): ImportedClass | nu
     teacher,
     credits,
     isFullyOnDemand,
+    memo,
   } satisfies ImportedClass;
 }
 
@@ -182,6 +188,7 @@ export default function BulkImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingType, setLoadingType] = useState<'multiple' | 'syllabus' | null>(null);
   const [termCandidates, setTermCandidates] = useState<TermCandidate[]>([]);
   const [termLoadState, setTermLoadState] = useState<'idle' | 'loading' | 'error'>('idle');
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
@@ -221,8 +228,9 @@ export default function BulkImportPage() {
       });
   }, [initialized, settings.calendar.calendarId, settings.calendar.fiscalYear]);
 
-  const handleImport = async () => {
+  const handleImport = async (type: 'multiple' | 'syllabus') => {
     setLoading(true);
+    setLoadingType(type);
     setError(null);
     setActionError(null);
     setClasses([]);
@@ -235,7 +243,7 @@ export default function BulkImportPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text, termCandidates }),
+        body: JSON.stringify({ text, termCandidates, importType: type }),
       });
 
       const data = (await response.json()) as { data?: unknown; error?: string };
@@ -254,10 +262,11 @@ export default function BulkImportPage() {
       setClasses(parsed);
       setSelectedClassId(parsed[0]?.id ?? null);
     } catch (importError) {
-      console.error('授業一括取り込みの実行に失敗しました', importError);
+      console.error('授業データ取り込みの実行に失敗しました', importError);
       setError('変換に失敗しました。時間をおいて再度お試しください。');
     } finally {
       setLoading(false);
+      setLoadingType(null);
     }
   };
 
@@ -455,6 +464,7 @@ export default function BulkImportPage() {
       creditsText: creditsValue !== null && creditsValue !== undefined ? String(creditsValue) : '',
       isFullyOnDemand: dialogTargetClass.isFullyOnDemand,
       weeklySlots: dialogTargetClass.isFullyOnDemand ? [] : dialogPresetWeeklySlots,
+      memo: dialogTargetClass.memo ?? '',
     } satisfies CreateClassPresetFormValues;
   }, [dialogPresetWeeklySlots, dialogTargetClass]);
 
@@ -468,14 +478,16 @@ export default function BulkImportPage() {
           >
             戻る
           </Link>
-          <h1 className="text-base font-semibold text-neutral-900">授業一括取り込み</h1>
+          <h1 className="text-base font-semibold text-neutral-900">授業データ取り込み</h1>
           <span className="w-12" aria-hidden="true" />
         </div>
       </header>
       <main className="flex-1 overflow-y-auto px-4 pb-8">
         <section className="mx-auto flex w-full max-w-4xl flex-col gap-6 py-6">
           <div className="flex w-full flex-col gap-4 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-neutral-700">受講している授業を一覧形式で入力してください。</p>
+            <p className="text-sm text-neutral-700">
+              受講している授業やシラバスの内容を貼り付け、取り込み方法を選んでください。
+            </p>
             <p className="text-xs text-neutral-500">
               {termLoadState === 'loading'
                 ? '学期情報を読み込み中です...'
@@ -489,14 +501,24 @@ export default function BulkImportPage() {
               className="h-56 w-full rounded border border-neutral-300 bg-white p-3 text-sm text-neutral-800 shadow-sm focus:border-blue-400 focus:outline-none"
               placeholder="例: 月曜1限 経済学入門 教室A 2単位..."
             />
-            <button
-              type="button"
-              onClick={handleImport}
-              disabled={loading}
-              className="flex h-11 w-full items-center justify-center rounded bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
-            >
-              {loading ? '変換中...' : '取り込み'}
-            </button>
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handleImport('multiple')}
+                disabled={loading}
+                className="flex h-11 w-full items-center justify-center rounded bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-300"
+              >
+                {loading && loadingType === 'multiple' ? '変換中...' : '複数授業一括取り込み'}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleImport('syllabus')}
+                disabled={loading}
+                className="flex h-11 w-full items-center justify-center rounded bg-neutral-900 px-4 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-400"
+              >
+                {loading && loadingType === 'syllabus' ? '変換中...' : 'シラバスデータ取り込み'}
+              </button>
+            </div>
             {error ? <p className="text-sm text-red-600">{error}</p> : null}
           </div>
 

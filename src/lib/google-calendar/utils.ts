@@ -1,10 +1,15 @@
 import { GOOGLE_CALENDAR_DEFAULT_FISCAL_YEAR_START_MONTH } from './constants';
 
-export function toDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+const JST_TIME_ZONE = 'Asia/Tokyo';
+const JST_TIME_ZONE_OFFSET = '+09:00';
+
+export function toDateKey(date: Date, timeZone = JST_TIME_ZONE): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
 }
 
 export function normalizeIsoDate(value: string): string | null {
@@ -21,18 +26,16 @@ export function normalizeIsoDate(value: string): string | null {
 export function getFiscalYearFromDate(
   date: Date,
   startMonth = GOOGLE_CALENDAR_DEFAULT_FISCAL_YEAR_START_MONTH,
+  timeZone = JST_TIME_ZONE,
 ): number {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
+  const { year, month } = getDatePartsInTimeZone(date, timeZone);
   return month >= startMonth ? year : year - 1;
 }
 
 export function enumerateDateKeys(start: Date, end: Date): string[] {
   const keys: string[] = [];
-  const current = new Date(start);
-  current.setHours(0, 0, 0, 0);
-  const last = new Date(end);
-  last.setHours(0, 0, 0, 0);
+  const current = createMidnightDateFromKey(toDateKey(start));
+  const last = createMidnightDateFromKey(toDateKey(end));
   while (current <= last) {
     keys.push(toDateKey(current));
     current.setDate(current.getDate() + 1);
@@ -42,20 +45,29 @@ export function enumerateDateKeys(start: Date, end: Date): string[] {
 
 export function enumerateMonthKeys(start: Date, end: Date): string[] {
   const keys: string[] = [];
-  const current = new Date(start.getFullYear(), start.getMonth(), 1);
-  const last = new Date(end.getFullYear(), end.getMonth(), 1);
-  while (current <= last) {
-    const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+  const startParts = getDatePartsInTimeZone(start);
+  const endParts = getDatePartsInTimeZone(end);
+
+  let year = startParts.year;
+  let month = startParts.month;
+
+  while (year < endParts.year || (year === endParts.year && month <= endParts.month)) {
+    const key = `${year}-${String(month).padStart(2, '0')}`;
     keys.push(key);
-    current.setMonth(current.getMonth() + 1);
+
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
   }
   return keys;
 }
 
 export function enumerateFiscalYearKeys(start: Date, end: Date): string[] {
   const years = new Set<number>();
-  const current = new Date(start);
-  const last = new Date(end);
+  const current = createMidnightDateFromKey(toDateKey(start));
+  const last = createMidnightDateFromKey(toDateKey(end));
   while (current <= last) {
     years.add(getFiscalYearFromDate(current));
     current.setMonth(current.getMonth() + 1);
@@ -76,4 +88,17 @@ export function clampTimestamp(value: number | null, fallback: number): number {
     return fallback;
   }
   return value;
+}
+
+function getDatePartsInTimeZone(
+  date: Date,
+  timeZone = JST_TIME_ZONE,
+): { year: number; month: number; day: number } {
+  const key = toDateKey(date, timeZone);
+  const [year, month, day] = key.split('-').map(Number);
+  return { year, month, day };
+}
+
+function createMidnightDateFromKey(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00${JST_TIME_ZONE_OFFSET}`);
 }

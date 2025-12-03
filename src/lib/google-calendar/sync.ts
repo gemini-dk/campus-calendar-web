@@ -515,7 +515,7 @@ function extractStartDate(raw: RawCalendarEvent): Date {
     return new Date(dateTime);
   }
   if (dateOnly) {
-    return new Date(`${dateOnly}T00:00:00Z`);
+    return new Date(`${dateOnly}T00:00:00+09:00`);
   }
   return new Date();
 }
@@ -529,7 +529,7 @@ function extractEndDate(raw: RawCalendarEvent): Date {
     return endDate;
   }
   if (dateOnly) {
-    const endDate = new Date(`${dateOnly}T00:00:00Z`);
+    const endDate = new Date(`${dateOnly}T00:00:00+09:00`);
     endDate.setDate(endDate.getDate() - 1);
     return endDate;
   }

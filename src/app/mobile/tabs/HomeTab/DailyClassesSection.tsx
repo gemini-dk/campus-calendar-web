@@ -128,7 +128,9 @@ const CLASS_TYPE_ICON_CLASS: Record<ClassType, string> = {
 };
 
 function getTodayId(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 function calculateDaysFromToday(targetId: string, todayId: string): number {
@@ -913,7 +915,7 @@ function DailyClassCard({
       </div>
 
       <div className="flex flex-col">
-        <h3 className="mb-2 text-[1.125rem] text-neutral-900 text-center">{session.className}</h3>
+        <h3 className="mb-2 text-[1.5rem] font-semibold text-neutral-800 text-center">{session.className}</h3>
       </div>
 
       <AttendanceSummary

@@ -135,7 +135,7 @@ export function buildAbsenceMessage(summary: AttendanceSummary): AbsenceMessage 
   const remaining = summary.maxAbsenceDays - summary.absentCount;
 
   if (remaining > 1) {
-    return { text: `あと${remaining}日欠席可能です` };
+    return { text: ''};
   }
 
   if (remaining === 1) {

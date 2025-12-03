@@ -1,9 +1,10 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTimes } from "@fortawesome/free-solid-svg-icons";
+import { faTimes, faEye } from "@fortawesome/free-solid-svg-icons";
 
 import type { CalendarTerm } from "@/lib/data/schema/calendar";
 import {
@@ -19,6 +20,7 @@ import { getCalendarTerms } from "@/lib/data/service/calendar.service";
 
 import { TermSettingsDialog, type CalendarOption } from "./TermSettingsDialog";
 import { WeeklySlotsDialog } from "./WeeklySlotsDialog";
+import ClassMemoOverlay from "@/app/mobile/components/ClassMemoOverlay";
 
 type LoadState = "idle" | "loading" | "success" | "error";
 
@@ -37,6 +39,7 @@ type FormState = {
   isFullyOnDemand: boolean;
   maxAbsenceDays: number;
   maxAbsenceTouched: boolean;
+  memo: string;
 };
 
 export type CreateClassPresetFormValues = Partial<
@@ -53,6 +56,7 @@ export type CreateClassPresetFormValues = Partial<
     | "isFullyOnDemand"
     | "weeklySlots"
     | "maxAbsenceDays"
+    | "memo"
   >
 >;
 
@@ -71,6 +75,7 @@ const INITIAL_FORM_STATE: FormState = {
   isFullyOnDemand: false,
   maxAbsenceDays: 0,
   maxAbsenceTouched: false,
+  memo: "",
 };
 
 const SPECIAL_SCHEDULE_LABELS: Record<SpecialScheduleOption, string> = {
@@ -103,6 +108,7 @@ export type EditClassInitialData = {
   generatedClassDates: GeneratedClassDate[];
   existingWeeklySlotIds: string[];
   existingClassDateIds: string[];
+  memo: string | null;
 };
 
 const WEEKDAY_LABELS = new Map<number, string>([
@@ -209,6 +215,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
   const onCreated = !isEditMode ? (props as BaseCreateClassDialogProps & CreateModeProps).onCreated : undefined;
   const onUpdated = editProps?.onUpdated;
   const scheduleLocked = editProps?.disableScheduleChanges ?? false;
+  const [isMounted, setIsMounted] = useState(false);
   const [formState, setFormState] = useState<FormState>(INITIAL_FORM_STATE);
   const [selectedCalendar, setSelectedCalendar] = useState<CalendarOption | null>(null);
   const [calendarTerms, setCalendarTerms] = useState<CalendarTerm[]>([]);
@@ -225,6 +232,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
 
   const [isTermDialogOpen, setIsTermDialogOpen] = useState(false);
   const [isWeeklyDialogOpen, setIsWeeklyDialogOpen] = useState(false);
+  const [isMemoPreviewOpen, setIsMemoPreviewOpen] = useState(false);
 
   const termCacheRef = useRef<Map<string, CalendarTerm[]>>(new Map());
 
@@ -234,6 +242,10 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
       setIsWeeklyDialogOpen(false);
     }
   }, [scheduleLocked]);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const loadTerms = useCallback(async (option: CalendarOption) => {
     const key = buildCalendarKey(option);
@@ -293,6 +305,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           ? 0
           : Math.max(0, Math.trunc(editInitialData.maxAbsenceDays)),
         maxAbsenceTouched: true,
+        memo: editInitialData.memo ?? "",
       });
       const hasGeneratedDates = editInitialData.generatedClassDates.length > 0;
       setGeneratedClassDates(editInitialData.isFullyOnDemand ? [] : editInitialData.generatedClassDates);
@@ -323,11 +336,11 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         ? (props as BaseCreateClassDialogProps & CreateModeProps).presetFormValues ?? null
         : null;
 
-    const mergedFormState: FormState = {
-      ...INITIAL_FORM_STATE,
-      selectedTermIds: normalizedPresetTerms,
-      weeklySlots: normalizedPresetSlots,
-    };
+  const mergedFormState: FormState = {
+    ...INITIAL_FORM_STATE,
+    selectedTermIds: normalizedPresetTerms,
+    weeklySlots: normalizedPresetSlots,
+  };
 
     if (createPresetValues) {
       mergedFormState.className = createPresetValues.className ?? mergedFormState.className;
@@ -359,6 +372,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
       ) {
         mergedFormState.maxAbsenceDays = Math.max(0, Math.trunc(createPresetValues.maxAbsenceDays));
       }
+      mergedFormState.memo = createPresetValues.memo ?? mergedFormState.memo;
     }
 
     setFormState(mergedFormState);
@@ -743,6 +757,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           existingClassDateIds: editInitialData.existingClassDateIds,
           existingWeeklySlotIds: editInitialData.existingWeeklySlotIds,
           shouldUpdateSchedule,
+          memo: formState.memo,
         });
 
         setSaveState("idle");
@@ -772,6 +787,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         specialOption: formState.specialOption,
         weeklySlots: weeklySlotsForSave,
         generatedClassDates: generatedDatesForSave,
+        memo: formState.memo,
       });
 
       setSaveState("idle");
@@ -792,8 +808,12 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex h-full w-full items-center justify-center bg-black/40 px-3 py-6">
+  if (!isOpen || !isMounted) {
+    return null;
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex h-full w-full items-center justify-center bg-black/40 px-3 py-6">
       <div className="flex h-full max-h-[680px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         <header className="flex h-16 w-full items-center justify-between border-b border-neutral-200 px-5">
           <div>
@@ -814,7 +834,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
         </header>
         <div className="flex-1 min-h-0 overflow-y-auto bg-neutral-50 px-5 py-6">
           <div className="flex flex-col gap-6">
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <h3 className="text-base font-semibold text-neutral-900">基本情報</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="flex w-full flex-col gap-2">
@@ -828,7 +848,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         className: event.target.value,
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                     placeholder="例: プログラミング演習"
                   />
                 </label>
@@ -874,7 +894,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         };
                       })
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                   >
                     <option value="in_person">対面</option>
                     <option value="online">オンライン</option>
@@ -895,7 +915,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                             locationInPerson: event.target.value,
                           }))
                         }
-                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                         placeholder="例: 3号館201教室"
                       />
                     </label>
@@ -910,7 +930,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                             locationOnline: event.target.value,
                           }))
                         }
-                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                        className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                         placeholder="例: Zoom ミーティング URL"
                       />
                     </label>
@@ -927,7 +947,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                           location: event.target.value,
                         }))
                       }
-                      className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                       placeholder="例: 3号館201教室"
                     />
                   </label>
@@ -943,17 +963,43 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         teacher: event.target.value,
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                     placeholder="例: 山田 太郎"
                   />
                 </label>
+                <div className="flex w-full flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-neutral-700">メモ（任意）</span>
+                    {formState.memo.trim().length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setIsMemoPreviewOpen(true)}
+                        className="flex items-center gap-1 rounded border border-neutral-300 px-2 py-1 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-100"
+                      >
+                        <FontAwesomeIcon icon={faEye} className="text-xs" />
+                        プレビュー
+                      </button>
+                    ) : null}
+                  </div>
+                  <textarea
+                    value={formState.memo}
+                    onChange={(event) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        memo: event.target.value,
+                      }))
+                    }
+                    className="min-h-[72px] w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
+                    placeholder="例: オンラインのみ・課題多め など"
+                  />
+                </div>
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <h3 className="text-base font-semibold text-neutral-900">日程設定</h3>
               <div className="mt-4 flex flex-col gap-4">
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 bg-white">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-neutral-700">年度・学期・特殊日程</p>
                     <p className="mt-1 text-xs text-neutral-500">{termSummaryText}</p>
@@ -976,7 +1022,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 bg-white">
                   <div className="flex-1">
                     <p className="text-sm font-medium text-neutral-700">曜日・時限</p>
                     <p className="mt-1 text-xs text-neutral-500">{slotSummaryText}</p>
@@ -1017,7 +1063,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <h3 className="text-base font-semibold text-neutral-900">単位・出欠</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="flex w-full flex-col gap-2">
@@ -1036,7 +1082,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                     className={`w-full rounded border px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 ${
                       formState.isFullyOnDemand
                         ? "border-neutral-200 bg-neutral-100 text-neutral-500"
-                        : "border-neutral-300"
+                        : "border-neutral-300 bg-white"
                     }`}
                   />
                   <span className="text-xs text-neutral-500">推奨値: {recommendedAbsence} 回</span>
@@ -1052,7 +1098,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         creditsText: event.target.value,
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                     placeholder="例: 2"
                   />
                 </label>
@@ -1066,7 +1112,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                         creditsStatus: event.target.value as FormState["creditsStatus"],
                       }))
                     }
-                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    className="w-full rounded border border-neutral-300 px-3 py-2 text-sm text-neutral-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-white"
                   >
                     <option value="in_progress">履修中</option>
                     <option value="completed">修得済み</option>
@@ -1076,7 +1122,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
               </div>
             </section>
 
-            <section className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+            <section>
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-neutral-900">日程プレビュー</h3>
                 <span className="text-xs text-neutral-500">
@@ -1098,7 +1144,7 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
                   {previewDates.map((item) => (
                     <li
                       key={item.date}
-                      className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2"
+                      className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 bg-white"
                     >
                       <span>{item.date}</span>
                       <span className="text-xs text-neutral-500">
@@ -1208,7 +1254,14 @@ export function CreateClassDialog(props: CreateClassDialogProps) {
           }}
         />
       ) : null}
-    </div>
+
+      <ClassMemoOverlay
+        open={isMemoPreviewOpen}
+        memo={formState.memo}
+        onClose={() => setIsMemoPreviewOpen(false)}
+      />
+    </div>,
+    document.body,
   );
 }
 
