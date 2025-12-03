@@ -47,12 +47,19 @@ export function enumerateMonthKeys(start: Date, end: Date): string[] {
   const keys: string[] = [];
   const startParts = getDatePartsInTimeZone(start);
   const endParts = getDatePartsInTimeZone(end);
-  const current = createMidnightDateFromKey(`${startParts.year}-${startParts.month}-01`);
-  const last = createMidnightDateFromKey(`${endParts.year}-${endParts.month}-01`);
-  while (current <= last) {
-    const key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+
+  let year = startParts.year;
+  let month = startParts.month;
+
+  while (year < endParts.year || (year === endParts.year && month <= endParts.month)) {
+    const key = `${year}-${String(month).padStart(2, '0')}`;
     keys.push(key);
-    current.setMonth(current.getMonth() + 1);
+
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
   }
   return keys;
 }
