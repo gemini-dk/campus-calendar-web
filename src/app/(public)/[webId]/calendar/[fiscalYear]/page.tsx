@@ -24,7 +24,7 @@ const KEYWORD_VARIANTS = [
 type PageParams = { webId: string; fiscalYear: string };
 
 type PageProps = {
-  params: PageParams;
+  params: Promise<PageParams>;
 };
 
 type PrefetchedUniversityCalendar = UniversityCalendar & {
