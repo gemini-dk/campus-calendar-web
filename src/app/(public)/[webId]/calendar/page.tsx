@@ -3,7 +3,7 @@ import { permanentRedirect } from "next/navigation";
 const DEFAULT_FISCAL_YEAR = "2025";
 
 type PageProps = {
-  params: { webId: string };
+  params: Promise<{ webId: string }>;
 };
 
 export default async function Page({ params }: PageProps) {

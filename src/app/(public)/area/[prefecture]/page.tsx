@@ -15,9 +15,9 @@ import GlobalFooter from '@/components/ui/GlobalFooter';
 export const dynamic = 'force-dynamic';
 
 type PrefecturePageProps = {
-  params: {
+  params: Promise<{
     prefecture: string;
-  };
+  }>;
 };
 
 function buildDescription(prefecture: PrefectureDefinition): string {

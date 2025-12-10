@@ -3,8 +3,8 @@ import { getCalendarDays, getCalendarTerms } from "@/lib/data/service/calendar.s
 import type { CalendarDay, CalendarTerm } from "@/lib/data/schema/calendar";
 
 type PageProps = {
-  params: { calendarId: string };
-  searchParams: { [key: string]: string | string[] | undefined };
+  params: Promise<{ calendarId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 
@@ -23,9 +23,10 @@ function parseBooleanLike(value: string | undefined): boolean | undefined {
 }
 
 export default async function Page({ params, searchParams }: PageProps) {
-  const rawYear = searchParams.year;
-  const rawMonth = searchParams.month;
-  const rawHasSaturdayClasses = searchParams.hasSaturdayClasses;
+  const resolvedSearchParams = await searchParams;
+  const rawYear = resolvedSearchParams.year;
+  const rawMonth = resolvedSearchParams.month;
+  const rawHasSaturdayClasses = resolvedSearchParams.hasSaturdayClasses;
 
   const fiscalYear = typeof rawYear === "string" ? rawYear : "";
   const month = typeof rawMonth === "string" ? Number(rawMonth) : NaN;
