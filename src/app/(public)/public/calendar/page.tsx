@@ -1,6 +1,6 @@
 import PublicCalendarLanding from "./_components/PublicCalendarLanding";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 86400;
 
 export default function Page() {
   return <PublicCalendarLanding />;
